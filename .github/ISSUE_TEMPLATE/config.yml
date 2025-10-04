@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/GyeongHoKim/uxlint/discussions
+    about: Please ask questions and discuss general topics here
+  - name: GitHub Community Support
+    url: https://github.com/GyeongHoKim/uxlint/discussions/categories/general
+    about: Get community support here

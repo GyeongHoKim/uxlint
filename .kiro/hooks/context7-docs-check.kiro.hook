@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Context7 Documentation Check",
+  "description": "Monitors code files for library/API usage and prompts agent to check official documentation through Context7 MCP first",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "source/**/*.tsx",
+      "source/**/*.ts",
+      "tests/**/*.tsx",
+      "tests/**/*.ts",
+      "**/*.js",
+      "**/*.jsx"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "When you detect that code is being written that uses external library methods or APIs, you must first use the Context7 MCP to read the official documentation for those methods/APIs before proceeding with implementation. This ensures accurate usage and prevents errors from outdated or incorrect assumptions about the API."
+  }
+}

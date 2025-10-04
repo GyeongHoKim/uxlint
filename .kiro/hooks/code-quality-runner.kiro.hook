@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Code Quality Runner",
+  "description": "Automatically runs compile, lint, and format npm scripts after modifying TypeScript/React source code to ensure code quality and consistency",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "source/**/*.tsx",
+      "source/**/*.ts",
+      "tests/**/*.tsx",
+      "tests/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Code files have been modified. Please run the following npm scripts in sequence to ensure code quality: 1) npm run compile (for type checking), 2) npm run lint (for ESLint), and 3) npm run format (for Prettier formatting). Execute these commands and report any issues that need to be addressed."
+  }
+}
