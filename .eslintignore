@@ -1,5 +1,12 @@
 dist
 node_modules
+.specify
+.claude
+.kiro
+.tsimp
+coverage
+CLAUDE.md
+AGENTS.md
 commitlint.config.js
 ava.config.js
 xo.config.js

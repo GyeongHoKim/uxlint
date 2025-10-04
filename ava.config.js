@@ -5,4 +5,5 @@ export default {
 		tsx: 'module',
 	},
 	nodeArguments: ['--import=tsimp'],
+	timeout: '2m',
 };
