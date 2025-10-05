@@ -31,7 +31,8 @@
 		"build": "tsc",
 		"dev": "tsc --watch",
 		"compile": "tsc --noEmit",
-		"test": "prettier --check . && xo && c8 ava",
+		"test": "prettier --check . && xo && ava",
+		"test:coverage": "prettier --check . && xo && c8 ava",
 		"lint": "xo",
 		"format": "prettier --write .",
 		"prepare": "husky"
@@ -60,13 +61,17 @@
 		"ink-testing-library": "^3.0.0",
 		"prettier": "^2.8.8",
 		"ts-node": "^10.9.1",
-		"tsimp": "^2.0.12",
-		"typescript": "^5.5.4",
+		"tsimp": "2.0.12",
+		"typescript": "5.5.4",
 		"xo": "^0.53.1"
 	},
 	"xo": {
 		"extends": "xo-react",
 		"prettier": true,
+		"files": [
+			"source",
+			"tests"
+		],
 		"rules": {
 			"react/prop-types": "off",
 			"react/react-in-jsx-scope": "off",
