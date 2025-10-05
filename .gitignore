@@ -4,3 +4,4 @@ dist
 .npmrc
 .tsimp
 coverage
+.uxlintrc.json

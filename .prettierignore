@@ -4,6 +4,7 @@ node_modules
 .claude
 .kiro
 .tsimp
+.claude
 coverage
 CLAUDE.md
 AGENTS.md

@@ -48,7 +48,7 @@ npm test tests/test.spec.tsx
 
 **Run tests in watch mode:**
 ```bash
-npx ava --watch
+npm run test --watch
 ```
 
 ### Required After Code Changes (Constitution I: Code Quality Gates)
@@ -61,7 +61,7 @@ npm run lint          # Check linting rules (zero violations required)
 npm run format        # Format code with Prettier (applied consistently)
 ```
 
-These quality gates are enforced by the project constitution and prevent commits with type errors, linting violations, or formatting inconsistencies.
+These quality gates are enforced by the project constitution and prevent commits with type errors, linting violations, or formatting inconsistencies. Also, do not bypass linting by using `// eslint-disable-next-line` or modifying the linting rules.
 
 ### Local Testing
 

@@ -1,21 +1,17 @@
 {
 	"editor.formatOnSave": true,
 	"xo.enable": true,
-	"xo.format.enable": true,
+	"xo.format.enable": false,
 	"[javascript]": {
-		"editor.defaultFormatter": "samverschueren.linter-xo"
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	},
 	"[javascriptreact]": {
-		"editor.defaultFormatter": "samverschueren.linter-xo"
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	},
 	"[typescript]": {
-		"editor.defaultFormatter": "samverschueren.linter-xo"
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	},
 	"[typescriptreact]": {
-		"editor.defaultFormatter": "samverschueren.linter-xo"
-	},
-	"editor.codeActionsOnSave": {
-		"source.fixAll": "explicit", // or you can use the xo specific code action on save
-		"source.fixAll.xo": "explicit"
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	}
 }
