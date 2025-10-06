@@ -49,7 +49,6 @@ App (Main Container)
 Core Business Logic (Pure TypeScript)
 ├── ValidationEngine
 │   ├── URLValidator
-│   ├── EmailValidator
 │   ├── RequiredValidator
 │   └── CompositeValidator
 └── InputProcessor
@@ -135,7 +134,6 @@ interface UserInputProps {
 ```typescript
 class ValidationEngine {
   static url(value: string): ValidationResult;
-  static email(value: string): ValidationResult;
   static required(value: string): ValidationResult;
   static minLength(min: number): (value: string) => ValidationResult;
   static compose(...validators: Validator[]): Validator;
@@ -318,7 +316,6 @@ interface InputState {
 // Predefined validators for common use cases
 interface ValidatorLibrary {
   url: (value: string) => ValidationResult;
-  email: (value: string) => ValidationResult;
   required: (value: string) => ValidationResult;
   minLength: (min: number) => (value: string) => ValidationResult;
   custom: (fn: (value: string) => boolean, errorMessage: string) => (value: string) => ValidationResult;
@@ -416,7 +413,6 @@ const detectColorSupport = (): {
 
 **Built-in Validators:**
 - **URL Validator:** Valid HTTP/HTTPS URL, auto-prepend protocol, reachability check
-- **Email Validator:** RFC-compliant email format validation
 - **Required Validator:** Non-empty input validation
 - **Length Validators:** Minimum/maximum length constraints
 - **Custom Validators:** User-defined validation functions
@@ -760,18 +756,18 @@ test('UserInput works with different input types', t => {
   const mockSubmit = () => {};
   const theme = { primary: '#6366f1' };
   
-  // Test email type
-  const {lastFrame: emailFrame} = render(
+  // Test URL type
+  const {lastFrame: urlFrame} = render(
     <UserInput 
       onSubmit={mockSubmit} 
       theme={theme}
-      type="email"
-      validator={ValidationEngine.email}
-      placeholder="user@example.com"
+      type="url"
+      validator={ValidationEngine.url}
+      placeholder="https://example.com"
     />
   );
   
-  t.true(emailFrame().includes('user@example.com'));
+  t.true(urlFrame().includes('https://example.com'));
   
   // Test text type
   const {lastFrame: textFrame} = render(
