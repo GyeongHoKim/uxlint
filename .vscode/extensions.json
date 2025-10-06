@@ -1,8 +1,0 @@
-{
-	"recommendations": [
-		"samverschueren.linter-xo",
-		"esbenp.prettier-vscode",
-		"nucllear.vscode-extension-auto-import",
-		"sanjulaganepola.github-local-actions"
-	]
-}

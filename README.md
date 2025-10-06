@@ -17,7 +17,7 @@ Designed for frontend engineers who want quick, actionable UX feedback aligned w
 
 ## Quick start
 
-1. Create a configuration file in your project root named either `uxlintrc.yml` or `uxlintrc.json`.
+1. Create a configuration file in your project root named either `.uxlintrc.yml` or `.uxlintrc.json`.
 
 2. Run the CLI:
 
@@ -31,8 +31,8 @@ The CLI reads the configuration file in the current working directory and writes
 
 uxlint reads one of the following files from the current working directory (CWD):
 
-- `uxlintrc.yml`
-- `uxlintrc.json`
+- `.uxlintrc.yml`
+- `.uxlintrc.json`
 
 ### Schema
 
@@ -107,7 +107,7 @@ report:
 
 ## Usage
 
-Run from the directory that contains `uxlintrc.yml` or `uxlintrc.json`:
+Run from the directory that contains `.uxlintrc.yml` or `.uxlintrc.json`:
 
 ```bash
 npx uxlint
@@ -122,7 +122,7 @@ The command exits after writing the report to the configured path.
 
 ## Troubleshooting
 
-- Config not found: Ensure the file name is exactly `uxlintrc.yml` or `uxlintrc.json` and that you run the command from the same directory.
+- Config not found: Ensure the file name is exactly `.uxlintrc.yml` or `.uxlintrc.json` and that you run the command from the same directory.
 - Invalid config: Validate your YAML/JSON syntax and required fields.
 - Network reachability: Confirm the listed URLs are publicly accessible from your environment.
 
