@@ -37,7 +37,6 @@
 
 ### Quality & Git
 
-- `.eslintignore` - Excludes dist, node_modules, config files
 - `.husky/` - Git hooks for commit-msg and pre-commit
 - `commitlint.config.js` - Conventional commit enforcement
 
