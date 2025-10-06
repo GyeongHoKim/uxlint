@@ -12,9 +12,10 @@ export * from './validation-engine.js';
 // Input processor
 export * from './input-processor.js';
 
+// Theme system
+export * from './theme.js';
+
 // Re-export commonly used types for convenience
 export type {Validator} from './validation-engine.js';
 
 export type {ProcessedInput} from './input-processor.js';
-
-export type {UxlintError} from './errors.js';
