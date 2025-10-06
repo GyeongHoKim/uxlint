@@ -91,13 +91,12 @@ node dist/cli.js
 
 ### Code Quality
 
-- XO extends `xo-react` with Prettier integration
-- React-specific rules disabled: prop-types, react-in-jsx-scope
+- XO with Prettier integration
 - EditorConfig enforces consistent formatting
 
 ## Configuration Files
 
-The CLI reads `uxlintrc.yml` or `uxlintrc.json` from CWD with:
+The CLI reads `.uxlintrc.yml` or `.uxlintrc.json` from CWD with:
 
 - `mainPageUrl` and `subPageUrls` - URLs to analyze
 - `pages[]` - Feature descriptions per URL
