@@ -1,7 +1,7 @@
 import {Text} from 'ink';
 
 type Props = {
-	readonly name: string | undefined;
+	readonly name?: string;
 };
 
 export default function App({name = 'Stranger'}: Props) {
