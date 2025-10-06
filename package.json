@@ -31,9 +31,9 @@
 		"build": "tsc",
 		"dev": "tsc --watch",
 		"compile": "tsc --noEmit",
-		"test": "prettier --check . && xo && ava",
-		"test:coverage": "prettier --check . && xo && c8 ava",
-		"lint": "xo",
+		"test": "prettier --check . && xo \"source/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" && ava",
+		"test:coverage": "prettier --check . && xo \"source/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" && c8 ava",
+		"lint": "xo \"source/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\"",
 		"format": "prettier --write .",
 		"prepare": "husky"
 	},
@@ -63,19 +63,27 @@
 		"ts-node": "^10.9.1",
 		"tsimp": "2.0.12",
 		"typescript": "5.5.4",
-		"xo": "^0.53.1"
+		"xo": "^1.2.2"
 	},
 	"xo": {
-		"extends": "xo-react",
+		"react": true,
 		"prettier": true,
 		"files": [
-			"source",
-			"tests"
+			"source/**/*.{ts,tsx}",
+			"tests/**/*.{ts,tsx}"
+		],
+		"ignores": [
+			"dist/**",
+			"**/*.config.js",
+			"**/*.config.cjs",
+			"**/*.config.mjs",
+			"**/*.mjs"
 		],
 		"rules": {
 			"react/prop-types": "off",
 			"react/react-in-jsx-scope": "off",
 			"unicorn/expiring-todo-comments": "off"
-		}
+		},
+		"semicolon": true
 	}
 }
