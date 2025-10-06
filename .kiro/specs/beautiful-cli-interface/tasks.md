@@ -10,7 +10,7 @@ Convert the feature design into a series of prompts for a code-generation LLM th
   - Set up proper TypeScript interfaces and exports
   - _Requirements: 1.1, 1.3, 3.1, 3.3, 5.1_
 
-- [ ]* 1.1 Write unit tests for core models
+- [x] 1.1 Write unit tests for core models
   - Test ValidationEngine URL validation with various input scenarios
   - Test InputProcessor normalization and sanitization
   - Test theme constants and ThemeEngine utilities
