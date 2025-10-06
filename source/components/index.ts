@@ -4,3 +4,4 @@
  */
 
 export {Header} from './header.js';
+export {UserInput} from './user-input.js';
