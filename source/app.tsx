@@ -1,13 +1,9 @@
 import {useState} from 'react';
 import {Box} from 'ink';
-import {UserInput, UserInputLabel} from './components/index.js';
+import {Header, UserInput, UserInputLabel} from './components/index.js';
 import {defaultTheme} from './models/theme.js';
 
-type Props = {
-	readonly name?: string;
-};
-
-export default function App(_props: Props) {
+export default function App() {
 	const [inputValue, setInputValue] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | undefined>(undefined);
@@ -53,6 +49,7 @@ export default function App(_props: Props) {
 
 	return (
 		<Box flexDirection="column" gap={1}>
+			<Header theme={defaultTheme} />
 			<UserInputLabel
 				text="Website URL"
 				variant="required"
@@ -61,9 +58,10 @@ export default function App(_props: Props) {
 			<UserInput
 				{...getInputVariant()}
 				theme={defaultTheme}
-				onValueChange={setInputValue}
+				onChange={setInputValue}
 				onSubmit={handleSubmit}
 			/>
+			{/** 옵션 목록들 보여줘야 함 */}
 		</Box>
 	);
 }

@@ -3,56 +3,43 @@
  * Provides controlled input with validation states, loading feedback, and keyboard handling
  */
 
-import React from 'react';
-import {Text, Box} from 'ink';
+import process from 'node:process';
+import {Box, Text} from 'ink';
 import Spinner from 'ink-spinner';
-import type {ThemeConfig} from '../models/index.js';
+import React, {useEffect} from 'react';
 import {useKeyboardInput} from '../hooks/use-keyboard-input.js';
+import type {ThemeConfig} from '../models/index.js';
 
 /**
  * Base props shared across all variants
  */
 export type BaseUserInputProps = {
-	readonly onValueChange?: (value: string) => void;
-	readonly onSubmit?: (value: string) => void;
+	readonly placeholder?: string;
 	readonly disabled?: boolean;
+	readonly loadingText?: string;
+	readonly onChange?: (value: string) => void;
+	readonly onSubmit?: (value: string) => void;
 };
 
 /**
  * Default variant - normal input state
  */
-export type DefaultVariant = {
-	readonly variant: 'default';
-	readonly value: string;
-	readonly placeholder?: string;
-};
+export type DefaultVariant = 'default';
 
 /**
  * Typing variant - active input state with hint
  */
-export type TypingVariant = {
-	readonly variant: 'typing';
-	readonly value: string;
-	readonly placeholder?: string;
-};
+export type TypingVariant = 'typing';
 
 /**
  * Loading variant - spinner with loading text, input disabled
  */
-export type LoadingVariant = {
-	readonly variant: 'loading';
-	readonly loadingText: string;
-};
+export type LoadingVariant = 'loading';
 
 /**
  * Error variant - error message with input correction capability
  */
-export type ErrorVariant = {
-	readonly variant: 'error';
-	readonly error: string;
-	readonly value: string;
-	readonly placeholder?: string;
-};
+export type ErrorVariant = 'error';
 
 /**
  * Discriminated union of all UserInput variants
@@ -66,25 +53,9 @@ export type UserInputVariant =
 /**
  * Complete UserInput props combining variant and base props
  */
-export type UserInputVariantProps = UserInputVariant & BaseUserInputProps;
-
-/**
- * Type guard to check if variant has value property
- */
-export function hasValue(
-	variant: UserInputVariant,
-): variant is DefaultVariant | TypingVariant | ErrorVariant {
-	return 'value' in variant;
-}
-
-/**
- * Type guard to check if variant has placeholder property
- */
-export function hasPlaceholder(
-	variant: UserInputVariant,
-): variant is DefaultVariant | TypingVariant | ErrorVariant {
-	return 'placeholder' in variant;
-}
+export type UserInputVariantProps = {
+	readonly variant: UserInputVariant;
+} & BaseUserInputProps;
 
 /**
  * Type guard to check if variant is interactive (allows input)
@@ -92,7 +63,7 @@ export function hasPlaceholder(
 export function isInteractive(
 	variant: UserInputVariant,
 ): variant is DefaultVariant | TypingVariant | ErrorVariant {
-	return variant.variant !== 'loading';
+	return variant !== 'loading';
 }
 
 /**
@@ -101,7 +72,7 @@ export function isInteractive(
 export function isErrorVariant(
 	variant: UserInputVariant,
 ): variant is ErrorVariant {
-	return variant.variant === 'error';
+	return variant === 'error';
 }
 
 /**
@@ -110,30 +81,19 @@ export function isErrorVariant(
 export function isLoadingVariant(
 	variant: UserInputVariant,
 ): variant is LoadingVariant {
-	return variant.variant === 'loading';
+	return variant === 'loading';
 }
-
-// Old UserInputProps removed - now using UserInputVariantProps
-
-/**
- * Keyboard state from useKeyboardInput hook
- */
-type KeyboardState = {
-	readonly isTyping: boolean;
-};
 
 /**
  * Render default variant - normal input state
  */
 function renderDefaultVariant(
-	variant: DefaultVariant,
 	theme: ThemeConfig,
-	keyboardState: KeyboardState,
+	isTyping: boolean,
+	value?: string,
+	placeholder?: string,
 ): React.JSX.Element {
-	const {value, placeholder} = variant;
-	const {isTyping} = keyboardState;
-
-	const displayValue = value || '';
+	const displayValue = value ?? '';
 	const showPlaceholder = !displayValue && !isTyping && placeholder;
 
 	return (
@@ -152,14 +112,12 @@ function renderDefaultVariant(
  * Render typing variant - active input state with hint
  */
 function renderTypingVariant(
-	variant: TypingVariant,
 	theme: ThemeConfig,
-	keyboardState: KeyboardState,
+	isTyping: boolean,
+	value?: string,
+	placeholder?: string,
 ): React.JSX.Element {
-	const {value, placeholder} = variant;
-	const {isTyping} = keyboardState;
-
-	const displayValue = value || '';
+	const displayValue = value ?? '';
 	const showPlaceholder = !displayValue && !isTyping && placeholder;
 
 	return (
@@ -183,11 +141,9 @@ function renderTypingVariant(
  * Render loading variant - spinner with loading text, input disabled
  */
 function renderLoadingVariant(
-	variant: LoadingVariant,
 	theme: ThemeConfig,
+	loadingText?: string,
 ): React.JSX.Element {
-	const {loadingText} = variant;
-
 	return (
 		<Box>
 			<Text color={theme.accent}>
@@ -203,15 +159,15 @@ function renderLoadingVariant(
  * Render error variant - error message with input correction capability
  */
 function renderErrorVariant(
-	variant: ErrorVariant,
 	theme: ThemeConfig,
-	keyboardState: KeyboardState,
+	isTyping: boolean,
+	value?: string,
+	placeholder?: string,
+	error?: Error,
 ): React.JSX.Element {
-	const {error, value, placeholder} = variant;
-	const {isTyping} = keyboardState;
-
-	const displayValue = value || '';
+	const displayValue = value ?? '';
 	const showPlaceholder = !displayValue && !isTyping && placeholder;
+	const displayError = error?.message ?? '';
 
 	return (
 		<Box flexDirection="column" gap={1}>
@@ -225,7 +181,7 @@ function renderErrorVariant(
 			</Box>
 			<Box>
 				<Text color={theme.status.error}>✗ </Text>
-				<Text color={theme.status.error}>{error}</Text>
+				<Text color={theme.status.error}>{displayError}</Text>
 			</Box>
 		</Box>
 	);
@@ -235,45 +191,53 @@ function renderErrorVariant(
  * Pure UI component for displaying input interface with variant-based state management
  * Handles visual states and keyboard input without business logic
  */
-export function UserInput(props: UserInputVariantProps & {theme: ThemeConfig}) {
-	const {theme, onValueChange, onSubmit, disabled, ...variant} = props;
+export function UserInput(
+	props: UserInputVariantProps & {readonly theme: ThemeConfig},
+) {
+	const {
+		theme,
+		onChange,
+		onSubmit,
+		disabled,
+		variant,
+		placeholder,
+		loadingText,
+	} = props;
 
 	// Always call the hook, but conditionally use its result
-	const keyboardState = useKeyboardInput({
-		isLoading: variant.variant === 'loading',
-		value: hasValue(variant) ? variant.value : '',
-		onChange:
-			onValueChange ??
-			(() => {
-				// No-op default handler
-			}),
-		onSubmit() {
-			if (hasValue(variant) && onSubmit) {
-				onSubmit(variant.value);
-			}
+	const {isTyping, value} = useKeyboardInput({
+		isLoading: variant === 'loading',
+		isDisabled: disabled,
+		onSubmit,
+		onInterrupt() {
+			process.exit(0);
 		},
 	});
 
-	// For loading variant, ignore keyboard state
-	const effectiveKeyboardState =
-		variant.variant === 'loading' ? {isTyping: false} : keyboardState;
+	useEffect(() => {
+		if (onChange) {
+			onChange(value);
+		}
+	}, [value, onChange]);
 
 	// Switch based on variant type for type-safe rendering
-	switch (variant.variant) {
+	switch (variant) {
 		case 'default': {
-			return renderDefaultVariant(variant, theme, effectiveKeyboardState);
+			return renderDefaultVariant(theme, isTyping, value, placeholder);
 		}
 
 		case 'typing': {
-			return renderTypingVariant(variant, theme, effectiveKeyboardState);
+			return renderTypingVariant(theme, isTyping, value, placeholder);
 		}
 
 		case 'loading': {
-			return renderLoadingVariant(variant, theme);
+			return renderLoadingVariant(theme, loadingText);
 		}
 
 		case 'error': {
-			return renderErrorVariant(variant, theme, effectiveKeyboardState);
+			return renderErrorVariant(theme, isTyping, value, placeholder);
 		}
 	}
+
+	return null;
 }

@@ -3,14 +3,15 @@
  * Provides keyboard event handling for Ink-based input components
  */
 
+import process from 'node:process';
 import {useInput} from 'ink';
-import {useState, useEffect} from 'react';
+import {useEffect, useState} from 'react';
 
 export type KeyboardHandlers = {
 	readonly isLoading: boolean;
-	readonly value: string;
-	readonly onChange: (value: string) => void;
-	readonly onSubmit: () => void;
+	readonly isDisabled?: boolean;
+	readonly onSubmit?: (value: string) => void;
+	readonly onInterrupt?: () => void;
 };
 
 /**
@@ -18,8 +19,9 @@ export type KeyboardHandlers = {
  * Manages character input, backspace, enter, and interruption handling
  */
 export function useKeyboardInput(handlers: KeyboardHandlers) {
-	const {isLoading, value, onChange, onSubmit} = handlers;
+	const {isLoading, isDisabled, onSubmit, onInterrupt} = handlers;
 	const [isTyping, setIsTyping] = useState(false);
+	const [value, setValue] = useState('');
 
 	// Debounce typing state - set to false after 1 second of no input
 	useEffect(() => {
@@ -38,33 +40,31 @@ export function useKeyboardInput(handlers: KeyboardHandlers) {
 	}, [value]);
 
 	useInput((input, key) => {
-		if (isLoading) {
+		if (isLoading || isDisabled) {
 			return;
 		}
 
-		// Set typing state on any input
 		setIsTyping(true);
 
-		if (key.return) {
-			setIsTyping(false); // Clear typing state on submit
-			onSubmit();
-			return;
-		}
-
-		if (key.backspace || key.delete) {
-			onChange(value.slice(0, -1));
+		if (key.return && !key.shift && onSubmit) {
+			setValue('');
+			setIsTyping(false);
+			onSubmit(value);
 			return;
 		}
 
 		if (key.ctrl && input === 'c') {
-			throw new Error('User interrupted');
+			if (onInterrupt) {
+				onInterrupt();
+			} else {
+				process.exit(0);
+			}
+
+			return;
 		}
 
-		// Handle regular character input
-		if (input && !key.ctrl && !key.meta) {
-			onChange(value + input);
-		}
+		setValue(previous => previous + input);
 	});
 
-	return {isTyping};
+	return {isTyping, value};
 }
