@@ -35,7 +35,8 @@
 		"test:coverage": "prettier --check . && xo \"source/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" && c8 ava",
 		"lint": "xo \"source/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\"",
 		"format": "prettier --write .",
-		"prepare": "husky"
+		"prepare": "husky",
+		"clean": "rimraf dist coverage node_modules .tsimp"
 	},
 	"files": [
 		"dist"
@@ -62,6 +63,7 @@
 		"husky": "^9.1.7",
 		"ink-testing-library": "^3.0.0",
 		"prettier": "^2.8.8",
+		"rimraf": "^6.0.1",
 		"ts-node": "^10.9.1",
 		"tsimp": "2.0.12",
 		"typescript": "5.5.4",
@@ -84,7 +86,8 @@
 		"rules": {
 			"react/prop-types": "off",
 			"react/react-in-jsx-scope": "off",
-			"unicorn/expiring-todo-comments": "off"
+			"unicorn/expiring-todo-comments": "off",
+			"unicorn/no-process-exit": "off"
 		},
 		"semicolon": true
 	}

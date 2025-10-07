@@ -1,0 +1,18 @@
+{
+	"editor.formatOnSave": true,
+	"xo.enable": true,
+	"xo.format.enable": true,
+	"xo.path": "./node_modules/xo/dist/index.js",
+	"[javascript]": {
+		"editor.defaultFormatter": "samverschueren.linter-xo"
+	},
+	"[javascriptreact]": {
+		"editor.defaultFormatter": "samverschueren.linter-xo"
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "samverschueren.linter-xo"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "samverschueren.linter-xo"
+	}
+}
