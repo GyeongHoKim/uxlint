@@ -17,9 +17,11 @@ const mockHandlers = {
 test('UserInput visual snapshot - normal state (empty)', t => {
 	const {lastFrame} = render(
 		<UserInput
-			theme={defaultTheme}
+			variant="default"
 			value=""
-			onChange={mockHandlers.onChange}
+			placeholder="Enter URL"
+			theme={defaultTheme}
+			onValueChange={mockHandlers.onChange}
 			onSubmit={mockHandlers.onSubmit}
 		/>,
 	);
@@ -31,9 +33,10 @@ test('UserInput visual snapshot - normal state (empty)', t => {
 test('UserInput visual snapshot - normal state (with value)', t => {
 	const {lastFrame} = render(
 		<UserInput
-			theme={defaultTheme}
+			variant="default"
 			value="https://example.com"
-			onChange={mockHandlers.onChange}
+			theme={defaultTheme}
+			onValueChange={mockHandlers.onChange}
 			onSubmit={mockHandlers.onSubmit}
 		/>,
 	);
@@ -45,12 +48,9 @@ test('UserInput visual snapshot - normal state (with value)', t => {
 test('UserInput visual snapshot - loading state', t => {
 	const {lastFrame} = render(
 		<UserInput
-			isLoading
+			variant="loading"
 			loadingText="Validating URL..."
 			theme={defaultTheme}
-			value="https://example.com"
-			onChange={mockHandlers.onChange}
-			onSubmit={mockHandlers.onSubmit}
 		/>,
 	);
 
@@ -59,13 +59,12 @@ test('UserInput visual snapshot - loading state', t => {
 });
 
 test('UserInput visual snapshot - typing state', t => {
-	// Note: typing state is managed internally by useKeyboardInput
-	// This test captures the visual state when user has typed something
 	const {lastFrame} = render(
 		<UserInput
-			theme={defaultTheme}
+			variant="typing"
 			value="https://exam"
-			onChange={mockHandlers.onChange}
+			theme={defaultTheme}
+			onValueChange={mockHandlers.onChange}
 			onSubmit={mockHandlers.onSubmit}
 		/>,
 	);
@@ -77,10 +76,11 @@ test('UserInput visual snapshot - typing state', t => {
 test('UserInput visual snapshot - error state', t => {
 	const {lastFrame} = render(
 		<UserInput
+			variant="error"
 			error="Please enter a valid URL"
-			theme={defaultTheme}
 			value="invalid-url"
-			onChange={mockHandlers.onChange}
+			theme={defaultTheme}
+			onValueChange={mockHandlers.onChange}
 			onSubmit={mockHandlers.onSubmit}
 		/>,
 	);
@@ -104,9 +104,10 @@ test('UserInput renders without calling handlers initially', t => {
 
 	render(
 		<UserInput
-			theme={defaultTheme}
+			variant="default"
 			value="test"
-			onChange={handleChange}
+			theme={defaultTheme}
+			onValueChange={handleChange}
 			onSubmit={handleSubmit}
 		/>,
 	);
@@ -119,9 +120,10 @@ test('UserInput renders without calling handlers initially', t => {
 test('UserInput accepts all required props', t => {
 	const {lastFrame} = render(
 		<UserInput
-			theme={defaultTheme}
+			variant="default"
 			value=""
-			onChange={mockHandlers.onChange}
+			theme={defaultTheme}
+			onValueChange={mockHandlers.onChange}
 			onSubmit={mockHandlers.onSubmit}
 		/>,
 	);
