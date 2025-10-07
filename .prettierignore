@@ -13,3 +13,4 @@ commitlint.config.js
 package-lock.json
 .tsimp
 coverage
+snapshots

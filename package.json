@@ -3,7 +3,7 @@
 	"version": "0.0.0",
 	"private": false,
 	"license": "MIT",
-	"bin": "dist/cli.js",
+	"bin": "dist/source/cli.js",
 	"type": "module",
 	"repository": {
 		"type": "git",
