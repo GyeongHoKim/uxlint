@@ -16,10 +16,10 @@ uxlint is an AI-powered UX review CLI tool built with TypeScript and React (Ink)
 - Husky for git hooks
 - Semantic release for versioning
 
-**Constitutional Principles** (see `.specify/memory/constitution.md` v1.0.0):
-1. Code Quality Gates (compile, lint, format) — NON-NEGOTIABLE
-2. Test-First Development (TDD with 80% coverage) — NON-NEGOTIABLE
-3. UX Consistency via Persona-First Design
+**Constitutional Principles** (see `.specify/memory/constitution.md` v1.1.0):
+1. Code Quality Gates (compile → format → lint sequence) — NON-NEGOTIABLE
+2. Test-First Development (Unit tests for models, visual regression for components) — NON-NEGOTIABLE
+3. UX Consistency via Persona-First Design (with Ink ecosystem library discovery via GitHub MCP)
 4. Performance Accountability (measurable goals)
 5. Simplicity & Minimalism (justify complexity)
 
@@ -53,15 +53,17 @@ npm run test --watch
 
 ### Required After Code Changes (Constitution I: Code Quality Gates)
 
-**NON-NEGOTIABLE:** After modifying any code, you MUST run these commands in sequence:
+**NON-NEGOTIABLE:** After modifying or creating any code, you MUST run these commands in this exact sequence:
 
 ```bash
 npm run compile       # Type-check the code (zero errors required)
-npm run lint          # Check linting rules (zero violations required)
 npm run format        # Format code with Prettier (applied consistently)
+npm run lint          # Check linting rules (zero violations required)
 ```
 
-These quality gates are enforced by the project constitution and prevent commits with type errors, linting violations, or formatting inconsistencies. Also, do not bypass linting by using `// eslint-disable-next-line` or modifying the linting rules.
+**Execution Order**: compile → format → lint. Running format before lint prevents formatting-related linting violations.
+
+These quality gates are enforced by the project constitution (v1.1.0) and prevent commits with type errors, linting violations, or formatting inconsistencies. Do not bypass linting by using `// eslint-disable-next-line` or modifying the linting rules.
 
 ### Local Testing
 
@@ -85,9 +87,17 @@ node dist/cli.js
 
 ### Testing Architecture
 
+**Testing Strategy** (Constitution II: Test-First Development):
+- **Models** (pure TypeScript classes/functions): Unit tests using Ava
+- **Components** (React/Ink UI): Visual regression tests using ink-testing-library
+- Tests MUST be written and approved BEFORE implementation
+- Tests MUST fail initially (red phase) before implementation begins
+- Coverage threshold: 80% via c8
+
+**Technical Setup**:
 - Ava configured in `ava.config.js` to use tsimp for TS/TSX support
-- Tests use `ink-testing-library` to render components and assert on output
-- Coverage via c8
+- ink-testing-library used to render components and assert on terminal output
+- c8 for coverage reporting
 
 ### Code Quality
 
