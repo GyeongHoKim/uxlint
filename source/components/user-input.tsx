@@ -4,19 +4,21 @@
  */
 
 import process from 'node:process';
-import {Box, Text} from 'ink';
+import {Box, Text, useInput} from 'ink';
 import Spinner from 'ink-spinner';
-import React, {useEffect} from 'react';
-import {useKeyboardInput} from '../hooks/use-keyboard-input.js';
+import TextInput from 'ink-text-input';
+import React from 'react';
 import type {ThemeConfig} from '../models/index.js';
 
 /**
  * Base props shared across all variants
  */
 export type BaseUserInputProps = {
+	readonly value: string;
 	readonly placeholder?: string;
 	readonly disabled?: boolean;
 	readonly loadingText?: string;
+	readonly error?: Error;
 	readonly onChange?: (value: string) => void;
 	readonly onSubmit?: (value: string) => void;
 };
@@ -87,23 +89,31 @@ export function isLoadingVariant(
 /**
  * Render default variant - normal input state
  */
-function renderDefaultVariant(
-	theme: ThemeConfig,
-	isTyping: boolean,
-	value?: string,
-	placeholder?: string,
-): React.JSX.Element {
-	const displayValue = value ?? '';
-	const showPlaceholder = !displayValue && !isTyping && placeholder;
+function renderDefaultVariant(props: {
+	theme: ThemeConfig;
+	value: string;
+	placeholder: string | undefined;
+	onChange: ((value: string) => void) | undefined;
+	onSubmit: ((value: string) => void) | undefined;
+	disabled: boolean | undefined;
+}): React.JSX.Element {
+	const {theme, value, placeholder, onChange, onSubmit, disabled} = props;
+	const handleChange =
+		onChange ??
+		(() => {
+			/* Noop */
+		});
 
 	return (
 		<Box>
 			<Text color={theme.text.secondary}>{'> '}</Text>
-			{showPlaceholder ? (
-				<Text color={theme.text.muted}>{placeholder}</Text>
-			) : (
-				<Text color={theme.text.primary}>{displayValue}</Text>
-			)}
+			<TextInput
+				focus={!disabled}
+				placeholder={placeholder}
+				value={value}
+				onChange={handleChange}
+				onSubmit={onSubmit}
+			/>
 		</Box>
 	);
 }
@@ -111,24 +121,32 @@ function renderDefaultVariant(
 /**
  * Render typing variant - active input state with hint
  */
-function renderTypingVariant(
-	theme: ThemeConfig,
-	isTyping: boolean,
-	value?: string,
-	placeholder?: string,
-): React.JSX.Element {
-	const displayValue = value ?? '';
-	const showPlaceholder = !displayValue && !isTyping && placeholder;
+function renderTypingVariant(props: {
+	theme: ThemeConfig;
+	value: string;
+	placeholder: string | undefined;
+	onChange: ((value: string) => void) | undefined;
+	onSubmit: ((value: string) => void) | undefined;
+	disabled: boolean | undefined;
+}): React.JSX.Element {
+	const {theme, value, placeholder, onChange, onSubmit, disabled} = props;
+	const handleChange =
+		onChange ??
+		(() => {
+			/* Noop */
+		});
 
 	return (
 		<Box flexDirection="column" gap={1}>
 			<Box>
 				<Text color={theme.text.secondary}>{'> '}</Text>
-				{showPlaceholder ? (
-					<Text color={theme.text.muted}>{placeholder}</Text>
-				) : (
-					<Text color={theme.text.primary}>{displayValue}</Text>
-				)}
+				<TextInput
+					focus={!disabled}
+					placeholder={placeholder}
+					value={value}
+					onChange={handleChange}
+					onSubmit={onSubmit}
+				/>
 			</Box>
 			<Text dimColor color={theme.text.muted}>
 				Press Enter to submit
@@ -158,26 +176,35 @@ function renderLoadingVariant(
 /**
  * Render error variant - error message with input correction capability
  */
-function renderErrorVariant(
-	theme: ThemeConfig,
-	isTyping: boolean,
-	value?: string,
-	placeholder?: string,
-	error?: Error,
-): React.JSX.Element {
-	const displayValue = value ?? '';
-	const showPlaceholder = !displayValue && !isTyping && placeholder;
+function renderErrorVariant(props: {
+	theme: ThemeConfig;
+	value: string;
+	placeholder: string | undefined;
+	onChange: ((value: string) => void) | undefined;
+	onSubmit: ((value: string) => void) | undefined;
+	disabled: boolean | undefined;
+	error: Error | undefined;
+}): React.JSX.Element {
+	const {theme, value, placeholder, onChange, onSubmit, disabled, error} =
+		props;
 	const displayError = error?.message ?? '';
+	const handleChange =
+		onChange ??
+		(() => {
+			/* Noop */
+		});
 
 	return (
 		<Box flexDirection="column" gap={1}>
 			<Box>
 				<Text color={theme.text.secondary}>{'> '}</Text>
-				{showPlaceholder ? (
-					<Text color={theme.text.muted}>{placeholder}</Text>
-				) : (
-					<Text color={theme.text.primary}>{displayValue}</Text>
-				)}
+				<TextInput
+					focus={!disabled}
+					placeholder={placeholder}
+					value={value}
+					onChange={handleChange}
+					onSubmit={onSubmit}
+				/>
 			</Box>
 			<Box>
 				<Text color={theme.status.error}>✗ </Text>
@@ -196,38 +223,45 @@ export function UserInput(
 ) {
 	const {
 		theme,
+		value,
 		onChange,
 		onSubmit,
 		disabled,
 		variant,
 		placeholder,
 		loadingText,
+		error,
 	} = props;
 
-	// Always call the hook, but conditionally use its result
-	const {isTyping, value} = useKeyboardInput({
-		isLoading: variant === 'loading',
-		isDisabled: disabled,
-		onSubmit,
-		onInterrupt() {
+	// Handle Ctrl+C interrupt
+	useInput((input, key) => {
+		if (key.ctrl && input === 'c') {
 			process.exit(0);
-		},
-	});
-
-	useEffect(() => {
-		if (onChange) {
-			onChange(value);
 		}
-	}, [value, onChange]);
+	});
 
 	// Switch based on variant type for type-safe rendering
 	switch (variant) {
 		case 'default': {
-			return renderDefaultVariant(theme, isTyping, value, placeholder);
+			return renderDefaultVariant({
+				theme,
+				value,
+				placeholder,
+				onChange,
+				onSubmit,
+				disabled,
+			});
 		}
 
 		case 'typing': {
-			return renderTypingVariant(theme, isTyping, value, placeholder);
+			return renderTypingVariant({
+				theme,
+				value,
+				placeholder,
+				onChange,
+				onSubmit,
+				disabled,
+			});
 		}
 
 		case 'loading': {
@@ -235,9 +269,15 @@ export function UserInput(
 		}
 
 		case 'error': {
-			return renderErrorVariant(theme, isTyping, value, placeholder);
+			return renderErrorVariant({
+				theme,
+				value,
+				placeholder,
+				onChange,
+				onSubmit,
+				disabled,
+				error,
+			});
 		}
 	}
-
-	return null;
 }
