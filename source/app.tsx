@@ -28,13 +28,17 @@ export default function App() {
 
 	const getInputVariant = () => {
 		if (isLoading) {
-			return {variant: 'loading' as const, loadingText: 'Validating URL...'};
+			return {
+				variant: 'loading' as const,
+				loadingText: 'Validating URL...',
+				value: inputValue,
+			};
 		}
 
 		if (error) {
 			return {
 				variant: 'error' as const,
-				error,
+				error: new Error(error),
 				value: inputValue,
 				placeholder: 'Enter a URL',
 			};
