@@ -1,20 +1,20 @@
 <!--
 Sync Impact Report:
-Version: 0.0.0 → 1.0.0 (MAJOR - Initial constitution ratification)
+Version: 1.0.0 → 1.1.0 (MINOR - Enhanced testing standards and UX library discovery guidance)
 
-Modified principles: Initial constitution creation with 5 core principles
+Modified principles:
+  - II. Test-First Development → Enhanced with specific testing strategies (unit for models, visual regression for components)
+  - III. UX Consistency via Persona-First Design → Enhanced with GitHub MCP tool requirement for Ink library discovery
 
-Added sections:
-  - Core Principles (I-V: Quality Gates, TDD, Persona-First UX, Performance, Simplicity)
-  - Code Quality Standards (TypeScript strict mode, linting, testing, commits)
-  - Development Workflow (pre-commit reqs, feature cycle, PR standards, dependency mgmt)
-  - Governance (constitutional authority, amendments, compliance, dev guidance)
+Added sections: None
+
+Removed sections: None
 
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md - Constitution Check section updated with v1.0.0 gates
-  ✅ .specify/templates/spec-template.md - Added Target Personas and Performance Goals sections
-  ✅ .specify/templates/tasks-template.md - Phase 3.5 renamed to "Quality Gates & Polish" with explicit gates
-  ✅ CLAUDE.md - Added constitutional principles overview and strengthened quality gate language
+  ✅ .specify/templates/plan-template.md - Constitution Check section updated with v1.1.0 gates and testing strategies
+  ✅ .specify/templates/spec-template.md - Testing strategies guidance added to User Scenarios section
+  ✅ .specify/templates/tasks-template.md - Test requirements updated from OPTIONAL to MANDATORY with strategy details
+  ✅ CLAUDE.md - Updated to reference v1.1.0, corrected quality gate sequence (compile→format→lint), added testing strategies
 
 Follow-up TODOs: None - All templates synchronized
 -->
@@ -25,128 +25,136 @@ Follow-up TODOs: None - All templates synchronized
 
 ### I. Code Quality Gates (NON-NEGOTIABLE)
 
-Every code change MUST pass all three quality checks before commit:
-- `npm run compile` — TypeScript type-checking with zero errors
-- `npm run lint` — XO linting with zero violations
-- `npm run format` — Prettier formatting applied consistently
+Every code change MUST pass all three quality checks in sequence after modification or creation:
+1. `npm run compile` — TypeScript type-checking with zero errors
+2. `npm run format` — Prettier formatting applied consistently
+3. `npm run lint` — XO linting with zero violations
 
-**Rationale**: These gates prevent technical debt accumulation and ensure codebase consistency. The compile-lint-format sequence catches errors progressively from type safety to style, making issues easier to isolate and fix.
+**Execution Order**: MUST run compile → format → lint in that exact sequence.
+
+**Rationale**: These gates prevent technical debt accumulation and ensure codebase consistency. The compile-format-lint sequence catches errors progressively from type safety to formatting to style rules, making issues easier to isolate and fix. Running format before lint prevents formatting-related linting violations.
 
 ### II. Test-First Development (NON-NEGOTIABLE)
 
-Test-Driven Development is mandatory for all features:
+Test-Driven Development is mandatory for all features with specific strategies:
+
+**Testing Strategies**:
+- **Models** (pure TypeScript classes/functions): Unit tests using Ava
+- **Components** (React/Ink UI): Visual regression tests using ink-testing-library
 - Tests written and user-approved BEFORE implementation begins
 - Tests MUST fail initially (red phase)
 - Implementation proceeds to make tests pass (green phase)
 - Refactoring follows with tests ensuring stability
 - Coverage threshold: minimum 80% via c8
 
-**Rationale**: TDD ensures requirements are testable, reduces defects, and creates living documentation. Pre-approved failing tests validate understanding before effort is invested in implementation.
+**Rationale**: TDD ensures requirements are testable, reduces defects, and creates living documentation. Pre-approved failing tests validate understanding before effort is invested in implementation. Separating unit and visual regression tests ensures appropriate testing approaches for business logic vs UI behavior.
 
 ### III. UX Consistency via Persona-First Design
 
-All user-facing features MUST be evaluated against defined personas:
+All user-facing features MUST be evaluated against defined personas and leverage appropriate Ink ecosystem libraries:
+
+**Persona Requirements**:
 - Every feature spec MUST reference at least one target persona
 - UX changes MUST consider persona goals, constraints, and devices
-- Feature descriptions MUST focus on user outcomes, not implementation
-- Accessibility needs from persona descriptions MUST be addressed
+- Terminal UI patterns MUST align with persona workflows (e.g., mobile-first users prefer concise output)
 
-**Rationale**: uxlint's core value is persona-aware UX analysis. Internal tooling must practice what it preaches—design decisions grounded in real user contexts prevent feature bloat and ensure usability.
+**Library Discovery** (for Ink-based features):
+- When adding features or refactoring, AI agents MUST search for relevant Ink ecosystem libraries using GitHub MCP tools
+- Prefer established Ink community libraries over custom implementations
+- Document library choices in feature specs with rationale
+
+**Rationale**: Persona-first design ensures features solve real user problems. For CLI tools built with Ink, leveraging the ecosystem prevents reinventing terminal UI patterns and maintains consistency with community standards. GitHub MCP tool usage ensures agents discover maintained, well-tested libraries.
 
 ### IV. Performance Accountability
 
-Performance requirements MUST be explicit and validated:
-- Every feature spec MUST define measurable performance goals (e.g., "CLI runs in <5s for 10 pages")
-- Build outputs MUST be optimized (tree-shaking, minification via TypeScript)
-- Dependency additions MUST be justified (document bundle impact in plan.md)
-- Integration tests MUST include performance assertions for critical paths
+All features MUST define measurable performance goals:
+- Goals MUST be specific to the domain (e.g., CLI response time, report generation speed)
+- Baseline metrics captured before optimization
+- Performance regressions blocked in code review
 
-**Rationale**: Performance is a feature, not an afterthought. Explicit goals prevent regressions and ensure uxlint remains fast enough for real-world workflows.
+**Rationale**: Explicit performance goals prevent gradual degradation and enable objective optimization decisions. Domain-specific metrics reflect actual user impact rather than generic benchmarks.
 
 ### V. Simplicity & Minimalism
 
-Complexity must be earned through justification:
-- Prefer standard library solutions over external dependencies
-- New abstractions require documented rationale in plan.md
-- Remove code before adding—refactor for clarity first
-- Configuration remains minimal (single config file, zero boilerplate)
+Complexity MUST be justified before introduction:
+- Default to the simplest solution that meets requirements
+- Additional abstractions require explicit rationale
+- YAGNI (You Aren't Gonna Need It) principles enforced
+- Complexity violations tracked in plan.md Complexity Tracking table
 
-**Rationale**: uxlint targets frontend engineers who value simplicity. Every layer of indirection slows debugging and increases cognitive load. Justified complexity only.
+**Rationale**: Premature abstraction creates maintenance burden. By requiring justification for complexity, we ensure every abstraction earns its place with clear benefits that outweigh its costs.
 
 ## Code Quality Standards
 
-### TypeScript Strict Mode
-- `@sindresorhus/tsconfig` enforced (strict: true, noImplicitAny, etc.)
-- No `any` types without explicit justification in code comments
-- All public APIs MUST have type declarations in dist/
+**TypeScript Configuration**:
+- Extends `@sindresorhus/tsconfig` with strict mode enabled
+- ES modules only (`"type": "module"`)
+- React JSX transform for Ink components
 
-### Linting & Formatting
-- XO with `xo-react` config (Prettier-integrated)
-- React-specific rules: prop-types off (TypeScript covers this), react-in-jsx-scope off (new JSX transform)
-- No ESLint disable comments without documented justification
+**Linting & Formatting**:
+- XO with React config and Prettier integration
+- No bypassing via `// eslint-disable-next-line` or config modifications
+- EditorConfig enforces consistent editor settings
 
-### Testing Standards
-- **Unit tests**: Ava with tsimp for TS/TSX support
-- **Component tests**: ink-testing-library for terminal UI assertions
-- **Contract tests**: For any external integrations (future: API contracts)
-- **Coverage**: c8 with 80% minimum threshold
-- Test file naming: `*.spec.tsx` for component tests, `*.test.ts` for utilities
+**Testing Requirements**:
+- Ava for unit and visual regression tests with tsimp for TypeScript support
+- c8 for coverage reporting (80% minimum)
+- ink-testing-library for component testing
 
-### Commit Discipline
-- Conventional commits enforced via commitlint
-- Husky pre-commit hook runs quality gates
-- No force-push to main/master
-- Semantic versioning automated via semantic-release
+**Commit Standards**:
+- Conventional Commits enforced via commitlint
+- Husky pre-commit hooks run quality gates
+- Semantic versioning via semantic-release
 
 ## Development Workflow
 
-### Pre-Commit Requirements
-1. Run `npm run compile` — Fix type errors
-2. Run `npm run lint` — Fix linting violations
-3. Run `npm run format` — Apply formatting
-4. Run `npm test` — Ensure all tests pass with coverage
+**Pre-Commit Requirements** (enforced by Husky):
+1. All code changes trigger automated quality gates
+2. Compile errors block commits
+3. Linting violations block commits
+4. Format inconsistencies auto-corrected then re-checked
 
-### Feature Development Cycle
-1. **Spec phase** (`/specify`): Define user value, personas affected, acceptance criteria
-2. **Plan phase** (`/plan`): Technical design, constitution check, task breakdown
-3. **Implementation**: TDD cycle (red → green → refactor) per task
-4. **Validation**: Quickstart test, performance benchmarks, UX review
+**Feature Development Cycle**:
+1. Write specification with persona mapping and performance goals
+2. Write tests (unit for models, visual regression for components) and get approval
+3. Verify tests fail (red phase)
+4. Implement to pass tests (green phase)
+5. Refactor with test safety net
+6. Run quality gates: `npm run compile && npm run format && npm run lint`
+7. Verify coverage threshold met
+8. Commit with conventional commit message
 
-### Pull Request Standards
-- PR description MUST reference personas impacted
-- PR MUST include test coverage for new code
-- CI checks MUST pass (compile, lint, format, test)
-- Manual testing checklist completed if UI changes
+**Pull Request Standards**:
+- All constitutional principles verified in review
+- Complexity justifications validated
+- Performance goals met or explicitly deferred with rationale
+- Test coverage meets threshold
 
-### Dependency Management
-- Prefer dev dependencies over runtime (smaller bundle)
-- Document why each new dependency is added (in plan.md or commit message)
-- Audit deps quarterly for security/performance
+**Dependency Management**:
+- Node >=18.18.0 required
+- Prefer Ink ecosystem libraries (discovered via GitHub MCP)
+- New dependencies require rationale in PR description
 
 ## Governance
 
-### Constitutional Authority
-This constitution supersedes all other development practices. When conflicts arise, constitution principles take precedence.
+**Constitutional Authority**:
+- This constitution supersedes all other development practices
+- In case of conflict, constitutional principles take precedence
+- All PRs and code reviews MUST verify compliance
 
-### Amendment Process
-1. Proposed changes MUST document:
-   - Which principle(s) affected
-   - Rationale for change
-   - Impact on existing features/workflows
-2. Amendments require:
-   - Documented consensus (issues/discussions)
-   - Migration plan for breaking changes
-   - Version bump per semantic versioning
-3. Template updates:
-   - All `.specify/templates/*.md` MUST reflect constitutional changes
-   - Agent guidance files (CLAUDE.md, etc.) synced within 1 sprint
+**Amendments**:
+- Constitution changes require documentation in Sync Impact Report
+- Version follows semantic versioning (MAJOR.MINOR.PATCH)
+- Template synchronization mandatory before amendment finalization
 
-### Compliance Review
-- Every PR review MUST verify constitutional compliance
-- Constitution Check section in plan-template.md gates design approval
-- Complexity deviations MUST be documented in plan.md Complexity Tracking table
+**Compliance & Review**:
+- Constitutional violations require explicit justification in Complexity Tracking table
+- Unjustified violations block merge
+- Regular constitution reviews scheduled quarterly
 
-### Development Guidance
-Runtime development guidance for AI coding assistants is maintained in `CLAUDE.md` (for Claude Code) and similar agent-specific files. These files MUST remain consistent with constitutional principles but may include tool-specific implementation details.
+**Development Guidance**:
+- Runtime development guidance for AI agents documented in `CLAUDE.md`
+- `CLAUDE.md` MUST reference constitutional principles
+- Constitutional updates propagate to `CLAUDE.md` within 24 hours
 
-**Version**: 1.0.0 | **Ratified**: 2025-10-04 | **Last Amended**: 2025-10-04
+**Version**: 1.1.0 | **Ratified**: 2025-10-08 | **Last Amended**: 2025-10-08
