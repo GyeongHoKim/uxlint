@@ -18,7 +18,10 @@ export * from './theme.js';
 // Configuration models
 export * from './config.js';
 
-// Re-export commonly used types for convenience
+// Configuration loader
+export * from './config-loader.js';
+
+// Commonly used types for convenience
 export type {Validator} from './validation-engine.js';
 
 export type {ProcessedInput} from './input-processor.js';
