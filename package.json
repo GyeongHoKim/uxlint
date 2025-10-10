@@ -31,9 +31,9 @@
 		"build": "tsc",
 		"dev": "tsc --watch",
 		"compile": "tsc --noEmit",
-		"test": "prettier --check . && xo \"source/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" && ava",
+		"test": "prettier --check . && xo && ava",
 		"test:coverage": "prettier --check . && xo \"source/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\" && c8 ava",
-		"lint": "xo \"source/**/*.{ts,tsx}\" \"tests/**/*.{ts,tsx}\"",
+		"lint": "xo",
 		"format": "prettier --write .",
 		"prepare": "husky",
 		"clean": "rimraf dist coverage node_modules .tsimp"
@@ -46,6 +46,7 @@
 		"ink-big-text": "^2.0.0",
 		"ink-spinner": "^5.0.0",
 		"ink-text-input": "^6.0.0",
+		"js-yaml": "^4.1.0",
 		"meow": "^11.0.0",
 		"react": "^18.2.0"
 	},
@@ -53,6 +54,7 @@
 		"@commitlint/cli": "^20.1.0",
 		"@commitlint/config-conventional": "^20.0.0",
 		"@sindresorhus/tsconfig": "^3.0.1",
+		"@types/js-yaml": "^4.0.9",
 		"@types/react": "^18.0.32",
 		"@vdemedes/prettier-config": "^2.0.1",
 		"ava": "^6.4.1",
@@ -69,27 +71,5 @@
 		"tsimp": "2.0.12",
 		"typescript": "5.5.4",
 		"xo": "^1.2.2"
-	},
-	"xo": {
-		"react": true,
-		"prettier": true,
-		"files": [
-			"source/**/*.{ts,tsx}",
-			"tests/**/*.{ts,tsx}"
-		],
-		"ignores": [
-			"dist/**",
-			"**/*.config.js",
-			"**/*.config.cjs",
-			"**/*.config.mjs",
-			"**/*.mjs"
-		],
-		"rules": {
-			"react/prop-types": "off",
-			"react/react-in-jsx-scope": "off",
-			"unicorn/expiring-todo-comments": "off",
-			"unicorn/no-process-exit": "off"
-		},
-		"semicolon": true
 	}
 }
