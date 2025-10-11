@@ -17,6 +17,31 @@ Designed for frontend engineers who want quick, actionable UX feedback aligned w
 
 ## Quick start
 
+### Option 1: Interactive mode (recommended for first-time users)
+
+Run uxlint without a configuration file to launch the interactive wizard:
+
+```bash
+npx uxlint
+```
+
+The wizard will guide you through:
+
+1. Main page URL
+2. Additional pages (optional)
+3. Feature descriptions for each page
+4. User personas
+5. Report output path
+6. Option to save configuration to a file
+
+You can also explicitly request interactive mode with the `--interactive` or `-i` flag:
+
+```bash
+npx uxlint --interactive
+```
+
+### Option 2: Configuration file
+
 1. Create a configuration file in your project root named either `.uxlintrc.yml` or `.uxlintrc.json`.
 
 2. Run the CLI:
@@ -106,6 +131,24 @@ report:
 - Coverage: Include every page you want evaluated and keep `features` crisp and outcome-oriented.
 
 ## Usage
+
+### Interactive mode
+
+Start the interactive wizard (automatically launched if no config file is found):
+
+```bash
+npx uxlint
+```
+
+Or explicitly use the `--interactive` flag:
+
+```bash
+npx uxlint --interactive
+```
+
+The wizard validates your input at each step and provides helpful error messages if validation fails. You can save your configuration to a YAML or JSON file at the end of the wizard for future use.
+
+### With configuration file
 
 Run from the directory that contains `.uxlintrc.yml` or `.uxlintrc.json`:
 
