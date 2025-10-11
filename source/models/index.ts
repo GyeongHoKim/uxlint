@@ -18,11 +18,14 @@ export * from './theme.js';
 // Configuration models
 export * from './config.js';
 
-// Configuration loader
-export * from './config-loader.js';
+// Configuration I/O (reading, writing, parsing, serializing)
+export * from './config-io.js';
 
 // Wizard state types
 export * from './wizard-state.js';
+
+// Config builder (data transformation)
+export * from './config-builder.js';
 
 // Commonly used types for convenience
 export type {Validator} from './validation-engine.js';
