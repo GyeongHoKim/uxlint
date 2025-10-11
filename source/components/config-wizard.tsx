@@ -3,7 +3,7 @@
  * Orchestrates the interactive configuration flow through all wizard phases
  */
 
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {Box, Text} from 'ink';
 import {ConfirmInput, Select} from '@inkjs/ui';
 import type {ThemeConfig, UxLintConfig} from '../models/index.js';
@@ -49,8 +49,6 @@ function SubUrlsPhase({
 	readonly setError: (error: Error | undefined) => void;
 	readonly setCurrentUrlIndex: (index: number) => void;
 }) {
-	const [isDone, setIsDone] = useState(false);
-
 	const handleValidation = (validator: () => string): string | undefined => {
 		try {
 			setError(undefined);
@@ -62,6 +60,13 @@ function SubUrlsPhase({
 	};
 
 	const handleAddUrl = (value: string) => {
+		// If empty value, user is done adding URLs
+		if (!value.trim()) {
+			dispatch({type: 'DONE_SUB_URLS'});
+			setCurrentUrlIndex(0);
+			return;
+		}
+
 		const validated = handleValidation(() => validationEngine.url(value));
 		if (validated) {
 			// Check for duplicates
@@ -76,12 +81,6 @@ function SubUrlsPhase({
 		}
 	};
 
-	if (isDone) {
-		dispatch({type: 'DONE_SUB_URLS'});
-		setCurrentUrlIndex(0);
-		return null;
-	}
-
 	return (
 		<Box flexDirection="column">
 			<Header theme={theme} />
@@ -89,7 +88,7 @@ function SubUrlsPhase({
 				<PromptStep
 					stepNumber={2}
 					totalSteps={7}
-					label="Add additional pages to analyze (optional)"
+					label="Add additional pages to analyze"
 					isRequired={false}
 					theme={theme}
 				>
@@ -120,19 +119,9 @@ function SubUrlsPhase({
 
 						<Box marginTop={1}>
 							<Text color={theme.text.muted}>
-								Press Y when done, N to add more
+								Press Enter with empty input when done
 							</Text>
 						</Box>
-
-						<ConfirmInput
-							defaultChoice="cancel"
-							onCancel={() => {
-								// Continue adding
-							}}
-							onConfirm={() => {
-								setIsDone(true);
-							}}
-						/>
 					</Box>
 				</PromptStep>
 			</Box>
@@ -160,8 +149,6 @@ function PersonasPhase({
 	readonly error: Error | undefined;
 	readonly setError: (error: Error | undefined) => void;
 }) {
-	const [isDone, setIsDone] = useState(false);
-
 	const handleValidation = (validator: () => string): string | undefined => {
 		try {
 			setError(undefined);
@@ -173,6 +160,17 @@ function PersonasPhase({
 	};
 
 	const handleAddPersona = (value: string) => {
+		// If empty value and we have at least one persona, user is done
+		if (!value.trim()) {
+			if (state.data.personas.length > 0) {
+				dispatch({type: 'DONE_PERSONAS'});
+			} else {
+				setError(new Error('At least one persona is required'));
+			}
+
+			return;
+		}
+
 		const validated = handleValidation(() => validationEngine.persona(value));
 		if (validated) {
 			dispatch({type: 'ADD_PERSONA', payload: validated});
@@ -181,11 +179,6 @@ function PersonasPhase({
 	};
 
 	const hasMinimumPersonas = state.data.personas.length > 0;
-
-	if (isDone && hasMinimumPersonas) {
-		dispatch({type: 'DONE_PERSONAS'});
-		return null;
-	}
 
 	return (
 		<Box flexDirection="column">
@@ -230,20 +223,11 @@ function PersonasPhase({
 					</Box>
 
 					{Boolean(hasMinimumPersonas) && (
-						<>
+						<Box marginTop={1}>
 							<Text color={theme.text.muted}>
-								Press Y when done, N to add more
+								Press Enter with empty input when done
 							</Text>
-							<ConfirmInput
-								defaultChoice="cancel"
-								onCancel={() => {
-									// Continue adding
-								}}
-								onConfirm={() => {
-									setIsDone(true);
-								}}
-							/>
-						</>
+						</Box>
 					)}
 				</Box>
 			</PromptStep>
@@ -275,8 +259,50 @@ function SavePhase({
 }) {
 	const [shouldSave, setShouldSave] = useState<boolean | undefined>();
 	const [selectedFormat, setSelectedFormat] = useState<'yaml' | 'json'>('yaml');
-	// Use selectedFormat to avoid unused variable warning
-	void selectedFormat;
+	const [formatSelected, setFormatSelected] = useState(false);
+
+	// Handle save when format is confirmed via effect
+	useEffect(() => {
+		if (formatSelected && !isLoading) {
+			const performSave = async () => {
+				setIsLoading(true);
+				const config = buildConfig(state.data);
+
+				try {
+					const filePath = await saveConfigToFile(config, {
+						shouldSave: true,
+						format: selectedFormat,
+					});
+
+					setIsLoading(false);
+					dispatch({
+						type: 'SET_SAVE_OPTIONS',
+						payload: {
+							shouldSave: true,
+							format: selectedFormat,
+							filePath,
+						},
+					});
+					dispatch({type: 'COMPLETE_WIZARD'});
+				} catch (error_: unknown) {
+					setIsLoading(false);
+					setError(
+						error_ instanceof Error ? error_ : new Error(String(error_)),
+					);
+				}
+			};
+
+			void performSave();
+		}
+	}, [
+		formatSelected,
+		isLoading,
+		selectedFormat,
+		state.data,
+		dispatch,
+		setIsLoading,
+		setError,
+	]);
 
 	if (shouldSave === undefined) {
 		return (
@@ -307,7 +333,7 @@ function SavePhase({
 		);
 	}
 
-	if (shouldSave) {
+	if (shouldSave && !formatSelected) {
 		return (
 			<Box flexDirection="column">
 				<Header theme={theme} />
@@ -318,44 +344,44 @@ function SavePhase({
 					<Text color={theme.text.secondary}>
 						Select the file format for your configuration:
 					</Text>
-					<Select
-						defaultValue="yaml"
-						options={[
-							{label: 'YAML (recommended, human-readable)', value: 'yaml'},
-							{label: 'JSON (machine-friendly)', value: 'json'},
-						]}
-						onChange={async (selectedValue: string) => {
-							const format = selectedValue as 'yaml' | 'json';
-							setSelectedFormat(format);
+					<Box flexDirection="column" gap={1}>
+						<Select
+							defaultValue="yaml"
+							options={[
+								{label: 'YAML (recommended, human-readable)', value: 'yaml'},
+								{label: 'JSON (machine-friendly)', value: 'json'},
+							]}
+							onChange={(selectedValue: string) => {
+								const format = selectedValue as 'yaml' | 'json';
+								setSelectedFormat(format);
+							}}
+						/>
+						<Text color={theme.text.muted}>
+							Press Enter to confirm and save
+						</Text>
+						<ConfirmInput
+							defaultChoice="confirm"
+							onCancel={() => {
+								// Go back or skip
+								setShouldSave(false);
+								const config = buildConfig(state.data);
+								onComplete(config);
+							}}
+							onConfirm={() => {
+								setFormatSelected(true);
+							}}
+						/>
+					</Box>
+				</Box>
+			</Box>
+		);
+	}
 
-							// Start save process
-							setIsLoading(true);
-							const config = buildConfig(state.data);
-
-							try {
-								const filePath = await saveConfigToFile(config, {
-									shouldSave: true,
-									format,
-								});
-
-								setIsLoading(false);
-								dispatch({
-									type: 'SET_SAVE_OPTIONS',
-									payload: {
-										shouldSave: true,
-										format,
-										filePath,
-									},
-								});
-								dispatch({type: 'COMPLETE_WIZARD'});
-							} catch (error_: unknown) {
-								setIsLoading(false);
-								setError(
-									error_ instanceof Error ? error_ : new Error(String(error_)),
-								);
-							}
-						}}
-					/>
+	if (formatSelected) {
+		return (
+			<Box flexDirection="column">
+				<Header theme={theme} />
+				<Box flexDirection="column" gap={1}>
 					{Boolean(isLoading) && (
 						<Text color={theme.accent}>Saving configuration...</Text>
 					)}
