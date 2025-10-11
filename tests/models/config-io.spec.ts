@@ -5,7 +5,7 @@ import {
 	parseConfigFile,
 	readConfigFile,
 	validateConfig,
-} from '../../source/models/config-loader.js';
+} from '../../source/models/config-io.js';
 import {ConfigurationError} from '../../source/models/errors.js';
 import type {MockFileSystem} from './__mocks__/fs.js';
 
