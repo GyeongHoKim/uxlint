@@ -21,8 +21,12 @@ export * from './config.js';
 // Configuration loader
 export * from './config-loader.js';
 
+// Wizard state types
+export * from './wizard-state.js';
+
 // Commonly used types for convenience
 export type {Validator} from './validation-engine.js';
+export {validationEngine} from './validation-engine.js';
 
 export type {ProcessedInput} from './input-processor.js';
 
