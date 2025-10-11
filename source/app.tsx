@@ -1,16 +1,51 @@
+import process from 'node:process';
 import {Box, Text} from 'ink';
 import {useState} from 'react';
-import {Header, UserInput, UserInputLabel} from './components/index.js';
+import {
+	Header,
+	UserInput,
+	UserInputLabel,
+	ConfigWizard,
+} from './components/index.js';
 import {useConfig} from './hooks/index.js';
 import {defaultTheme} from './models/theme.js';
+import type {UxLintConfig} from './models/config.js';
 
-export default function App() {
+/**
+ * App props
+ */
+export type AppProps = {
+	readonly mode?: 'normal' | 'interactive';
+};
+
+/**
+ * Main App component
+ */
+export default function App({mode = 'normal'}: AppProps) {
 	const [inputValue, setInputValue] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | undefined>(undefined);
 
 	const {status: configStatus, config, error: configError} = useConfig();
 
+	// Render interactive wizard mode
+	if (mode === 'interactive') {
+		return (
+			<ConfigWizard
+				theme={defaultTheme}
+				onComplete={(_config: UxLintConfig) => {
+					// Config created successfully
+					// In the future, this could automatically start the analysis
+					process.exit(0);
+				}}
+				onCancel={() => {
+					process.exit(0);
+				}}
+			/>
+		);
+	}
+
+	// Normal mode - existing functionality
 	const handleSubmit = (value: string) => {
 		if (!value.trim()) {
 			setError('URL is required');
