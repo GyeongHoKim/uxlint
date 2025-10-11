@@ -6,6 +6,9 @@
 export {Header} from './header.js';
 export {UserInputLabel} from './user-input-label.js';
 export {UserInput} from './user-input.js';
+export {PromptStep} from './prompt-step.js';
+export {ConfigSummary} from './config-summary.js';
+export {ConfigWizard} from './config-wizard.js';
 
 // Export UserInput variant types
 export type {
@@ -25,3 +28,12 @@ export type {
 } from './user-input-label.js';
 
 export {isOptionalLabel, isRequiredLabel} from './user-input-label.js';
+
+// Export PromptStep types
+export type {PromptStepProps} from './prompt-step.js';
+
+// Export ConfigSummary types
+export type {ConfigSummaryProps} from './config-summary.js';
+
+// Export ConfigWizard types
+export type {ConfigWizardProps} from './config-wizard.js';
