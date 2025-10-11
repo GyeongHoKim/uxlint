@@ -26,6 +26,7 @@
 		"useDefineForClassFields": true,
 		"forceConsistentCasingInFileNames": true,
 		"skipLibCheck": true,
+		"types": ["node", "jest"],
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["source/*"]

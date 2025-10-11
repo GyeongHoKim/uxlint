@@ -1,21 +1,21 @@
-import test from 'ava';
-import {
-	ValidationError,
-	UrlValidationError,
-	RequiredFieldError,
-	LengthValidationError,
-	UrlNormalizationError,
-	InputProcessingError,
-	ConfigurationError,
-	NetworkError,
-	isUxlintError,
-	isErrorOfType,
-	getErrorInfo,
-} from '../../source/models/index.js';
+// Using Jest globals
 import {UxlintError} from '../../source/models/errors.js';
+import {
+	ConfigurationError,
+	InputProcessingError,
+	LengthValidationError,
+	NetworkError,
+	RequiredFieldError,
+	UrlNormalizationError,
+	UrlValidationError,
+	ValidationError,
+	getErrorInfo,
+	isErrorOfType,
+	isUxlintError,
+} from '../../source/models/index.js';
 
 // ValidationError Tests
-test('ValidationError creates proper error instance', t => {
+test('ValidationError creates proper error instance', () => {
 	const error = new ValidationError(
 		'Invalid input',
 		'username',
@@ -23,90 +23,90 @@ test('ValidationError creates proper error instance', t => {
 		'custom',
 	);
 
-	t.is(error.code, 'VALIDATION_ERROR');
-	t.is(error.message, 'Invalid input');
-	t.is(error.field, 'username');
-	t.is(error.value, 'test');
-	t.is(error.validationType, 'custom');
-	t.is(error.name, 'ValidationError');
-	t.true(error instanceof ValidationError);
-	t.true(error instanceof UxlintError);
+	expect(error.code).toBe('VALIDATION_ERROR');
+	expect(error.message).toBe('Invalid input');
+	expect(error.field).toBe('username');
+	expect(error.value).toBe('test');
+	expect(error.validationType).toBe('custom');
+	expect(error.name).toBe('ValidationError');
+	expect(error instanceof ValidationError).toBeTruthy();
+	expect(error instanceof UxlintError).toBeTruthy();
 });
 
 // UrlValidationError Tests
-test('UrlValidationError extends ValidationError', t => {
+test('UrlValidationError extends ValidationError', () => {
 	const error = new UrlValidationError(
 		'Invalid URL format',
 		'not-a-url',
 		'format',
 	);
 
-	t.is(error.code, 'URL_VALIDATION_ERROR');
-	t.is(error.message, 'Invalid URL format');
-	t.is(error.originalUrl, 'not-a-url');
-	t.is(error.validationStep, 'format');
-	t.is(error.field, 'url');
-	t.is(error.validationType, 'url');
-	t.is(error.name, 'UrlValidationError');
-	t.true(error instanceof UrlValidationError);
-	t.true(error instanceof ValidationError);
-	t.true(error instanceof UxlintError);
+	expect(error.code).toBe('URL_VALIDATION_ERROR');
+	expect(error.message).toBe('Invalid URL format');
+	expect(error.originalUrl).toBe('not-a-url');
+	expect(error.validationStep).toBe('format');
+	expect(error.field).toBe('url');
+	expect(error.validationType).toBe('url');
+	expect(error.name).toBe('UrlValidationError');
+	expect(error instanceof UrlValidationError).toBeTruthy();
+	expect(error instanceof ValidationError).toBeTruthy();
+	expect(error instanceof UxlintError).toBeTruthy();
 });
 
-test('UrlValidationError handles different validation steps', t => {
+test('UrlValidationError handles different validation steps', () => {
 	const formatError = new UrlValidationError(
 		'Format error',
 		'invalid',
 		'format',
 	);
-	t.is(formatError.validationStep, 'format');
+	expect(formatError.validationStep).toBe('format');
 
 	const protocolError = new UrlValidationError(
 		'Protocol error',
 		'ftp://test',
 		'protocol',
 	);
-	t.is(protocolError.validationStep, 'protocol');
+	expect(protocolError.validationStep).toBe('protocol');
 
 	const hostnameError = new UrlValidationError(
 		'Hostname error',
 		'https://',
 		'hostname',
 	);
-	t.is(hostnameError.validationStep, 'hostname');
+	expect(hostnameError.validationStep).toBe('hostname');
 
 	const reachabilityError = new UrlValidationError(
 		'Unreachable',
 		'https://nonexistent.test',
 		'reachability',
 	);
-	t.is(reachabilityError.validationStep, 'reachability');
+	expect(reachabilityError.validationStep).toBe('reachability');
 });
 
 // RequiredFieldError Tests
-test('RequiredFieldError creates proper error instance', t => {
+test('RequiredFieldError creates proper error instance', () => {
 	const error = new RequiredFieldError('username');
 
-	t.is(error.code, 'REQUIRED_FIELD_ERROR');
-	t.is(error.message, 'username is required');
-	t.is(error.field, 'username');
-	t.is(error.value, '');
-	t.is(error.validationType, 'required');
-	t.is(error.name, 'RequiredFieldError');
-	t.true(error instanceof RequiredFieldError);
-	t.true(error instanceof ValidationError);
-	t.true(error instanceof UxlintError);
+	expect(error.code).toBe('REQUIRED_FIELD_ERROR');
+	expect(error.message).toBe('username is required');
+	expect(error.field).toBe('username');
+	expect(error.value).toBe('');
+	expect(error.validationType).toBe('required');
+	expect(error.name).toBe('RequiredFieldError');
+	expect(error instanceof RequiredFieldError).toBeTruthy();
+	expect(error instanceof ValidationError).toBeTruthy();
+	expect(error instanceof UxlintError).toBeTruthy();
 });
 
-test('RequiredFieldError uses default field name', t => {
+test('RequiredFieldError uses default field name', () => {
 	const error = new RequiredFieldError();
 
-	t.is(error.message, 'field is required');
-	t.is(error.field, 'field');
+	expect(error.message).toBe('field is required');
+	expect(error.field).toBe('field');
 });
 
 // LengthValidationError Tests
-test('LengthValidationError creates proper error instance', t => {
+test('LengthValidationError creates proper error instance', () => {
 	const error = new LengthValidationError('Too short', {
 		actualLength: 2,
 		expectedLength: 5,
@@ -115,21 +115,21 @@ test('LengthValidationError creates proper error instance', t => {
 		fieldName: 'password',
 	});
 
-	t.is(error.code, 'LENGTH_VALIDATION_ERROR');
-	t.is(error.message, 'Too short');
-	t.is(error.field, 'password');
-	t.is(error.value, 'hi');
-	t.is(error.validationType, 'minLength');
-	t.is(error.actualLength, 2);
-	t.is(error.expectedLength, 5);
-	t.is(error.lengthType, 'min');
-	t.is(error.name, 'LengthValidationError');
-	t.true(error instanceof LengthValidationError);
-	t.true(error instanceof ValidationError);
-	t.true(error instanceof UxlintError);
+	expect(error.code).toBe('LENGTH_VALIDATION_ERROR');
+	expect(error.message).toBe('Too short');
+	expect(error.field).toBe('password');
+	expect(error.value).toBe('hi');
+	expect(error.validationType).toBe('minLength');
+	expect(error.actualLength).toBe(2);
+	expect(error.expectedLength).toBe(5);
+	expect(error.lengthType).toBe('min');
+	expect(error.name).toBe('LengthValidationError');
+	expect(error instanceof LengthValidationError).toBeTruthy();
+	expect(error instanceof ValidationError).toBeTruthy();
+	expect(error instanceof UxlintError).toBeTruthy();
 });
 
-test('LengthValidationError creates proper error instance for maxLength', t => {
+test('LengthValidationError creates proper error instance for maxLength', () => {
 	const error = new LengthValidationError('Too long', {
 		actualLength: 10,
 		expectedLength: 5,
@@ -137,13 +137,13 @@ test('LengthValidationError creates proper error instance for maxLength', t => {
 		value: 'toolongtext',
 	});
 
-	t.is(error.validationType, 'maxLength');
-	t.is(error.lengthType, 'max');
-	t.is(error.field, 'field'); // Default field name
+	expect(error.validationType).toBe('maxLength');
+	expect(error.lengthType).toBe('max');
+	expect(error.field).toBe('field');
 });
 
 // UrlNormalizationError Tests
-test('UrlNormalizationError creates proper error instance', t => {
+test('UrlNormalizationError creates proper error instance', () => {
 	const originalError = new Error('Invalid URL');
 	const error = new UrlNormalizationError(
 		'Cannot normalize URL',
@@ -151,69 +151,69 @@ test('UrlNormalizationError creates proper error instance', t => {
 		originalError,
 	);
 
-	t.is(error.code, 'URL_NORMALIZATION_ERROR');
-	t.is(error.message, 'Cannot normalize URL');
-	t.is(error.originalInput, 'invalid-input');
-	t.is(error.cause, originalError);
-	t.is(error.name, 'UrlNormalizationError');
-	t.true(error instanceof UrlNormalizationError);
-	t.true(error instanceof UxlintError);
+	expect(error.code).toBe('URL_NORMALIZATION_ERROR');
+	expect(error.message).toBe('Cannot normalize URL');
+	expect(error.originalInput).toBe('invalid-input');
+	expect(error.cause).toBe(originalError);
+	expect(error.name).toBe('UrlNormalizationError');
+	expect(error instanceof UrlNormalizationError).toBeTruthy();
+	expect(error instanceof UxlintError).toBeTruthy();
 });
 
-test('UrlNormalizationError works without cause', t => {
+test('UrlNormalizationError works without cause', () => {
 	const error = new UrlNormalizationError(
 		'Cannot normalize URL',
 		'invalid-input',
 	);
 
-	t.is(error.originalInput, 'invalid-input');
-	t.is(error.cause, undefined);
+	expect(error.originalInput).toBe('invalid-input');
+	expect(error.cause).toBeUndefined();
 });
 
 // InputProcessingError Tests
-test('InputProcessingError creates proper error instance', t => {
+test('InputProcessingError creates proper error instance', () => {
 	const error = new InputProcessingError(
 		'Processing failed',
 		'sanitization',
 		'dirty input',
 	);
 
-	t.is(error.code, 'INPUT_PROCESSING_ERROR');
-	t.is(error.message, 'Processing failed');
-	t.is(error.processingStep, 'sanitization');
-	t.is(error.originalInput, 'dirty input');
-	t.is(error.name, 'InputProcessingError');
-	t.true(error instanceof InputProcessingError);
-	t.true(error instanceof UxlintError);
+	expect(error.code).toBe('INPUT_PROCESSING_ERROR');
+	expect(error.message).toBe('Processing failed');
+	expect(error.processingStep).toBe('sanitization');
+	expect(error.originalInput).toBe('dirty input');
+	expect(error.name).toBe('InputProcessingError');
+	expect(error instanceof InputProcessingError).toBeTruthy();
+	expect(error instanceof UxlintError).toBeTruthy();
 });
 
 // ConfigurationError Tests
-test('ConfigurationError creates proper error instance', t => {
+test('ConfigurationError creates proper error instance', () => {
 	const error = new ConfigurationError(
 		'Invalid config',
 		'/path/to/config.json',
 		'apiKey',
 	);
 
-	t.is(error.code, 'CONFIGURATION_ERROR');
-	t.is(error.message, 'Invalid config');
-	t.is(error.configPath, '/path/to/config.json');
-	t.is(error.configField, 'apiKey');
-	t.is(error.name, 'ConfigurationError');
-	t.true(error instanceof ConfigurationError);
-	t.true(error instanceof UxlintError);
+	expect(error.code).toBe('CONFIGURATION_ERROR');
+	expect(error.message).toBe('Invalid config');
+	expect(error.configPath).toBe('/path/to/config.json');
+	expect(error.configField).toBe('apiKey');
+	expect(error.name).toBe('ConfigurationError');
+	expect(error instanceof ConfigurationError).toBeTruthy();
+	expect(error instanceof UxlintError).toBeTruthy();
 });
 
-test('ConfigurationError works with minimal parameters', t => {
+test('ConfigurationError works with minimal parameters', () => {
 	const error = new ConfigurationError('Invalid config');
 
-	t.is(error.message, 'Invalid config');
-	t.is(error.configPath, undefined);
-	t.is(error.configField, undefined);
+	expect(error.message).toBe('Invalid config');
+	expect(error.configPath).toBeUndefined();
+	expect(error.configField).toBeUndefined();
 });
 
 // NetworkError Tests
-test('NetworkError creates proper error instance', t => {
+test('NetworkError creates proper error instance', () => {
 	const originalError = new Error('Connection timeout');
 	const error = new NetworkError(
 		'Network request failed',
@@ -222,65 +222,62 @@ test('NetworkError creates proper error instance', t => {
 		originalError,
 	);
 
-	t.is(error.code, 'NETWORK_ERROR');
-	t.is(error.message, 'Network request failed');
-	t.is(error.url, 'https://example.com');
-	t.is(error.statusCode, 404);
-	t.is(error.cause, originalError);
-	t.is(error.name, 'NetworkError');
-	t.true(error instanceof NetworkError);
-	t.true(error instanceof UxlintError);
+	expect(error.code).toBe('NETWORK_ERROR');
+	expect(error.message).toBe('Network request failed');
+	expect(error.url).toBe('https://example.com');
+	expect(error.statusCode).toBe(404);
+	expect(error.cause).toBe(originalError);
+	expect(error.name).toBe('NetworkError');
+	expect(error instanceof NetworkError).toBeTruthy();
+	expect(error instanceof UxlintError).toBeTruthy();
 });
 
-test('NetworkError works without status code and cause', t => {
+test('NetworkError works without status code and cause', () => {
 	const error = new NetworkError(
 		'Network request failed',
 		'https://example.com',
 	);
 
-	t.is(error.url, 'https://example.com');
-	t.is(error.statusCode, undefined);
-	t.is(error.cause, undefined);
+	expect(error.url).toBe('https://example.com');
+	expect(error.statusCode).toBeUndefined();
+	expect(error.cause).toBeUndefined();
 });
 
 // Type Guard Tests
-test('isUxlintError identifies uxlint errors correctly', t => {
+test('isUxlintError identifies uxlint errors correctly', () => {
 	const uxlintError = new ValidationError('test', 'field', 'value', 'type');
 	const regularError = new Error('regular error');
 	const notAnError = 'not an error';
 
-	t.true(isUxlintError(uxlintError));
-	t.false(isUxlintError(regularError));
-	t.false(isUxlintError(notAnError));
-	t.false(isUxlintError(null));
-	t.false(isUxlintError(undefined));
+	expect(isUxlintError(uxlintError)).toBeTruthy();
+	expect(isUxlintError(regularError)).toBeFalsy();
+	expect(isUxlintError(notAnError as unknown as Error)).toBeFalsy();
+	expect(isUxlintError(null as unknown as Error)).toBeFalsy();
+	expect(isUxlintError(undefined as unknown as Error)).toBeFalsy();
 });
 
-test('isErrorOfType identifies specific error types correctly', t => {
+test('isErrorOfType identifies specific error types correctly', () => {
 	const validationError = new ValidationError('test', 'field', 'value', 'type');
 	const urlError = new UrlValidationError('test', 'url', 'format');
 	const requiredError = new RequiredFieldError('field');
 	const regularError = new Error('regular error');
 
-	// Test ValidationError
-	t.true(isErrorOfType(validationError, ValidationError));
-	t.true(isErrorOfType(urlError, ValidationError)); // UrlValidationError extends ValidationError
-	t.true(isErrorOfType(requiredError, ValidationError)); // RequiredFieldError extends ValidationError
-	t.false(isErrorOfType(regularError, ValidationError));
+	expect(isErrorOfType(validationError, ValidationError)).toBeTruthy();
+	expect(isErrorOfType(urlError, ValidationError)).toBeTruthy();
+	expect(isErrorOfType(requiredError, ValidationError)).toBeTruthy();
+	expect(isErrorOfType(regularError, ValidationError)).toBeFalsy();
 
-	// Test UrlValidationError
-	t.false(isErrorOfType(validationError, UrlValidationError));
-	t.true(isErrorOfType(urlError, UrlValidationError));
-	t.false(isErrorOfType(requiredError, UrlValidationError));
+	expect(isErrorOfType(validationError, UrlValidationError)).toBeFalsy();
+	expect(isErrorOfType(urlError, UrlValidationError)).toBeTruthy();
+	expect(isErrorOfType(requiredError, UrlValidationError)).toBeFalsy();
 
-	// Test RequiredFieldError
-	t.false(isErrorOfType(validationError, RequiredFieldError));
-	t.false(isErrorOfType(urlError, RequiredFieldError));
-	t.true(isErrorOfType(requiredError, RequiredFieldError));
+	expect(isErrorOfType(validationError, RequiredFieldError)).toBeFalsy();
+	expect(isErrorOfType(urlError, RequiredFieldError)).toBeFalsy();
+	expect(isErrorOfType(requiredError, RequiredFieldError)).toBeTruthy();
 });
 
 // Error Info Extraction Tests
-test('getErrorInfo extracts info from uxlint errors', t => {
+test('getErrorInfo extracts info from uxlint errors', () => {
 	const error = new ValidationError(
 		'Invalid input',
 		'username',
@@ -289,59 +286,56 @@ test('getErrorInfo extracts info from uxlint errors', t => {
 	);
 	const info = getErrorInfo(error);
 
-	t.is(info.message, 'Invalid input');
-	t.is(info.code, 'VALIDATION_ERROR');
-	t.true(info.context !== undefined);
-	t.is(typeof info.stack, 'string');
-	t.true(info.stack!.length > 0);
+	expect(info.message).toBe('Invalid input');
+	expect(info.code).toBe('VALIDATION_ERROR');
+	expect(info.context !== undefined).toBeTruthy();
+	expect(typeof info.stack).toBe('string');
+	expect(info.stack && info.stack.length > 0).toBeTruthy();
 });
 
-test('getErrorInfo extracts info from regular errors', t => {
+test('getErrorInfo extracts info from regular errors', () => {
 	const error = new Error('Regular error');
 	const info = getErrorInfo(error);
 
-	t.is(info.message, 'Regular error');
-	t.is(info.code, undefined);
-	t.is(info.context, undefined);
-	t.is(typeof info.stack, 'string');
+	expect(info.message).toBe('Regular error');
+	expect(info.code).toBeUndefined();
+	expect(info.context).toBeUndefined();
+	expect(typeof info.stack).toBe('string');
 });
 
-test('getErrorInfo handles non-error values', t => {
+test('getErrorInfo handles non-error values', () => {
 	const info1 = getErrorInfo('string error');
-	t.is(info1.message, 'string error');
-	t.is(info1.code, undefined);
-	t.is(info1.context, undefined);
-	t.is(info1.stack, undefined);
+	expect(info1.message).toBe('string error');
+	expect(info1.code).toBeUndefined();
+	expect(info1.context).toBeUndefined();
+	expect(info1.stack).toBeUndefined();
 
 	const info2 = getErrorInfo(null);
-	t.is(info2.message, 'null');
+	expect(info2.message).toBe('null');
 
 	const info3 = getErrorInfo(undefined);
-	t.is(info3.message, 'undefined');
+	expect(info3.message).toBe('undefined');
 
 	const info4 = getErrorInfo(42);
-	t.is(info4.message, '42');
+	expect(info4.message).toBe('42');
 });
 
 // Error Inheritance Chain Tests
-test('error inheritance chain is correct', t => {
+test('error inheritance chain is correct', () => {
 	const urlError = new UrlValidationError('test', 'url', 'format');
 
-	// Should be instance of all parent classes
-	t.true(urlError instanceof UrlValidationError);
-	t.true(urlError instanceof ValidationError);
-	t.true(urlError instanceof UxlintError);
-	t.true(urlError instanceof Error);
+	expect(urlError instanceof UrlValidationError).toBeTruthy();
+	expect(urlError instanceof ValidationError).toBeTruthy();
+	expect(urlError instanceof UxlintError).toBeTruthy();
+	expect(urlError instanceof Error).toBeTruthy();
 
-	// Should have correct prototype chain
-	t.is(Object.getPrototypeOf(urlError).constructor, UrlValidationError);
-	t.is(
+	expect(Object.getPrototypeOf(urlError).constructor).toBe(UrlValidationError);
+	expect(
 		Object.getPrototypeOf(Object.getPrototypeOf(urlError)).constructor,
-		ValidationError,
-	);
+	).toBe(ValidationError);
 });
 
-test('error names are set correctly', t => {
+test('error names are set correctly', () => {
 	const errors = [
 		new ValidationError('test', 'field', 'value', 'type'),
 		new UrlValidationError('test', 'url', 'format'),
@@ -370,6 +364,6 @@ test('error names are set correctly', t => {
 	];
 
 	for (const [index, error] of errors.entries()) {
-		t.is(error.name, expectedNames[index]!);
+		expect(error.name).toBe(expectedNames[index]!);
 	}
 });
