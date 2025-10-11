@@ -104,3 +104,92 @@ test('validationEngine.compose throws on first failing validator', () => {
 	expect(action2).toThrow(LengthValidationError);
 	expect(action2).toThrow('Must be at least 5 characters long');
 });
+
+// Feature Description Validation Tests
+test('validationEngine.featureDescription validates valid descriptions', () => {
+	expect(
+		validationEngine.featureDescription(
+			'Home page with hero section and navigation',
+		),
+	).toBe('Home page with hero section and navigation');
+	expect(validationEngine.featureDescription('1234567890')).toBe('1234567890');
+});
+
+test('validationEngine.featureDescription throws for empty or short descriptions', () => {
+	const action1 = () => validationEngine.featureDescription('');
+	expect(action1).toThrow(RequiredFieldError);
+
+	const action2 = () => validationEngine.featureDescription('Short');
+	expect(action2).toThrow(LengthValidationError);
+	expect(action2).toThrow('at least 10 characters');
+});
+
+// Persona Validation Tests
+test('validationEngine.persona validates valid persona descriptions', () => {
+	const persona = 'Developer looking for CLI tools with focus on accessibility';
+	expect(validationEngine.persona(persona)).toBe(persona);
+	expect(validationEngine.persona('12345678901234567890')).toBe(
+		'12345678901234567890',
+	);
+});
+
+test('validationEngine.persona throws for empty or short descriptions', () => {
+	const action1 = () => validationEngine.persona('');
+	expect(action1).toThrow(RequiredFieldError);
+
+	const action2 = () => validationEngine.persona('Developer');
+	expect(action2).toThrow(LengthValidationError);
+	expect(action2).toThrow('at least 20 characters');
+});
+
+// Report Path Validation Tests
+test('validationEngine.reportPath validates valid paths', () => {
+	expect(validationEngine.reportPath('./ux-report.md')).toBe('./ux-report.md');
+	expect(validationEngine.reportPath('/home/user/reports/ux-report.md')).toBe(
+		'/home/user/reports/ux-report.md',
+	);
+});
+
+test('validationEngine.reportPath throws for invalid paths', () => {
+	const action1 = () => validationEngine.reportPath('');
+	expect(action1).toThrow(RequiredFieldError);
+
+	const action2 = () => validationEngine.reportPath('./report<test>.md');
+	expect(action2).toThrow(ValidationError);
+	expect(action2).toThrow('invalid characters');
+});
+
+// File Path Validation Tests
+test('validationEngine.filePath validates valid file paths', () => {
+	expect(validationEngine.filePath('./config.yaml')).toBe('./config.yaml');
+	expect(validationEngine.filePath('/etc/config.json')).toBe(
+		'/etc/config.json',
+	);
+});
+
+test('validationEngine.filePath throws for invalid paths', () => {
+	const action1 = () => validationEngine.filePath('');
+	expect(action1).toThrow(RequiredFieldError);
+
+	const action2 = () => validationEngine.filePath('./file|name.txt');
+	expect(action2).toThrow(ValidationError);
+	expect(action2).toThrow('invalid characters');
+});
+
+// Config Format Validation Tests
+test('validationEngine.configFormat validates yaml and json', () => {
+	expect(validationEngine.configFormat('yaml')).toBe('yaml');
+	expect(validationEngine.configFormat('json')).toBe('json');
+	expect(validationEngine.configFormat('YAML')).toBe('yaml');
+	expect(validationEngine.configFormat('JSON')).toBe('json');
+});
+
+test('validationEngine.configFormat throws for invalid formats', () => {
+	const action1 = () => validationEngine.configFormat('xml');
+	expect(action1).toThrow(ValidationError);
+	expect(action1).toThrow('yaml');
+	expect(action1).toThrow('json');
+
+	const action2 = () => validationEngine.configFormat('toml');
+	expect(action2).toThrow(ValidationError);
+});
