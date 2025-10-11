@@ -4,7 +4,7 @@
  */
 
 import {useState, useEffect} from 'react';
-import {loadConfig} from '../models/config-loader.js';
+import {loadConfig} from '../models/config-io.js';
 import type {UxLintConfig} from '../models/config.js';
 import {ConfigurationError} from '../models/errors.js';
 

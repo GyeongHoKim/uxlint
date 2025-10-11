@@ -1,14 +1,26 @@
 /**
- * Configuration File Loader
- * Pure functions for discovering, reading, parsing, and validating UxLintConfig files
+ * Configuration File I/O
+ * Pure functions for reading, writing, parsing, serializing, and validating UxLintConfig files
  */
 
+import * as fs from 'node:fs';
 import {existsSync, readFileSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 import process from 'node:process';
-import {load as parseYaml} from 'js-yaml';
+import {load as parseYaml, dump as yamlDump} from 'js-yaml';
 import type {UxLintConfig} from './config.js';
 import {ConfigurationError} from './errors.js';
+import type {SaveOptions} from './wizard-state.js';
+
+/**
+ * Result of saving configuration
+ */
+export type SaveResult = {
+	readonly success: boolean;
+	readonly filePath?: string;
+	readonly fileSize?: number;
+	readonly error?: string;
+};
 
 // Configuration file names in order of precedence
 const configFiles = ['.uxlintrc.json', '.uxlintrc.yaml'] as const;
@@ -93,6 +105,39 @@ export function parseConfigFile(
 			}`,
 		);
 	}
+}
+
+/**
+ * Serialize UxLintConfig to YAML format
+ *
+ * @param config - Configuration to serialize
+ * @returns YAML string representation
+ *
+ * @example
+ * const yaml = serializeToYaml(config);
+ * // yaml is a formatted YAML string
+ */
+export function serializeToYaml(config: UxLintConfig): string {
+	return yamlDump(config, {
+		indent: 2,
+		lineWidth: 80,
+		noRefs: true,
+		sortKeys: false,
+	});
+}
+
+/**
+ * Serialize UxLintConfig to JSON format
+ *
+ * @param config - Configuration to serialize
+ * @returns JSON string representation (formatted with 2-space indentation)
+ *
+ * @example
+ * const json = serializeToJson(config);
+ * // json is a formatted JSON string with 2-space indentation
+ */
+export function serializeToJson(config: UxLintConfig): string {
+	return JSON.stringify(config, null, 2);
 }
 
 /**
@@ -232,4 +277,128 @@ export function loadConfig(
 	const content = readConfigFile(configPath);
 	const parsed = parseConfigFile(content, format);
 	return validateConfig(parsed, configPath);
+}
+
+/**
+ * Determine file path for saving config
+ *
+ * @param saveOptions - User's save options
+ * @returns File path where config should be saved
+ *
+ * @example
+ * const path = determineFilePath({ shouldSave: true, format: 'yaml' });
+ * // path is '.uxlintrc.yaml'
+ */
+export function determineFilePath(saveOptions: SaveOptions): string {
+	if (saveOptions.filePath) {
+		return saveOptions.filePath;
+	}
+
+	// Default file name based on format
+	const extension = saveOptions.format === 'json' ? 'json' : 'yaml';
+	return `.uxlintrc.${extension}`;
+}
+
+/**
+ * Save configuration to file system
+ *
+ * @param config - Configuration to save
+ * @param saveOptions - Options specifying format and path
+ * @returns Promise that resolves to saved file path
+ * @throws Error if file cannot be written
+ *
+ * @example
+ * const filePath = await saveConfigToFile(config, {
+ *   shouldSave: true,
+ *   format: 'yaml',
+ *   filePath: '.uxlintrc.yaml'
+ * });
+ * // filePath is the path to saved file
+ */
+export async function saveConfigToFile(
+	config: UxLintConfig,
+	saveOptions: SaveOptions,
+): Promise<string> {
+	if (!saveOptions.shouldSave) {
+		throw new Error('Cannot save config when shouldSave is false');
+	}
+
+	const format = saveOptions.format ?? 'yaml';
+	const filePath = determineFilePath({...saveOptions, format});
+
+	// Serialize based on format
+	const content =
+		format === 'json' ? serializeToJson(config) : serializeToYaml(config);
+
+	// Write to file
+	await fs.promises.writeFile(filePath, content, 'utf8');
+
+	return filePath;
+}
+
+/**
+ * Format file size for display
+ *
+ * @param bytes - Size in bytes
+ * @returns Formatted string (e.g., "1.5 KB")
+ */
+export function formatFileSize(bytes: number): string {
+	if (bytes < 1024) {
+		return `${bytes} B`;
+	}
+
+	const kb = bytes / 1024;
+	if (kb < 1024) {
+		return `${kb.toFixed(1)} KB`;
+	}
+
+	const mb = kb / 1024;
+	return `${mb.toFixed(1)} MB`;
+}
+
+/**
+ * Safe wrapper for saving configuration with error handling
+ *
+ * @param config - Configuration to save
+ * @param saveOptions - Save options
+ * @returns SaveResult with success status and details
+ */
+export async function trySaveConfig(
+	config: UxLintConfig,
+	saveOptions: SaveOptions,
+): Promise<SaveResult> {
+	try {
+		if (!saveOptions.shouldSave) {
+			return {
+				success: false,
+				error: 'Save was not requested',
+			};
+		}
+
+		const filePath = await saveConfigToFile(config, saveOptions);
+
+		// Get file size
+		const stats = fs.statSync(filePath);
+		const fileSize = stats.size;
+
+		return {
+			success: true,
+			filePath,
+			fileSize,
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+/**
+ * Get default report output path
+ *
+ * @returns Default report output path
+ */
+export function getDefaultReportPath(): string {
+	return './ux-report.md';
 }
