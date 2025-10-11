@@ -8,6 +8,7 @@ export default [
 			'**/*.config.ts',
 			'**/*.mjs',
 			'specs/**',
+			'**/__mocks__/**',
 		],
 	},
 	{
