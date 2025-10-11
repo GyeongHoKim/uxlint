@@ -171,4 +171,129 @@ export const validationEngine = {
 			return processedValue;
 		};
 	},
+
+	/**
+	 * Validate feature description (minimum 10 characters)
+	 * @throws {LengthValidationError} When description is too short
+	 * @throws {RequiredFieldError} When description is empty
+	 * @returns {string} Trimmed description
+	 */
+	featureDescription(value: string): string {
+		if (!value || value.trim().length === 0) {
+			throw new RequiredFieldError('Feature description');
+		}
+
+		const trimmed = value.trim();
+		if (trimmed.length < 10) {
+			throw new LengthValidationError(
+				'Feature description must be at least 10 characters',
+				{
+					actualLength: trimmed.length,
+					expectedLength: 10,
+					lengthType: 'min',
+					value: trimmed,
+					fieldName: 'Feature description',
+				},
+			);
+		}
+
+		return trimmed;
+	},
+
+	/**
+	 * Validate persona description (minimum 20 characters)
+	 * @throws {LengthValidationError} When description is too short
+	 * @throws {RequiredFieldError} When description is empty
+	 * @returns {string} Trimmed description
+	 */
+	persona(value: string): string {
+		if (!value || value.trim().length === 0) {
+			throw new RequiredFieldError('Persona description');
+		}
+
+		const trimmed = value.trim();
+		if (trimmed.length < 20) {
+			throw new LengthValidationError(
+				'Persona description must be at least 20 characters describing user goals, constraints, devices, and accessibility needs',
+				{
+					actualLength: trimmed.length,
+					expectedLength: 20,
+					lengthType: 'min',
+					value: trimmed,
+					fieldName: 'Persona description',
+				},
+			);
+		}
+
+		return trimmed;
+	},
+
+	/**
+	 * Validate report output path
+	 * @throws {ValidationError} When path contains invalid characters
+	 * @throws {RequiredFieldError} When path is empty
+	 * @returns {string} Trimmed path
+	 */
+	reportPath(value: string): string {
+		if (!value || value.trim().length === 0) {
+			throw new RequiredFieldError('Report output path');
+		}
+
+		const trimmed = value.trim();
+		const invalidChars = /[<>"|?*]/;
+		if (invalidChars.test(trimmed)) {
+			throw new ValidationError(
+				'Path contains invalid characters. Avoid using < > " | ? * in file paths',
+				'Report output path',
+				trimmed,
+				'format',
+			);
+		}
+
+		return trimmed;
+	},
+
+	/**
+	 * Validate file path format
+	 * @throws {ValidationError} When path contains invalid characters
+	 * @throws {RequiredFieldError} When path is empty
+	 * @returns {string} Trimmed path
+	 */
+	filePath(value: string): string {
+		if (!value || value.trim().length === 0) {
+			throw new RequiredFieldError('File path');
+		}
+
+		const trimmed = value.trim();
+		const invalidChars = /[<>"|?*]/;
+		if (invalidChars.test(trimmed)) {
+			throw new ValidationError(
+				'File path contains invalid characters. Avoid using < > " | ? * in file paths',
+				'File path',
+				trimmed,
+				'format',
+			);
+		}
+
+		return trimmed;
+	},
+
+	/**
+	 * Validate configuration format (yaml or json)
+	 * @throws {ValidationError} When format is invalid
+	 * @returns {string} Validated format
+	 */
+	configFormat(value: string): string {
+		const trimmed = value.trim().toLowerCase();
+		if (trimmed !== 'yaml' && trimmed !== 'json') {
+			throw new ValidationError(
+				'Invalid format. Choose either "yaml" or "json"',
+				'Configuration format',
+				value,
+				'format',
+			);
+		}
+
+		return trimmed;
+	},
 };
