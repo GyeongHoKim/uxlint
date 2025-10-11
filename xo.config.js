@@ -5,12 +5,18 @@ export default [
 			'**/*.config.js',
 			'**/*.config.cjs',
 			'**/*.config.mjs',
+			'**/*.config.ts',
 			'**/*.mjs',
 			'specs/**',
 		],
 	},
 	{
 		files: ['source/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}'],
+		languageOptions: {
+			parserOptions: {
+				project: ['./tsconfig.json'],
+			},
+		},
 		react: true,
 		prettier: true,
 		rules: {

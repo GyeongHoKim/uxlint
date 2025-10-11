@@ -3,7 +3,6 @@ node_modules
 .specify
 .claude
 .kiro
-.tsimp
 .claude
 .github
 coverage
@@ -11,7 +10,6 @@ CLAUDE.md
 AGENTS.md
 commitlint.config.js
 package-lock.json
-.tsimp
 coverage
 snapshots
 specs

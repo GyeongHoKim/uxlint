@@ -1,23 +1,23 @@
-import test from 'ava';
+// Using Jest globals
 import {render} from 'ink-testing-library';
 import {Header} from '../../source/components/header.js';
 import {defaultTheme, fallbackTheme} from '../../source/models/theme.js';
 
-test('Header visual snapshot - default theme', t => {
+test('Header visual snapshot - default theme', () => {
 	const {lastFrame} = render(<Header theme={defaultTheme} />);
 
 	const frame = lastFrame();
-	t.snapshot(frame, 'header-default-theme');
+	expect(frame).toMatchSnapshot('header-default-theme');
 });
 
-test('Header visual snapshot - fallback theme', t => {
+test('Header visual snapshot - fallback theme', () => {
 	const {lastFrame} = render(<Header theme={fallbackTheme} />);
 
 	const frame = lastFrame();
-	t.snapshot(frame, 'header-fallback-theme');
+	expect(frame).toMatchSnapshot('header-fallback-theme');
 });
 
-test('Header visual snapshot - custom brand colors', t => {
+test('Header visual snapshot - custom brand colors', () => {
 	const customTheme = {
 		...defaultTheme,
 		primary: '#ff6b6b',
@@ -33,10 +33,10 @@ test('Header visual snapshot - custom brand colors', t => {
 	const {lastFrame} = render(<Header theme={customTheme} />);
 
 	const frame = lastFrame();
-	t.snapshot(frame, 'header-custom-brand-colors');
+	expect(frame).toMatchSnapshot('header-custom-brand-colors');
 });
 
-test('Header visual snapshot - high contrast theme', t => {
+test('Header visual snapshot - high contrast theme', () => {
 	const highContrastTheme = {
 		...defaultTheme,
 		primary: '#000000',
@@ -52,10 +52,10 @@ test('Header visual snapshot - high contrast theme', t => {
 	const {lastFrame} = render(<Header theme={highContrastTheme} />);
 
 	const frame = lastFrame();
-	t.snapshot(frame, 'header-high-contrast-theme');
+	expect(frame).toMatchSnapshot('header-high-contrast-theme');
 });
 
-test('Header visual snapshot - monochrome theme', t => {
+test('Header visual snapshot - monochrome theme', () => {
 	const monochromeTheme = {
 		...defaultTheme,
 		primary: '#333333',
@@ -71,5 +71,5 @@ test('Header visual snapshot - monochrome theme', t => {
 	const {lastFrame} = render(<Header theme={monochromeTheme} />);
 
 	const frame = lastFrame();
-	t.snapshot(frame, 'header-monochrome-theme');
+	expect(frame).toMatchSnapshot('header-monochrome-theme');
 });
