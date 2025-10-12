@@ -110,6 +110,18 @@ export function isValidTimeout(timeout: number): boolean {
 
 /**
  * Get validation error message for URL
+ *
+ * @param url - URL to validate
+ * @returns Error message if invalid, empty string if valid
+ *
+ * @example
+ * ```typescript
+ * const error = getUrlValidationError('not-a-url');
+ * // Returns: 'Invalid URL format'
+ *
+ * const valid = getUrlValidationError('https://example.com');
+ * // Returns: ''
+ * ```
  */
 export function getUrlValidationError(url: string): string {
 	if (!url || typeof url !== 'string') {
@@ -130,6 +142,18 @@ export function getUrlValidationError(url: string): string {
 
 /**
  * Get validation error message for selector
+ *
+ * @param selector - CSS selector to validate
+ * @returns Error message if invalid, empty string if valid
+ *
+ * @example
+ * ```typescript
+ * const error = getSelectorValidationError('//xpath');
+ * // Returns: 'XPath selectors are not supported. Use CSS selectors instead.'
+ *
+ * const valid = getSelectorValidationError('.my-class');
+ * // Returns: ''
+ * ```
  */
 export function getSelectorValidationError(selector: string): string {
 	if (!selector || typeof selector !== 'string') {
@@ -153,6 +177,18 @@ export function getSelectorValidationError(selector: string): string {
 
 /**
  * Get validation error message for script
+ *
+ * @param script - JavaScript code to validate
+ * @returns Error message if unsafe, empty string if safe
+ *
+ * @example
+ * ```typescript
+ * const error = getScriptValidationError("require('fs')");
+ * // Returns: 'Script cannot use require()'
+ *
+ * const valid = getScriptValidationError('document.title');
+ * // Returns: ''
+ * ```
  */
 export function getScriptValidationError(script: string): string {
 	if (!script || typeof script !== 'string') {
@@ -184,6 +220,18 @@ export function getScriptValidationError(script: string): string {
 
 /**
  * Get validation error message for timeout
+ *
+ * @param timeout - Timeout value in milliseconds
+ * @returns Error message if invalid, empty string if valid
+ *
+ * @example
+ * ```typescript
+ * const error = getTimeoutValidationError(500);
+ * // Returns: 'Timeout must be at least 1000ms (1 second)'
+ *
+ * const valid = getTimeoutValidationError(30000);
+ * // Returns: ''
+ * ```
  */
 export function getTimeoutValidationError(timeout: number): string {
 	if (typeof timeout !== 'number' || Number.isNaN(timeout)) {

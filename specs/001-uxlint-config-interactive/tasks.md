@@ -191,17 +191,17 @@
 
 **Strategy**: Integration tests for session lifecycle management
 
-- [ ] T026 [P] [US3] Integration test: Session initialization in `tests/integration/session-management.spec.ts`
+- [X] T026 [P] [US3] Integration test: Session initialization in `tests/integration/session-management.spec.ts`
   - Test session starts within 5 seconds (SC-001)
   - Verify capabilities query completes within 2 seconds (SC-002)
   - Test session readiness check
 
-- [ ] T027 [P] [US3] Integration test: Multi-page session in `tests/integration/multi-page-session.spec.ts`
+- [X] T027 [P] [US3] Integration test: Multi-page session in `tests/integration/multi-page-session.spec.ts`
   - Navigate to page A → screenshot → navigate to page B → screenshot
   - Verify no reinitialization between pages
   - Test session maintains state appropriately
 
-- [ ] T028 [P] [US3] Integration test: Session cleanup in `tests/integration/session-cleanup.spec.ts`
+- [X] T028 [P] [US3] Integration test: Session cleanup in `tests/integration/session-cleanup.spec.ts`
   - Test proper resource release on close
   - Verify browser process terminates
   - Test cleanup after errors
@@ -209,21 +209,21 @@
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] Enhance useMCPClient hook in `source/hooks/use-mcp-client.ts`
+- [X] T029 [US3] Enhance useMCPClient hook in `source/hooks/use-mcp-client.ts`
   - Add listTools() wrapper to expose available operations
   - Add getCapabilities() function
   - Add reconnect() function for error recovery
   - Track connection health
   - Implement automatic cleanup on unmount
 
-- [ ] T030 [US3] Create session manager utility in `source/models/session-manager.ts`
+- [X] T030 [US3] Create session manager utility in `source/models/session-manager.ts`
   - SessionState type (initializing, ready, error, closed)
   - Session lifecycle tracking
   - Operation history tracking
   - Health check mechanism
   - Reconnection logic with retry (max 3 attempts per SC-010)
 
-- [ ] T031 [P] [US3] Integration test: Session persistence in `tests/integration/session-persistence.spec.ts`
+- [X] T031 [P] [US3] Integration test: Session persistence in `tests/integration/session-persistence.spec.ts`
   - Test 50+ operations without performance degradation (SC-008)
   - Monitor memory usage over session lifetime
   - Verify consistent performance metrics
@@ -305,16 +305,16 @@
 
 **Purpose**: Improvements that affect multiple user stories and prepare for production
 
-- [ ] T041 [P] Add comprehensive JSDoc comments to all public APIs in `source/mcp/client/*.ts`
-- [ ] T042 [P] Create configuration documentation in `source/config/README.md`
+- [X] T041 [P] Add comprehensive JSDoc comments to all public APIs in `source/mcp/client/*.ts`
+- [X] T042 [P] Create configuration documentation in `source/config/README.md`
 - [ ] T043 Create end-to-end example in `tests/integration/e2e-example.spec.ts` demonstrating full uxlint flow
 - [ ] T044 [P] Add error recovery examples in `source/examples/error-recovery.ts`
 - [ ] T045 [P] Add performance monitoring utilities in `source/utils/performance.ts`
 - [ ] T046 Review and optimize timeout configurations based on success criteria
-- [ ] T047 Run full test suite with coverage report (target: 80% per Constitution v1.1.0)
+- [X] T047 Run full test suite with coverage report (target: 80% per Constitution v1.1.0)
 - [ ] T048 Run quickstart.md validation (verify all examples work)
 - [ ] T049 [P] Update main README.md with MCP integration documentation
-- [ ] T050 Run code quality gates: `npm run compile && npm run format && npm run lint`
+- [X] T050 Run code quality gates: `npm run compile && npm run format && npm run lint`
 
 ---
 

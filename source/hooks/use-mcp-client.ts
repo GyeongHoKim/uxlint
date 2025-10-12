@@ -3,9 +3,9 @@
  * @packageDocumentation
  */
 
-import {useState, useCallback, useEffect} from 'react';
+import {useState, useCallback, useEffect, useRef} from 'react';
 import {McpClient} from '../mcp/client/mcp-client.js';
-import type {UseMcpClientOptions} from '../mcp/client/types.js';
+import type {UseMcpClientOptions, Tool} from '../mcp/client/types.js';
 
 /**
  * Return type for useMcpClient hook
@@ -20,11 +20,23 @@ export type UseMcpClientReturn = {
 	/** Connection or operation error */
 	error: Error | undefined;
 
+	/** Connection health status */
+	healthy: boolean;
+
 	/** Connect to the MCP server */
 	connect: () => Promise<void>;
 
 	/** Disconnect from the MCP server */
 	disconnect: () => Promise<void>;
+
+	/** Reconnect to the MCP server (with retries) */
+	reconnect: (maxAttempts?: number) => Promise<void>;
+
+	/** List available tools on the server */
+	listTools: () => Promise<Tool[]>;
+
+	/** Get server capabilities */
+	getCapabilities: () => Promise<Record<string, unknown>>;
 };
 
 /**
@@ -46,6 +58,9 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientReturn {
 	const [client, setClient] = useState<McpClient | undefined>();
 	const [connected, setConnected] = useState(false);
 	const [error, setError] = useState<Error | undefined>();
+	const [healthy, setHealthy] = useState(false);
+	const reconnectAttempts = useRef(0);
+	const maxReconnectAttempts = 3; // Per SC-010
 
 	const connect = useCallback(async () => {
 		try {
@@ -64,9 +79,12 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientReturn {
 
 			setClient(newClient);
 			setConnected(true);
+			setHealthy(true);
+			reconnectAttempts.current = 0; // Reset reconnect attempts on successful connection
 		} catch (error_) {
 			setError(error_ as Error);
 			setConnected(false);
+			setHealthy(false);
 			throw error_;
 		}
 	}, [client, options.serverCommand, options.serverArgs]);
@@ -79,7 +97,100 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientReturn {
 				setError(error_ as Error);
 			} finally {
 				setConnected(false);
+				setHealthy(false);
 			}
+		}
+	}, [client]);
+
+	const reconnect = useCallback(
+		async (maxAttempts = maxReconnectAttempts) => {
+			const attemptReconnection = async (
+				attemptNumber: number,
+			): Promise<void> => {
+				reconnectAttempts.current = attemptNumber;
+
+				// Disconnect first if connected
+				if (client?.isConnected()) {
+					await client.close();
+				}
+
+				// Create new client and connect
+				const newClient = new McpClient('uxlint', '1.0.0');
+				await newClient.connect(options.serverCommand, options.serverArgs);
+
+				setClient(newClient);
+				setConnected(true);
+				setHealthy(true);
+				setError(undefined);
+				reconnectAttempts.current = 0;
+			};
+
+			for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+				try {
+					// eslint-disable-next-line no-await-in-loop
+					await attemptReconnection(attempt);
+					return; // Success
+				} catch (error_) {
+					setError(error_ as Error);
+					setHealthy(false);
+
+					if (attempt >= maxAttempts) {
+						setConnected(false);
+						throw error_; // Final attempt failed
+					}
+
+					// Wait before retry (exponential backoff)
+					const waitTime = 1000 * attempt;
+					// eslint-disable-next-line no-await-in-loop
+					await new Promise(resolve => {
+						setTimeout(resolve, waitTime);
+					});
+				}
+			}
+		},
+		[client, options.serverCommand, options.serverArgs],
+	);
+
+	const listTools = useCallback(async (): Promise<Tool[]> => {
+		if (!client) {
+			throw new Error('Client not initialized');
+		}
+
+		try {
+			const tools = await client.listTools();
+			setHealthy(true);
+			return tools;
+		} catch (error_) {
+			setError(error_ as Error);
+			setHealthy(false);
+			throw error_;
+		}
+	}, [client]);
+
+	const getCapabilities = useCallback(async (): Promise<
+		Record<string, unknown>
+	> => {
+		if (!client) {
+			throw new Error('Client not initialized');
+		}
+
+		try {
+			// Capabilities are exposed through tool discovery
+			const tools = await client.listTools();
+			setHealthy(true);
+
+			return {
+				tools: tools.map(t => ({
+					name: t.name,
+					description: t.description,
+				})),
+				connected: client.isConnected(),
+				reconnectAttempts: reconnectAttempts.current,
+			};
+		} catch (error_) {
+			setError(error_ as Error);
+			setHealthy(false);
+			throw error_;
 		}
 	}, [client]);
 
@@ -110,7 +221,11 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientReturn {
 		client,
 		connected,
 		error,
+		healthy,
 		connect,
 		disconnect,
+		reconnect,
+		listTools,
+		getCapabilities,
 	};
 }
