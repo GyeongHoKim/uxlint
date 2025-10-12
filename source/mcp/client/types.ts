@@ -156,6 +156,17 @@ export type Content = {
 };
 
 /**
+ * MCP tool call response from the SDK
+ */
+export type McpToolResponse = {
+	/** Content array returned by the tool */
+	content: Content[];
+
+	/** Indicates if the result is an error */
+	isError?: boolean;
+};
+
+/**
  * Options for useMCPClient hook
  */
 export type UseMcpClientOptions = {
