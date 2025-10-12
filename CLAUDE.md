@@ -104,6 +104,15 @@ node dist/cli.js
 - XO with Prettier integration
 - EditorConfig enforces consistent formatting
 
+**CRITICAL - DO NOT MODIFY THESE FILES:**
+
+The following configuration files control the project's code quality tooling and MUST NOT be modified:
+- `xo.config.js` - XO linting configuration
+- `.prettierrc` - Prettier formatting configuration
+- `.prettierignore` - Prettier ignore patterns
+
+These files are carefully configured to work together. Modifying them can break the tooling integration and cause conflicts between formatters and linters. If you encounter linting or formatting issues, fix the source code to comply with the existing rules, do not modify the configuration files.
+
 ## Configuration Files
 
 The CLI reads `.uxlintrc.yml` or `.uxlintrc.json` from CWD with:
