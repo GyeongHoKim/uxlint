@@ -21,6 +21,7 @@ const config = {
 		],
 	},
 	collectCoverageFrom: ['source/**/*.{ts,tsx}'],
+	setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
 };
 
 export default config;
