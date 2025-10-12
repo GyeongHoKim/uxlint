@@ -25,6 +25,7 @@ export default [
 			'react/react-in-jsx-scope': 'off',
 			'unicorn/expiring-todo-comments': 'off',
 			'unicorn/no-process-exit': 'off',
+			'@typescript-eslint/parameter-properties': 'off',
 		},
 		semicolon: true,
 	},
