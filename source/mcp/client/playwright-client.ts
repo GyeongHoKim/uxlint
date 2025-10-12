@@ -12,6 +12,7 @@ import type {
 	ScreenshotOptions,
 	NavigateOptions,
 	EvaluateOptions,
+	McpToolResponse,
 } from './types.js';
 import {
 	McpError,
@@ -84,17 +85,31 @@ export class PlaywrightClient {
 		}
 
 		try {
-			await this.mcpClient.callTool<{
-				content: Array<{type: string; text: string}>;
-			}>('browser_navigate', {url}, timeout);
+			const result = await this.mcpClient.callTool<McpToolResponse>(
+				'browser_navigate',
+				{url},
+				timeout,
+			);
 
 			// Parse result from MCP response
-			// The actual result structure depends on Playwright MCP implementation
-			// For now, return a successful result
+			// Playwright MCP returns text content with navigation info
+			const textContent = result.content?.find(c => c.type === 'text');
+			let parsedData: Record<string, unknown> = {};
+
+			if (textContent?.text) {
+				try {
+					parsedData = JSON.parse(textContent.text) as Record<string, unknown>;
+				} catch {
+					// If parsing fails, treat as plain text response
+					parsedData = {message: textContent.text};
+				}
+			}
+
 			return {
-				success: true,
-				url,
-				title: 'Page title', // Will be populated by actual tool response
+				success: !result.isError,
+				url: (parsedData['url'] as string) ?? url,
+				title: parsedData['title'] as string | undefined,
+				status: parsedData['status'] as number | undefined,
 			};
 		} catch (error) {
 			if (error instanceof Error) {
@@ -133,13 +148,12 @@ export class PlaywrightClient {
 			);
 		}
 
-		// Extract options
-		let screenshotOptions: ScreenshotOptions;
-		if (typeof options === 'number') {
-			screenshotOptions = {timeout: options};
-		} else {
-			screenshotOptions = options ?? {};
-		}
+		// Extract options - handle number (timeout) or object
+		const isNumberOption = typeof options === 'number';
+		const timeoutOption = isNumberOption ? {timeout: options} : undefined;
+		const objectOption = isNumberOption ? undefined : options;
+		const screenshotOptions: ScreenshotOptions =
+			timeoutOption ?? objectOption ?? {};
 
 		// Validate element selector if provided
 		if (screenshotOptions.element) {
@@ -177,16 +191,28 @@ export class PlaywrightClient {
 				toolArgs['type'] = format;
 			}
 
-			await this.mcpClient.callTool<{
-				content: Array<{type: string; data?: string}>;
-			}>('browser_take_screenshot', toolArgs, screenshotOptions.timeout);
+			const result = await this.mcpClient.callTool<McpToolResponse>(
+				'browser_take_screenshot',
+				toolArgs,
+				screenshotOptions.timeout,
+			);
 
 			// Extract screenshot from result
-			// For now, return a mock result
+			// Playwright MCP returns image content with base64 data
+			const imageContent = result.content?.find(c => c.type === 'image');
+
+			if (!imageContent?.data) {
+				throw new ToolInvocationError(
+					'Screenshot response did not contain image data',
+					'browser_take_screenshot',
+					toolArgs,
+				);
+			}
+
 			return {
-				screenshot: 'base64-encoded-image-data',
-				width: 1920,
-				height: 1080,
+				screenshot: imageContent.data,
+				width: 0, // Width/height not provided by Playwright MCP
+				height: 0,
 				format: format ?? 'png',
 			};
 		} catch (error) {
@@ -223,14 +249,26 @@ export class PlaywrightClient {
 		}
 
 		try {
-			await this.mcpClient.callTool<{
-				content: Array<{type: string; text: string}>;
-			}>('browser_snapshot', {}, timeout);
+			const result = await this.mcpClient.callTool<McpToolResponse>(
+				'browser_snapshot',
+				{},
+				timeout,
+			);
 
 			// Extract snapshot from result
-			// For now, return a mock result
+			// Playwright MCP returns text content with accessibility tree JSON
+			const textContent = result.content?.find(c => c.type === 'text');
+
+			if (!textContent?.text) {
+				throw new ToolInvocationError(
+					'Snapshot response did not contain text data',
+					'browser_snapshot',
+					{},
+				);
+			}
+
 			return {
-				snapshot: '{"role":"document","children":[]}',
+				snapshot: textContent.text,
 				timestamp: Date.now(),
 			};
 		} catch (error) {
@@ -370,13 +408,34 @@ export class PlaywrightClient {
 		}
 
 		try {
-			await this.mcpClient.callTool<{
-				content: Array<{type: string; text: string}>;
-			}>('browser_evaluate', {function: `() => ${script}`}, timeout);
+			// Wrap script in a function that returns the result
+			// Format: () => { return <script>; } or () => (<script>)
+			const wrappedScript = script.trim().endsWith(';')
+				? `() => { ${script} }`
+				: `() => (${script})`;
+
+			const result = await this.mcpClient.callTool<McpToolResponse>(
+				'browser_evaluate',
+				{function: wrappedScript},
+				timeout,
+			);
 
 			// Extract result from MCP response
-			// For now, return the script itself as a placeholder
-			return script;
+			// Playwright MCP returns text content with evaluation result
+			const textContent = result.content?.find(c => c.type === 'text');
+
+			if (!textContent?.text) {
+				// Return undefined if no result
+				return undefined;
+			}
+
+			// Try to parse as JSON if possible
+			try {
+				return JSON.parse(textContent.text) as unknown;
+			} catch {
+				// Return as string if not valid JSON
+				return textContent.text;
+			}
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new ToolInvocationError(
