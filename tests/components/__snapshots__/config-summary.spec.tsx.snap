@@ -1,65 +1,65 @@
 // Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`ConfigSummary visual snapshot - full config with multiple pages: config-summary-full 1`] = `
-"[1m[38;2;99;102;241mConfiguration Summary[39m[22m
+"Configuration Summary
 
 
-[38;2;226;232;240mMain Page:[39m
-[38;2;255;255;255m https://example.com[39m
+Main Page:
+ https://example.com
 
-[38;2;226;232;240mAdditional Pages (2):[39m
-[38;2;255;255;255m• https://example.com/about[39m
-[38;2;255;255;255m• https://example.com/contact[39m
+Additional Pages (2):
+• https://example.com/about
+• https://example.com/contact
 
-[38;2;226;232;240mPage Descriptions (3):[39m
-  [38;2;6;182;212mhttps://example.com[39m
-  [38;2;255;255;255mHomepage with hero section and call-to-action[39m
-  [38;2;6;182;212mhttps://example.com/about[39m
-  [38;2;255;255;255mAbout page with company information and team profiles[39m
-  [38;2;6;182;212mhttps://example.com/contact[39m
-  [38;2;255;255;255mContact page with form validation and location map[39m
+Page Descriptions (3):
+  https://example.com
+  Homepage with hero section and call-to-action
+  https://example.com/about
+  About page with company information and team profiles
+  https://example.com/contact
+  Contact page with form validation and location map
 
-[38;2;226;232;240mPersonas (2):[39m
-  [38;2;255;255;255m1. Marketing manager, 35-45 years old, needs quick insights into campaign performan...[39m
-  [38;2;255;255;255m2. Product designer, 25-35 years old, focuses on user experience and design consist...[39m
+Personas (2):
+  1. Marketing manager, 35-45 years old, needs quick insights into campaign performan...
+  2. Product designer, 25-35 years old, focuses on user experience and design consist...
 
-[38;2;226;232;240mReport Output:[39m
-[38;2;255;255;255m ./reports/ux-analysis.md[39m"
+Report Output:
+ ./reports/ux-analysis.md"
 `;
 
 exports[`ConfigSummary visual snapshot - long text truncation: config-summary-truncated 1`] = `
-"[1m[38;2;99;102;241mConfiguration Summary[39m[22m
+"Configuration Summary
 
 
-[38;2;226;232;240mMain Page:[39m
-[38;2;255;255;255m https://example.com[39m
+Main Page:
+ https://example.com
 
-[38;2;226;232;240mPage Descriptions (1):[39m
-  [38;2;6;182;212mhttps://example.com[39m
-  [38;2;255;255;255mThis is a very long description that exceeds 100 characters and should be truncated with an [39m
-  [38;2;255;255;255mellipsis...[39m
+Page Descriptions (1):
+  https://example.com
+  This is a very long description that exceeds 100 characters and should be truncated with an
+  ellipsis...
 
-[38;2;226;232;240mPersonas (1):[39m
-  [38;2;255;255;255m1. This is a very long persona description that exceeds 80 characters and should be...[39m
+Personas (1):
+  1. This is a very long persona description that exceeds 80 characters and should be...
 
-[38;2;226;232;240mReport Output:[39m
-[38;2;255;255;255m ./ux-report.md[39m"
+Report Output:
+ ./ux-report.md"
 `;
 
 exports[`ConfigSummary visual snapshot - minimal config: config-summary-minimal 1`] = `
-"[1m[38;2;99;102;241mConfiguration Summary[39m[22m
+"Configuration Summary
 
 
-[38;2;226;232;240mMain Page:[39m
-[38;2;255;255;255m https://example.com[39m
+Main Page:
+ https://example.com
 
-[38;2;226;232;240mPage Descriptions (1):[39m
-  [38;2;6;182;212mhttps://example.com[39m
-  [38;2;255;255;255mHomepage with hero section and CTA button[39m
+Page Descriptions (1):
+  https://example.com
+  Homepage with hero section and CTA button
 
-[38;2;226;232;240mPersonas (1):[39m
-  [38;2;255;255;255m1. Product manager, 30-40 years old, needs quick insights[39m
+Personas (1):
+  1. Product manager, 30-40 years old, needs quick insights
 
-[38;2;226;232;240mReport Output:[39m
-[38;2;255;255;255m ./ux-report.md[39m"
+Report Output:
+ ./ux-report.md"
 `;

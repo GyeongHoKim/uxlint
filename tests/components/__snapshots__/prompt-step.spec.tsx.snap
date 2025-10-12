@@ -1,27 +1,27 @@
 // Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`PromptStep visual snapshot - last step: prompt-step-last 1`] = `
-"[38;2;148;163;184m[2mStep 7 of 7[22m[39m
+"Step 7 of 7
 
-[1m[38;2;239;68;68mReview configuration *[39m[22m
+Review configuration *
 
 
 Configuration ready"
 `;
 
 exports[`PromptStep visual snapshot - optional step: prompt-step-optional 1`] = `
-"[38;2;148;163;184m[2mStep 3 of 7[22m[39m
+"Step 3 of 7
 
-[1m[38;2;148;163;184mAdd sub-page URL (optional) (optional)[39m[22m
+Add sub-page URL (optional) (optional)
 
 
 https://example.com/about"
 `;
 
 exports[`PromptStep visual snapshot - required step: prompt-step-required 1`] = `
-"[38;2;148;163;184m[2mStep 1 of 7[22m[39m
+"Step 1 of 7
 
-[1m[38;2;239;68;68mEnter main page URL *[39m[22m
+Enter main page URL *
 
 
 https://example.com"
