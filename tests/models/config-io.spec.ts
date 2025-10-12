@@ -1,22 +1,24 @@
-import * as fs from 'node:fs';
+import {jest} from '@jest/globals';
 import {
+	getMockFsModule,
+	mockFiles,
+	resetMockFiles,
+} from '../helpers/fs-mock.js';
+
+// Mock node:fs module using unstable_mockModule for ESM
+jest.unstable_mockModule('node:fs', () => getMockFsModule());
+
+// Dynamic imports after mock is set up
+const {
 	findConfigFile,
 	loadConfig,
 	parseConfigFile,
 	readConfigFile,
 	validateConfig,
-} from '../../source/models/config-io.js';
-import {ConfigurationError} from '../../source/models/errors.js';
-import type {MockFileSystem} from './__mocks__/fs.js';
-
-// Mock the node:fs module
-jest.mock('node:fs');
-
-// Type assertion for mocked fs module
-const mockFs = fs as typeof fs & {
-	__setMockFiles: (files: MockFileSystem) => void;
-	__clearMockFiles: () => void;
-};
+} = await import('../../source/models/config-io.js');
+const {ConfigurationError: configurationError} = await import(
+	'../../source/models/errors.js'
+);
 
 describe('config-loader', () => {
 	// Test file paths
@@ -25,41 +27,33 @@ describe('config-loader', () => {
 	const testYamlPath = '/test/.uxlintrc.yaml';
 
 	beforeEach(() => {
-		mockFs.__clearMockFiles();
+		resetMockFiles();
 	});
 
 	describe('findConfigFile', () => {
 		test('should find .uxlintrc.json file', () => {
-			mockFs.__setMockFiles({
-				[testJsonPath]: '{}',
-			});
+			mockFiles.set(testJsonPath, '{}');
 
 			const result = findConfigFile(testDir);
 			expect(result).toBe(testJsonPath);
 		});
 
 		test('should find .uxlintrc.yaml file', () => {
-			mockFs.__setMockFiles({
-				[testYamlPath]: 'mainPageUrl: test',
-			});
+			mockFiles.set(testYamlPath, 'mainPageUrl: test');
 
 			const result = findConfigFile(testDir);
 			expect(result).toBe(testYamlPath);
 		});
 
 		test('should prioritize .uxlintrc.json over .uxlintrc.yaml', () => {
-			mockFs.__setMockFiles({
-				[testJsonPath]: '{}',
-				[testYamlPath]: 'mainPageUrl: test',
-			});
+			mockFiles.set(testJsonPath, '{}');
+			mockFiles.set(testYamlPath, 'mainPageUrl: test');
 
 			const result = findConfigFile(testDir);
 			expect(result).toBe(testJsonPath);
 		});
 
 		test('should return undefined when no config file exists', () => {
-			mockFs.__setMockFiles({});
-
 			const result = findConfigFile(testDir);
 			expect(result).toBeUndefined();
 		});
@@ -68,34 +62,27 @@ describe('config-loader', () => {
 	describe('readConfigFile', () => {
 		test('should read file content successfully', () => {
 			const content = '{"mainPageUrl": "https://example.com"}';
-			mockFs.__setMockFiles({
-				[testJsonPath]: content,
-			});
+			mockFiles.set(testJsonPath, content);
 
 			const result = readConfigFile(testJsonPath);
 			expect(result).toBe(content);
 		});
 
 		test('should throw ConfigurationError when file does not exist', () => {
-			mockFs.__setMockFiles({});
-
 			expect(() => {
 				readConfigFile(testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 		});
 
 		test('should throw ConfigurationError when file is too large', () => {
 			const maxFileSize = 10 * 1024 * 1024; // 10MB
-			mockFs.__setMockFiles({
-				[testJsonPath]: {
-					size: maxFileSize + 1,
-					content: '{}',
-				},
-			});
+			// Create a string larger than max size
+			const largeContent = 'x'.repeat(maxFileSize + 1);
+			mockFiles.set(testJsonPath, largeContent);
 
 			expect(() => {
 				readConfigFile(testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				readConfigFile(testJsonPath);
 			}).toThrow(/too large/);
@@ -103,15 +90,12 @@ describe('config-loader', () => {
 
 		test('should accept file at exactly max size limit', () => {
 			const maxFileSize = 10 * 1024 * 1024; // 10MB
-			mockFs.__setMockFiles({
-				[testJsonPath]: {
-					size: maxFileSize,
-					content: '{}',
-				},
-			});
+			// Create a string exactly at max size
+			const exactSizeContent = 'x'.repeat(maxFileSize);
+			mockFiles.set(testJsonPath, exactSizeContent);
 
 			const result = readConfigFile(testJsonPath);
-			expect(result).toBe('{}');
+			expect(result).toBe(exactSizeContent);
 		});
 	});
 
@@ -132,7 +116,7 @@ describe('config-loader', () => {
 			const content = '{invalid json}';
 			expect(() => {
 				parseConfigFile(content, 'json');
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				parseConfigFile(content, 'json');
 			}).toThrow(/Invalid JSON syntax/);
@@ -142,7 +126,7 @@ describe('config-loader', () => {
 			const content = 'invalid: yaml: content:';
 			expect(() => {
 				parseConfigFile(content, 'yaml');
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				parseConfigFile(content, 'yaml');
 			}).toThrow(/Invalid YAML syntax/);
@@ -173,7 +157,7 @@ describe('config-loader', () => {
 		test('should throw ConfigurationError when data is not an object', () => {
 			expect(() => {
 				validateConfig(null, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(null, testJsonPath);
 			}).toThrow(/must be an object/);
@@ -185,7 +169,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/mainPageUrl/);
@@ -196,7 +180,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/mainPageUrl/);
@@ -207,7 +191,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/subPageUrls/);
@@ -219,7 +203,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/pages/);
@@ -230,7 +214,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/at least one page/);
@@ -244,7 +228,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/pages\[0]\.url/);
@@ -258,7 +242,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/pages\[0]\.features/);
@@ -270,7 +254,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/personas/);
@@ -281,7 +265,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/at least one persona/);
@@ -293,7 +277,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/report/);
@@ -304,7 +288,7 @@ describe('config-loader', () => {
 
 			expect(() => {
 				validateConfig(config, testJsonPath);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				validateConfig(config, testJsonPath);
 			}).toThrow(/report\.output/);
@@ -339,18 +323,14 @@ report:
   output: ./report.md`;
 
 		test('should load and validate JSON config successfully', () => {
-			mockFs.__setMockFiles({
-				[testJsonPath]: JSON.stringify(validJsonConfig),
-			});
+			mockFiles.set(testJsonPath, JSON.stringify(validJsonConfig));
 
 			const result = loadConfig(testDir);
 			expect(result).toEqual(validJsonConfig);
 		});
 
 		test('should load and validate YAML config successfully', () => {
-			mockFs.__setMockFiles({
-				[testYamlPath]: validYamlContent,
-			});
+			mockFiles.set(testYamlPath, validYamlContent);
 
 			const result = loadConfig(testDir);
 			expect(result.mainPageUrl).toBe('https://example.com');
@@ -358,24 +338,20 @@ report:
 		});
 
 		test('should throw ConfigurationError when no config file found', () => {
-			mockFs.__setMockFiles({});
-
 			expect(() => {
 				loadConfig(testDir);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 			expect(() => {
 				loadConfig(testDir);
 			}).toThrow(/Configuration file not found/);
 		});
 
 		test('should throw ConfigurationError for invalid config', () => {
-			mockFs.__setMockFiles({
-				[testJsonPath]: '{"mainPageUrl": "test"}',
-			});
+			mockFiles.set(testJsonPath, '{"mainPageUrl": "test"}');
 
 			expect(() => {
 				loadConfig(testDir);
-			}).toThrow(ConfigurationError);
+			}).toThrow(configurationError);
 		});
 	});
 });
