@@ -4,7 +4,6 @@
  */
 
 import * as fs from 'node:fs';
-import {existsSync, readFileSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 import process from 'node:process';
 import {load as parseYaml, dump as yamlDump} from 'js-yaml';
@@ -36,7 +35,7 @@ const maxFileSize = 10 * 1024 * 1024;
 export function findConfigFile(baseDirectory: string): string | undefined {
 	for (const configFile of configFiles) {
 		const configPath = join(baseDirectory, configFile);
-		if (existsSync(configPath)) {
+		if (fs.existsSync(configPath)) {
 			return configPath;
 		}
 	}
@@ -53,7 +52,7 @@ export function findConfigFile(baseDirectory: string): string | undefined {
 export function readConfigFile(filePath: string): string {
 	try {
 		// Check file size before reading
-		const stats = statSync(filePath);
+		const stats = fs.statSync(filePath);
 		if (stats.size > maxFileSize) {
 			throw new ConfigurationError(
 				`Configuration file is too large (${stats.size} bytes, maximum ${maxFileSize} bytes)`,
@@ -62,7 +61,7 @@ export function readConfigFile(filePath: string): string {
 		}
 
 		// Read file content
-		return readFileSync(filePath, 'utf8');
+		return fs.readFileSync(filePath, 'utf8');
 	} catch (error) {
 		// If it's already a ConfigurationError, re-throw it
 		if (error instanceof ConfigurationError) {

@@ -3,19 +3,28 @@
  * Unit tests for building and serializing UxLintConfig from wizard data
  */
 
-import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {describe, it, expect, beforeEach, afterEach} from '@jest/globals';
+import {describe, it, expect, beforeEach, afterEach, jest} from '@jest/globals';
 import type {
 	ConfigurationData,
 	SaveOptions,
 } from '../../source/models/wizard-state.js';
 import type {UxLintConfig} from '../../source/models/config.js';
+import type {SaveResult} from '../../source/models/config-io.js';
 import {
-	buildConfig,
-	canBuildConfig,
-} from '../../source/models/config-builder.js';
-import {
+	getMockFsModule,
+	mockFiles,
+	resetMockFiles,
+} from '../helpers/fs-mock.js';
+
+// Mock node:fs module using unstable_mockModule for ESM
+jest.unstable_mockModule('node:fs', () => getMockFsModule());
+
+// Dynamic imports after mock is set up
+const {buildConfig, canBuildConfig} = await import(
+	'../../source/models/config-builder.js'
+);
+const {
 	serializeToJson,
 	serializeToYaml,
 	determineFilePath,
@@ -23,8 +32,8 @@ import {
 	formatFileSize,
 	saveConfigToFile,
 	trySaveConfig,
-	type SaveResult,
-} from '../../source/models/config-io.js';
+} = await import('../../source/models/config-io.js');
+const fs = await import('node:fs');
 
 // Test data
 const validConfigData: ConfigurationData = {
@@ -341,26 +350,14 @@ describe('saveConfigToFile', () => {
 	let testFilePath: string;
 
 	beforeEach(() => {
+		resetMockFiles();
 		testFilePath = path.join(testDir, 'test-config.yaml');
-		// Create test directory
-		if (!fs.existsSync(testDir)) {
-			fs.mkdirSync(testDir, {recursive: true});
-		}
+		// Create test directory in mock
+		mockFiles.set(testDir, '__DIR__');
 	});
 
 	afterEach(() => {
-		// Clean up test files
-		try {
-			if (fs.existsSync(testFilePath)) {
-				fs.unlinkSync(testFilePath);
-			}
-
-			if (fs.existsSync(testDir)) {
-				fs.rmdirSync(testDir);
-			}
-		} catch {
-			// Ignore cleanup errors
-		}
+		resetMockFiles();
 	});
 
 	it('should save YAML config to file', async () => {
@@ -443,24 +440,14 @@ describe('trySaveConfig', () => {
 	let testFilePath: string;
 
 	beforeEach(() => {
+		resetMockFiles();
 		testFilePath = path.join(testDir, 'test-config.yaml');
-		if (!fs.existsSync(testDir)) {
-			fs.mkdirSync(testDir, {recursive: true});
-		}
+		// Create test directory in mock
+		mockFiles.set(testDir, '__DIR__');
 	});
 
 	afterEach(() => {
-		try {
-			if (fs.existsSync(testFilePath)) {
-				fs.unlinkSync(testFilePath);
-			}
-
-			if (fs.existsSync(testDir)) {
-				fs.rmdirSync(testDir);
-			}
-		} catch {
-			// Ignore cleanup errors
-		}
+		resetMockFiles();
 	});
 
 	it('should return success result when save succeeds', async () => {

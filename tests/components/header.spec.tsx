@@ -1,4 +1,3 @@
-// Using Jest globals
 import {render} from 'ink-testing-library';
 import {Header} from '../../source/components/header.js';
 import {defaultTheme, fallbackTheme} from '../../source/models/theme.js';
