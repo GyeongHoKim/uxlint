@@ -9,9 +9,24 @@ import type {
 	NavigateResult,
 	ScreenshotResult,
 	SnapshotResult,
+	ScreenshotOptions,
+	NavigateOptions,
+	EvaluateOptions,
 } from './types.js';
-import {McpError, ToolInvocationError} from './errors.js';
-import {isScriptSafe, isValidUrl} from './validators.js';
+import {
+	McpError,
+	ToolInvocationError,
+	InvalidUrlError,
+	InvalidSelectorError,
+	InvalidScriptError,
+	InvalidTimeoutError,
+} from './errors.js';
+import {
+	getUrlValidationError,
+	getSelectorValidationError,
+	getScriptValidationError,
+	getTimeoutValidationError,
+} from './validators.js';
 
 /**
  * Client for interacting with Playwright MCP server
@@ -33,12 +48,17 @@ export class PlaywrightClient {
 	 * Navigate to a URL
 	 *
 	 * @param url - URL to navigate to
-	 * @param timeout - Optional timeout in milliseconds
+	 * @param options - Navigation options (timeout, waitUntil) or timeout in milliseconds (legacy)
 	 * @returns Navigation result with final URL, title, and status
 	 * @throws {McpError} If client is not connected
+	 * @throws {InvalidUrlError} If URL validation fails
+	 * @throws {InvalidTimeoutError} If timeout validation fails
 	 * @throws {ToolInvocationError} If navigation fails
 	 */
-	async navigate(url: string, timeout?: number): Promise<NavigateResult> {
+	async navigate(
+		url: string,
+		options?: NavigateOptions | number,
+	): Promise<NavigateResult> {
 		if (!this.mcpClient.isConnected()) {
 			throw new McpError(
 				'MCP client is not connected. Call connect() first.',
@@ -47,10 +67,20 @@ export class PlaywrightClient {
 		}
 
 		// Validate URL
-		if (!isValidUrl(url)) {
-			throw new ToolInvocationError(`Invalid URL: ${url}`, 'browser_navigate', {
-				url,
-			});
+		const urlError = getUrlValidationError(url);
+		if (urlError) {
+			throw new InvalidUrlError(urlError);
+		}
+
+		// Extract timeout from options
+		const timeout = typeof options === 'number' ? options : options?.timeout;
+
+		// Validate timeout if provided
+		if (timeout !== undefined) {
+			const timeoutError = getTimeoutValidationError(timeout);
+			if (timeoutError) {
+				throw new InvalidTimeoutError(timeoutError);
+			}
 		}
 
 		try {
@@ -86,12 +116,16 @@ export class PlaywrightClient {
 	/**
 	 * Take a screenshot of the current page
 	 *
-	 * @param timeout - Optional timeout in milliseconds
+	 * @param options - Screenshot options (element, fullPage, format, timeout) or timeout in milliseconds (legacy)
 	 * @returns Screenshot result with base64-encoded image
 	 * @throws {McpError} If client is not connected
+	 * @throws {InvalidSelectorError} If element selector validation fails
+	 * @throws {InvalidTimeoutError} If timeout validation fails
 	 * @throws {ToolInvocationError} If screenshot capture fails
 	 */
-	async screenshot(timeout?: number): Promise<ScreenshotResult> {
+	async screenshot(
+		options?: ScreenshotOptions | number,
+	): Promise<ScreenshotResult> {
 		if (!this.mcpClient.isConnected()) {
 			throw new McpError(
 				'MCP client is not connected. Call connect() first.',
@@ -99,10 +133,53 @@ export class PlaywrightClient {
 			);
 		}
 
+		// Extract options
+		let screenshotOptions: ScreenshotOptions;
+		if (typeof options === 'number') {
+			screenshotOptions = {timeout: options};
+		} else {
+			screenshotOptions = options ?? {};
+		}
+
+		// Validate element selector if provided
+		if (screenshotOptions.element) {
+			const selectorError = getSelectorValidationError(
+				screenshotOptions.element,
+			);
+			if (selectorError) {
+				throw new InvalidSelectorError(selectorError);
+			}
+		}
+
+		// Validate timeout if provided
+		if (screenshotOptions.timeout !== undefined) {
+			const timeoutError = getTimeoutValidationError(screenshotOptions.timeout);
+			if (timeoutError) {
+				throw new InvalidTimeoutError(timeoutError);
+			}
+		}
+
 		try {
+			// Build tool arguments
+			const toolArgs: Record<string, unknown> = {};
+			if (screenshotOptions.element) {
+				toolArgs['element'] = screenshotOptions.element;
+				toolArgs['ref'] = screenshotOptions.element;
+			}
+
+			if (screenshotOptions.fullPage) {
+				toolArgs['fullPage'] = true;
+			}
+
+			// Use 'type' if provided, otherwise 'format'
+			const format = screenshotOptions.type ?? screenshotOptions.format;
+			if (format) {
+				toolArgs['type'] = format;
+			}
+
 			await this.mcpClient.callTool<{
 				content: Array<{type: string; data?: string}>;
-			}>('browser_take_screenshot', {}, timeout);
+			}>('browser_take_screenshot', toolArgs, screenshotOptions.timeout);
 
 			// Extract screenshot from result
 			// For now, return a mock result
@@ -110,7 +187,7 @@ export class PlaywrightClient {
 				screenshot: 'base64-encoded-image-data',
 				width: 1920,
 				height: 1080,
-				format: 'png',
+				format: format ?? 'png',
 			};
 		} catch (error) {
 			if (error instanceof Error) {
@@ -257,12 +334,17 @@ export class PlaywrightClient {
 	 * Evaluate JavaScript in the page context
 	 *
 	 * @param script - JavaScript code to evaluate
-	 * @param timeout - Optional timeout in milliseconds
+	 * @param options - Evaluation options (timeout) or timeout in milliseconds (legacy)
 	 * @returns Result of script execution
 	 * @throws {McpError} If client is not connected
-	 * @throws {ToolInvocationError} If evaluation fails or script is unsafe
+	 * @throws {InvalidScriptError} If script validation fails
+	 * @throws {InvalidTimeoutError} If timeout validation fails
+	 * @throws {ToolInvocationError} If evaluation fails
 	 */
-	async evaluate(script: string, timeout?: number): Promise<unknown> {
+	async evaluate(
+		script: string,
+		options?: EvaluateOptions | number,
+	): Promise<unknown> {
 		if (!this.mcpClient.isConnected()) {
 			throw new McpError(
 				'MCP client is not connected. Call connect() first.',
@@ -271,12 +353,20 @@ export class PlaywrightClient {
 		}
 
 		// Validate script safety
-		if (!isScriptSafe(script)) {
-			throw new ToolInvocationError(
-				'Script contains unsafe code (require, import, or eval)',
-				'browser_evaluate',
-				{script},
-			);
+		const scriptError = getScriptValidationError(script);
+		if (scriptError) {
+			throw new InvalidScriptError(scriptError);
+		}
+
+		// Extract timeout from options
+		const timeout = typeof options === 'number' ? options : options?.timeout;
+
+		// Validate timeout if provided
+		if (timeout !== undefined) {
+			const timeoutError = getTimeoutValidationError(timeout);
+			if (timeoutError) {
+				throw new InvalidTimeoutError(timeoutError);
+			}
 		}
 
 		try {

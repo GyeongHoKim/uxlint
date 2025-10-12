@@ -182,3 +182,162 @@ export class TimeoutError extends McpError {
 		}
 	}
 }
+
+/**
+ * Base error class for parameter validation failures
+ *
+ * This error occurs when a function parameter fails validation,
+ * such as invalid URLs, selectors, scripts, or timeout values.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await playwrightClient.navigate('not-a-url');
+ * } catch (error) {
+ *   if (error instanceof ValidationError) {
+ *     console.error('Validation failed:', error.message);
+ *   }
+ * }
+ * ```
+ */
+export class ValidationError extends McpError {
+	/**
+	 * Create a new validation error
+	 *
+	 * @param message - Human-readable error message
+	 * @param code - Error code (defaults to 'VALIDATION_ERROR')
+	 */
+	constructor(message: string, code = 'VALIDATION_ERROR') {
+		super(message, code);
+		this.name = 'ValidationError';
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, ValidationError);
+		}
+	}
+}
+
+/**
+ * Error thrown when URL validation fails
+ *
+ * This error occurs when a URL is malformed, empty, or uses an unsupported protocol.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await playwrightClient.navigate('ftp://example.com');
+ * } catch (error) {
+ *   if (error instanceof InvalidUrlError) {
+ *     console.error('Invalid URL provided');
+ *   }
+ * }
+ * ```
+ */
+export class InvalidUrlError extends ValidationError {
+	/**
+	 * Create a new invalid URL error
+	 *
+	 * @param message - Human-readable error message
+	 */
+	constructor(message: string) {
+		super(message, 'INVALID_URL');
+		this.name = 'InvalidUrlError';
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, InvalidUrlError);
+		}
+	}
+}
+
+/**
+ * Error thrown when CSS selector validation fails
+ *
+ * This error occurs when a selector is empty, invalid, or uses unsupported syntax (e.g., XPath).
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await playwrightClient.screenshot({ element: '//xpath' });
+ * } catch (error) {
+ *   if (error instanceof InvalidSelectorError) {
+ *     console.error('XPath selectors are not supported');
+ *   }
+ * }
+ * ```
+ */
+export class InvalidSelectorError extends ValidationError {
+	/**
+	 * Create a new invalid selector error
+	 *
+	 * @param message - Human-readable error message
+	 */
+	constructor(message: string) {
+		super(message, 'INVALID_SELECTOR');
+		this.name = 'InvalidSelectorError';
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, InvalidSelectorError);
+		}
+	}
+}
+
+/**
+ * Error thrown when JavaScript validation fails
+ *
+ * This error occurs when a script contains unsafe code (require, import, eval)
+ * or exceeds the maximum length limit.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await playwrightClient.evaluate('require("fs")');
+ * } catch (error) {
+ *   if (error instanceof InvalidScriptError) {
+ *     console.error('Script contains unsafe code');
+ *   }
+ * }
+ * ```
+ */
+export class InvalidScriptError extends ValidationError {
+	/**
+	 * Create a new invalid script error
+	 *
+	 * @param message - Human-readable error message
+	 */
+	constructor(message: string) {
+		super(message, 'INVALID_SCRIPT');
+		this.name = 'InvalidScriptError';
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, InvalidScriptError);
+		}
+	}
+}
+
+/**
+ * Error thrown when timeout validation fails
+ *
+ * This error occurs when a timeout value is invalid (NaN, negative),
+ * below the minimum (1000ms), or above the maximum (300000ms).
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await playwrightClient.navigate('https://example.com', { timeout: 500 });
+ * } catch (error) {
+ *   if (error instanceof InvalidTimeoutError) {
+ *     console.error('Timeout must be at least 1000ms');
+ *   }
+ * }
+ * ```
+ */
+export class InvalidTimeoutError extends ValidationError {
+	/**
+	 * Create a new invalid timeout error
+	 *
+	 * @param message - Human-readable error message
+	 */
+	constructor(message: string) {
+		super(message, 'INVALID_TIMEOUT');
+		this.name = 'InvalidTimeoutError';
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, InvalidTimeoutError);
+		}
+	}
+}

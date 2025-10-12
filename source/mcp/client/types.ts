@@ -173,8 +173,14 @@ export type UseMcpClientOptions = {
  * Screenshot options
  */
 export type ScreenshotOptions = {
+	/** CSS selector for element to screenshot */
+	element?: string;
+
 	/** Capture full scrollable page */
 	fullPage?: boolean;
+
+	/** Image format (alias for format) */
+	type?: 'png' | 'jpeg';
 
 	/** Image format */
 	format?: 'png' | 'jpeg';
