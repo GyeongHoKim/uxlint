@@ -3,6 +3,7 @@ import {config as dotenvConfig} from 'dotenv';
 import {Box, Text} from 'ink';
 import {useState} from 'react';
 import {
+	AnalysisRunner,
 	ConfigWizard,
 	Header,
 	UserInput,
@@ -32,21 +33,35 @@ export default function App({mode = 'normal'}: AppProps) {
 
 	const {status: configStatus, config, error: configError} = useConfig();
 
-	// Render analysis mode (US1 implementation)
+	// Render analysis mode
 	if (mode === 'analysis') {
+		// Show loading state while config is being loaded
+		if (configStatus === 'loading') {
+			return (
+				<Box flexDirection="column" gap={1}>
+					<Header theme={defaultTheme} />
+					<Text color="yellow">Loading configuration...</Text>
+				</Box>
+			);
+		}
+
+		// Show error if config failed to load
+		if (configStatus === 'error' || !config) {
+			return (
+				<Box flexDirection="column" gap={1}>
+					<Header theme={defaultTheme} />
+					<Text color="red">
+						Configuration Error: {configError?.message ?? 'Config not found'}
+					</Text>
+				</Box>
+			);
+		}
+
+		// Run analysis with loaded config
 		return (
 			<Box flexDirection="column" gap={1}>
 				<Header theme={defaultTheme} />
-				<Text color="yellow">Analysis mode detected</Text>
-				<Text dimColor>
-					Analysis runner not yet implemented (requires US4 components)
-				</Text>
-				<Text dimColor>Config: {configStatus}</Text>
-				{config ? (
-					<Text dimColor>
-						Pages: {config.pages.length} | Personas: {config.personas.length}
-					</Text>
-				) : null}
+				<AnalysisRunner theme={defaultTheme} config={config} />
 			</Box>
 		);
 	}
