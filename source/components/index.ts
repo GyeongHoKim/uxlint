@@ -10,6 +10,7 @@ export {PromptStep} from './prompt-step.js';
 export {ConfigSummary} from './config-summary.js';
 export {ConfigWizard} from './config-wizard.js';
 export {AnalysisProgress} from './analysis-progress.js';
+export {AnalysisRunner} from './analysis-runner.js';
 
 // Export UserInput variant types
 export type {
@@ -41,3 +42,6 @@ export type {ConfigWizardProps} from './config-wizard.js';
 
 // Export AnalysisProgress types
 export type {AnalysisProgressProps} from './analysis-progress.js';
+
+// Export AnalysisRunner types
+export type {AnalysisRunnerProps} from './analysis-runner.js';
