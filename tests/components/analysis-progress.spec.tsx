@@ -79,7 +79,7 @@ describe('AnalysisProgress', () => {
 			);
 
 			const frame = lastFrame();
-			expect(frame).toContain('Complete');
+			expect(frame).toContain('Analysis complete');
 		});
 	});
 
