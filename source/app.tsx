@@ -1,22 +1,26 @@
 import process from 'node:process';
+import {config as dotenvConfig} from 'dotenv';
 import {Box, Text} from 'ink';
 import {useState} from 'react';
 import {
+	ConfigWizard,
 	Header,
 	UserInput,
 	UserInputLabel,
-	ConfigWizard,
 } from './components/index.js';
 import {useConfig} from './hooks/index.js';
-import {defaultTheme} from './models/theme.js';
 import type {UxLintConfig} from './models/config.js';
+import {defaultTheme} from './models/theme.js';
 
 /**
  * App props
  */
 export type AppProps = {
-	readonly mode?: 'normal' | 'interactive';
+	readonly mode?: 'normal' | 'interactive' | 'analysis';
 };
+
+// Load environment variables from .env file
+dotenvConfig();
 
 /**
  * Main App component
@@ -27,6 +31,25 @@ export default function App({mode = 'normal'}: AppProps) {
 	const [error, setError] = useState<string | undefined>(undefined);
 
 	const {status: configStatus, config, error: configError} = useConfig();
+
+	// Render analysis mode (US1 implementation)
+	if (mode === 'analysis') {
+		return (
+			<Box flexDirection="column" gap={1}>
+				<Header theme={defaultTheme} />
+				<Text color="yellow">Analysis mode detected</Text>
+				<Text dimColor>
+					Analysis runner not yet implemented (requires US4 components)
+				</Text>
+				<Text dimColor>Config: {configStatus}</Text>
+				{config ? (
+					<Text dimColor>
+						Pages: {config.pages.length} | Personas: {config.personas.length}
+					</Text>
+				) : null}
+			</Box>
+		);
+	}
 
 	// Render interactive wizard mode
 	if (mode === 'interactive') {
