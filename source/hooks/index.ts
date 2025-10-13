@@ -8,3 +8,5 @@ export type {UseConfigResult} from './use-config.js';
 
 export * from './use-wizard.js';
 export type {UseWizardResult} from './use-wizard.js';
+
+export * from './use-analysis.js';
