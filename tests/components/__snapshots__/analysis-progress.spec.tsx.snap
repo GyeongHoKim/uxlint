@@ -1,0 +1,33 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`AnalysisProgress visual snapshots analyzing stage snapshot: analysis-progress-analyzing 1`] = `
+"⠋ Analyzing with AI
+
+Page 2/3
+
+https://example.com/about"
+`;
+
+exports[`AnalysisProgress visual snapshots complete stage snapshot: analysis-progress-complete 1`] = `
+"✓ Analysis complete
+
+Page 3/3"
+`;
+
+exports[`AnalysisProgress visual snapshots error state snapshot: analysis-progress-error 1`] = `
+"✗ Error occurred
+
+Page 1/3
+
+https://example.com/404
+
+Page not found"
+`;
+
+exports[`AnalysisProgress visual snapshots navigating stage snapshot: analysis-progress-navigating 1`] = `
+"⠋ Navigating to page
+
+Page 1/3
+
+https://example.com"
+`;
