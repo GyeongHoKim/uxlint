@@ -5,7 +5,10 @@
  * @packageDocumentation
  */
 
+import {createAnthropic} from '@ai-sdk/anthropic';
+import {streamText} from 'ai';
 import type {UxFinding} from './analysis.js';
+import {loadEnvConfig} from './env-config.js';
 
 /**
  * Analysis prompt input
@@ -146,4 +149,82 @@ export function extractSummary(response: string): string {
 	}
 
 	return 'Analysis completed. Review findings for details.';
+}
+
+/**
+ * Retry a function with exponential backoff
+ * Retries up to maxRetries times with increasing delay
+ */
+export async function retryWithBackoff<T>(
+	fn: () => Promise<T>,
+	maxRetries = 3,
+	initialDelay = 1000,
+): Promise<T> {
+	let lastError: Error | undefined;
+
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		try {
+			// eslint-disable-next-line no-await-in-loop
+			return await fn();
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+
+			// Don't retry on last attempt
+			if (attempt === maxRetries - 1) {
+				break;
+			}
+
+			// Calculate delay with exponential backoff: 1s, 2s, 4s
+			const delay = initialDelay * 2 ** attempt;
+			// eslint-disable-next-line no-await-in-loop
+			await new Promise(resolve => {
+				setTimeout(resolve, delay);
+			});
+		}
+	}
+
+	throw lastError ?? new Error('Retry failed with unknown error');
+}
+
+/**
+ * Analyze page with AI using Vercel AI SDK
+ * Streams response from Claude and parses findings
+ */
+export async function analyzePageWithAi(
+	prompt: AnalysisPrompt,
+	onChunk?: (chunk: string) => void,
+): Promise<AnalysisResult> {
+	const config = loadEnvConfig();
+
+	// Build prompts
+	const systemPrompt = buildSystemPrompt(prompt.personas);
+	const userPrompt = buildAnalysisPrompt(prompt);
+
+	// Create anthropic provider with custom API key
+	const anthropic = createAnthropic({
+		apiKey: config.apiKey,
+	});
+
+	// Call AI with retry logic
+	return retryWithBackoff(async () => {
+		const chunks: string[] = [];
+
+		// eslint-disable-next-line @typescript-eslint/await-thenable
+		const result = await streamText({
+			model: anthropic(config.model),
+			system: systemPrompt,
+			prompt: userPrompt,
+			temperature: 0.3,
+		});
+
+		// Stream response chunks
+		for await (const chunk of result.textStream) {
+			chunks.push(chunk);
+			onChunk?.(chunk);
+		}
+
+		// Parse complete response
+		const fullResponse = chunks.join('');
+		return parseAnalysisResponse(fullResponse, prompt.pageUrl);
+	});
 }
