@@ -14,6 +14,7 @@ import type {
 } from '../models/analysis.js';
 import {McpPageCapture} from '../services/mcp-page-capture.js';
 import {analyzePageWithAi} from '../models/ai-service.js';
+import {writeReportToFile} from '../models/report-generator.js';
 
 /**
  * State change callback type
@@ -239,6 +240,9 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 
 			const report = generateReport(analyses);
 
+			// Write report to file
+			await writeReportToFile(report, {outputPath: config.report.output});
+
 			// Stage 5: Complete
 			updateState(previous => ({
 				...previous,
@@ -253,7 +257,13 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 				error: error instanceof Error ? error : new Error('Unknown error'),
 			}));
 		}
-	}, [config.pages, analyzePage, generateReport, updateState]);
+	}, [
+		config.pages,
+		config.report.output,
+		analyzePage,
+		generateReport,
+		updateState,
+	]);
 
 	/**
 	 * Cleanup on unmount
