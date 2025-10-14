@@ -42,7 +42,8 @@
 		"lint": "xo",
 		"format": "prettier --write .",
 		"prepare": "husky",
-		"clean": "rimraf dist coverage node_modules"
+		"clean": "rimraf dist coverage node_modules",
+		"release": "semantic-release"
 	},
 	"files": [
 		"dist"
@@ -67,6 +68,12 @@
 		"@commitlint/cli": "^20.1.0",
 		"@commitlint/config-conventional": "^20.0.0",
 		"@jest/globals": "^30.2.0",
+		"@semantic-release/changelog": "^6.0.3",
+		"@semantic-release/commit-analyzer": "^13.0.1",
+		"@semantic-release/git": "^10.0.1",
+		"@semantic-release/github": "^11.0.6",
+		"@semantic-release/npm": "^12.0.2",
+		"@semantic-release/release-notes-generator": "^14.1.0",
 		"@sindresorhus/tsconfig": "^3.0.1",
 		"@types/jest": "^29.5.12",
 		"@types/js-yaml": "^4.0.9",
@@ -82,6 +89,7 @@
 		"jest": "^30.2.0",
 		"prettier": "^2.8.8",
 		"rimraf": "^6.0.1",
+		"semantic-release": "^24.2.9",
 		"ts-jest": "^29.4.5",
 		"ts-node": "^10.9.1",
 		"tsimp": "2.0.12",
