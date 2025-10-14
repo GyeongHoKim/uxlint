@@ -48,8 +48,8 @@ export function isValidSelector(selector: string): boolean {
 		}
 
 		// Basic CSS selector validation
-		// Allow common CSS selector patterns
-		const cssPattern = /^[#.[\w*:\-\s\]=>+(),"]+$/i;
+		// Allow common CSS selector patterns including attribute selectors
+		const cssPattern = /^[#.[\w*:\-\s\]=>+(),"^$|~]+$/i;
 		return cssPattern.test(selector);
 	} catch {
 		return false;
@@ -75,7 +75,7 @@ export function isScriptSafe(script: string): boolean {
 	// Check for dangerous patterns
 	const dangerousPatterns = [
 		/\brequire\s*\(/i,
-		/\bimport\s+/i,
+		/\bimport\s*[({]|import\s+/i,
 		/\beval\s*\(/i,
 		/\bfunction\s*\(/i,
 		/\bnew\s+function/i,
@@ -203,8 +203,8 @@ export function getScriptValidationError(script: string): string {
 		return 'Script cannot use require()';
 	}
 
-	if (/\bimport\s+/i.test(script)) {
-		return 'Script cannot use import statements';
+	if (/\bimport\s*[({]|import\s+/i.test(script)) {
+		return 'Script cannot use import statements or dynamic imports';
 	}
 
 	if (/\beval\s*\(/i.test(script)) {
