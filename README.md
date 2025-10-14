@@ -2,6 +2,10 @@
 
 AI-powered UX review CLI for web apps — guided by your product personas and key features.
 
+## Demo
+
+![uxlint demo](./uxlint-demo.gif)
+
 ## Overview
 
 uxlint is a CLI tool that generates a UX evaluation report for a target web application using AI. It takes your configuration file as input — including the main and sub page URLs, freeform descriptions of key features on each page, and your customer personas — and outputs a persona-aware, task-oriented UX report to the path you specify.
@@ -15,6 +19,58 @@ Designed for frontend engineers who want quick, actionable UX feedback aligned w
 - Actionable recommendations prioritized for frontend teams
 - Single command execution with zero boilerplate beyond one config file
 
+## Installation
+
+```bash
+npm install -g @gyeonghokim/uxlint
+```
+
+Or use directly with npx (no installation required):
+
+```bash
+npx @gyeonghokim/uxlint
+```
+
+## Environment Setup
+
+uxlint requires configuration for AI analysis and browser automation. Set up your environment:
+
+1. Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+Or if you're using the tool via npx, create a `.env` file manually in your project root.
+
+2. Edit `.env` and add your API key:
+
+```bash
+# AI Service Configuration
+# Required: Get your API key from https://console.anthropic.com/
+UXLINT_ANTHROPIC_API_KEY=your_api_key_here
+
+# Optional: Customize AI model (default: claude-3-5-sonnet-20241022)
+UXLINT_AI_MODEL=claude-3-5-sonnet-20241022
+
+# MCP Server Configuration (optional, defaults provided)
+MCP_SERVER_COMMAND=npx
+MCP_BROWSER=chrome
+MCP_HEADLESS=true
+MCP_TIMEOUT=30000
+```
+
+**Required:**
+
+- `UXLINT_ANTHROPIC_API_KEY`: Your Anthropic API key from https://console.anthropic.com/
+
+**Optional:**
+
+- `UXLINT_AI_MODEL`: AI model to use for analysis
+- `MCP_BROWSER`: Browser type for automation (chrome, firefox, webkit, msedge)
+- `MCP_HEADLESS`: Run browser in headless mode (true/false)
+- `MCP_TIMEOUT`: Operation timeout in milliseconds
+
 ## Quick start
 
 ### Option 1: Interactive mode
@@ -22,7 +78,13 @@ Designed for frontend engineers who want quick, actionable UX feedback aligned w
 Run uxlint without a configuration file to launch the interactive wizard:
 
 ```bash
-npx uxlint --interactive
+uxlint --interactive
+```
+
+Or with npx:
+
+```bash
+npx @gyeonghokim/uxlint --interactive
 ```
 
 The wizard will guide you through:
@@ -34,7 +96,7 @@ The wizard will guide you through:
 5. Report output path
 6. Option to save configuration to a file
 
-You can also explicitly request interactive mode with the `--interactive` or `-i` flag:
+You can also explicitly request interactive mode with the `--interactive` or `-i` flag.
 
 ### Option 2: Configuration file
 
@@ -43,7 +105,13 @@ You can also explicitly request interactive mode with the `--interactive` or `-i
 2. Run the CLI:
 
 ```bash
-npx uxlint
+uxlint
+```
+
+Or with npx:
+
+```bash
+npx @gyeonghokim/uxlint
 ```
 
 The CLI reads the configuration file in the current working directory and writes the UX report to the configured output path.
@@ -130,16 +198,14 @@ report:
 
 ### Interactive mode
 
-Start the interactive wizard (automatically launched if no config file is found):
-
 ```bash
-npx uxlint
+uxlint --interactive
 ```
 
-Or explicitly use the `--interactive` flag:
+If you haven't installed globally, use npx:
 
 ```bash
-npx uxlint --interactive
+npx @gyeonghokim/uxlint --interactive
 ```
 
 The wizard validates your input at each step and provides helpful error messages if validation fails. You can save your configuration to a YAML or JSON file at the end of the wizard for future use.
@@ -149,7 +215,13 @@ The wizard validates your input at each step and provides helpful error messages
 Run from the directory that contains `.uxlintrc.yml` or `.uxlintrc.json`:
 
 ```bash
-npx uxlint
+uxlint
+```
+
+Or with npx:
+
+```bash
+npx @gyeonghokim/uxlint
 ```
 
 The command exits after writing the report to the configured path.
