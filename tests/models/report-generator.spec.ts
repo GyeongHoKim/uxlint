@@ -3,15 +3,35 @@
  * Unit tests for markdown report generation
  */
 
-import {
-	generateMarkdownReport,
-	writeReportToFile,
-} from '../../source/models/report-generator.js';
+import * as path from 'node:path';
+import {jest} from '@jest/globals';
+import {mockFiles, resetMockFiles} from '../helpers/fs-mock.js';
 import {
 	mockMultiSeverityReport,
 	mockReportWithFailures,
 	mockUxReport,
 } from '../fixtures/analysis-fixtures.js';
+
+// Mock node:fs/promises module using unstable_mockModule for ESM
+jest.unstable_mockModule('node:fs/promises', () => ({
+	writeFile: jest.fn(async (filePath: string, data: string): Promise<void> => {
+		const parentDir = path.dirname(filePath);
+		if (!mockFiles.has(parentDir)) {
+			const error = new Error(
+				`ENOENT: no such file or directory, open '${filePath}'`,
+			);
+			(error as NodeJS.ErrnoException).code = 'ENOENT';
+			throw error;
+		}
+
+		mockFiles.set(filePath, data);
+	}),
+}));
+
+// Dynamic imports after mock is set up
+const {generateMarkdownReport, writeReportToFile} = await import(
+	'../../source/models/report-generator.js'
+);
 
 // GenerateMarkdownReport tests
 describe('generateMarkdownReport', () => {
@@ -28,9 +48,9 @@ describe('generateMarkdownReport', () => {
 	test('includes metadata in header', () => {
 		const markdown = generateMarkdownReport(mockUxReport);
 
-		expect(markdown).toContain('Generated:');
-		expect(markdown).toContain('Version:');
-		expect(markdown).toContain('Pages Analyzed:');
+		expect(markdown).toContain('**Generated**:');
+		expect(markdown).toContain('**Version**:');
+		expect(markdown).toContain('**Pages Analyzed**:');
 	});
 
 	test('formats severity levels correctly', () => {
@@ -83,21 +103,21 @@ describe('generateMarkdownReport', () => {
 	test('formats findings with categories', () => {
 		const markdown = generateMarkdownReport(mockUxReport);
 
-		expect(markdown).toContain('**Category:**');
+		expect(markdown).toContain('**Category**:');
 		expect(markdown).toContain('Accessibility');
 	});
 
 	test('includes recommendations for each finding', () => {
 		const markdown = generateMarkdownReport(mockUxReport);
 
-		expect(markdown).toContain('**Recommendation:**');
+		expect(markdown).toContain('**Recommendation**:');
 		expect(markdown).toContain('Add <label> elements');
 	});
 
 	test('shows persona relevance in findings', () => {
 		const markdown = generateMarkdownReport(mockUxReport);
 
-		expect(markdown).toContain('**Personas Affected:**');
+		expect(markdown).toContain('**Personas Affected**:');
 		expect(markdown).toContain('Screen reader user');
 	});
 
@@ -137,20 +157,49 @@ describe('generateMarkdownReport', () => {
 
 // WriteReportToFile tests
 describe('writeReportToFile', () => {
+	beforeEach(() => {
+		resetMockFiles();
+	});
+
 	test('throws error for invalid file path', async () => {
+		// Parent directory doesn't exist in mock
 		await expect(
 			writeReportToFile(mockUxReport, {outputPath: '/invalid/path/report.md'}),
-		).rejects.toThrow();
+		).rejects.toThrow('ENOENT');
 	});
 
 	test('accepts valid markdown file path', async () => {
-		// Note: This test will need proper file system mocking in implementation
-		const temporaryPath = '/tmp/test-report.md';
+		const testDir = '/tmp';
+		const testPath = '/tmp/test-report.md';
 
-		// Should not throw for valid path format
-		await expect(async () => {
-			return writeReportToFile(mockUxReport, {outputPath: temporaryPath});
-		}).rejects.toThrow();
+		// Create parent directory in mock
+		mockFiles.set(testDir, '__DIR__');
+
+		// Should not throw for valid path
+		await expect(
+			writeReportToFile(mockUxReport, {outputPath: testPath}),
+		).resolves.not.toThrow();
+
+		// Verify file was written
+		expect(mockFiles.has(testPath)).toBe(true);
+		const content = mockFiles.get(testPath);
+		expect(content).toBeDefined();
+		expect(content).toContain('# UX Analysis Report');
+	});
+
+	test('writes complete report to file', async () => {
+		const testDir = '/tmp';
+		const testPath = '/tmp/complete-report.md';
+
+		mockFiles.set(testDir, '__DIR__');
+
+		await writeReportToFile(mockUxReport, {outputPath: testPath});
+
+		const content = mockFiles.get(testPath);
+		expect(content).toContain('## Executive Summary');
+		expect(content).toContain('## Statistics');
+		expect(content).toContain('## Page Analyses');
+		expect(content).toContain('## Prioritized Findings');
 	});
 });
 

@@ -11,3 +11,8 @@ process.env['FORCE_COLOR'] = '0';
 
 // Also disable chalk colors specifically
 process.env['CHALK_LEVEL'] = '0';
+
+// Mock process.exit to prevent tests from exiting
+process.exit = (() => {
+	// No-op
+}) as never;
