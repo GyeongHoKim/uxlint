@@ -12,7 +12,7 @@ export default [
 		],
 	},
 	{
-		files: ['source/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}'],
+		files: ['source/**/*.{ts,tsx}'],
 		languageOptions: {
 			parserOptions: {
 				project: ['./tsconfig.json'],
@@ -26,6 +26,25 @@ export default [
 			'unicorn/expiring-todo-comments': 'off',
 			'unicorn/no-process-exit': 'off',
 			'@typescript-eslint/parameter-properties': 'off',
+		},
+		semicolon: true,
+	},
+	{
+		files: ['tests/**/*.{ts,tsx}'],
+		languageOptions: {
+			parserOptions: {
+				project: ['./tsconfig.json'],
+			},
+		},
+		react: true,
+		prettier: true,
+		rules: {
+			'react/prop-types': 'off',
+			'react/react-in-jsx-scope': 'off',
+			'unicorn/expiring-todo-comments': 'off',
+			'unicorn/no-process-exit': 'off',
+			'@typescript-eslint/parameter-properties': 'off',
+			'@typescript-eslint/naming-convention': 'off',
 		},
 		semicolon: true,
 	},

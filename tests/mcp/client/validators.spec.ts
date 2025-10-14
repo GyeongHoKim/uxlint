@@ -134,7 +134,7 @@ describe('T032: Parameter Validation', () => {
 				'Script cannot use require()',
 			);
 			expect(getScriptValidationError('import fs from "fs"')).toBe(
-				'Script cannot use import statements',
+				'Script cannot use import statements or dynamic imports',
 			);
 			expect(getScriptValidationError('eval("code")')).toBe(
 				'Script cannot use eval()',
