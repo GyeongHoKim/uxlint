@@ -17,12 +17,12 @@ Designed for frontend engineers who want quick, actionable UX feedback aligned w
 
 ## Quick start
 
-### Option 1: Interactive mode (recommended for first-time users)
+### Option 1: Interactive mode
 
 Run uxlint without a configuration file to launch the interactive wizard:
 
 ```bash
-npx uxlint
+npx uxlint --interactive
 ```
 
 The wizard will guide you through:
@@ -35,10 +35,6 @@ The wizard will guide you through:
 6. Option to save configuration to a file
 
 You can also explicitly request interactive mode with the `--interactive` or `-i` flag:
-
-```bash
-npx uxlint --interactive
-```
 
 ### Option 2: Configuration file
 

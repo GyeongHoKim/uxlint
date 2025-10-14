@@ -1,5 +1,6 @@
 {
 	"name": "uxlint",
+	"description": "AI-powered UX review CLI for web apps — guided by your product personas and key features",
 	"version": "0.0.0",
 	"private": false,
 	"license": "MIT",
@@ -13,11 +14,16 @@
 		"registry": "https://registry.npmjs.org"
 	},
 	"keywords": [
-		"ui",
 		"ux",
+		"ui",
+		"cli",
 		"ai",
-		"playwright",
-		"mcp"
+		"review",
+		"analysis",
+		"lint",
+		"persona",
+		"accessibility",
+		"usability"
 	],
 	"author": "GyeongHoKim",
 	"bugs": {
