@@ -1,17 +1,18 @@
 {
-	"name": "uxlint",
+	"name": "@gyeonghokim/uxlint",
 	"description": "AI-powered UX review CLI for web apps — guided by your product personas and key features",
 	"version": "1.0.0",
 	"private": false,
 	"license": "MIT",
-	"bin": "dist/source/cli.js",
+	"bin": "dist/cli.js",
 	"type": "module",
 	"repository": {
 		"type": "git",
 		"url": "git@github.com:GyeongHoKim/uxlint.git"
 	},
 	"publishConfig": {
-		"registry": "https://registry.npmjs.org"
+		"registry": "https://registry.npmjs.org",
+		"access": "public"
 	},
 	"keywords": [
 		"ux",
@@ -34,7 +35,7 @@
 		"node": ">=18.18.0"
 	},
 	"scripts": {
-		"build": "tsc",
+		"build": "tsc --project tsconfig.build.json",
 		"dev": "tsc --watch",
 		"compile": "tsc --noEmit",
 		"test": "prettier --check . && xo && cross-env NODE_OPTIONS=--experimental-vm-modules jest --forceExit",
