@@ -142,6 +142,22 @@ export class McpPageCapture {
 	}
 
 	/**
+	 * Get the underlying MCP client
+	 * Initializes the client if not already initialized
+	 *
+	 * @returns The MCP client instance
+	 */
+	async getMcpClient(): Promise<McpClient> {
+		await this.initialize();
+
+		if (!this.mcpClient) {
+			throw new Error('MCP client not initialized');
+		}
+
+		return this.mcpClient;
+	}
+
+	/**
 	 * Cleanup resources
 	 * Closes browser and MCP connection
 	 */

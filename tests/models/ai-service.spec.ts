@@ -16,7 +16,7 @@ describe('buildSystemPrompt', () => {
 	test('formats single persona into system prompt', () => {
 		const personas = ['Screen reader user'];
 
-		const prompt = buildSystemPrompt(personas);
+		const prompt = buildSystemPrompt(personas, false);
 
 		expect(prompt).toContain('Screen reader user');
 		expect(prompt).toContain('UX');
@@ -26,7 +26,7 @@ describe('buildSystemPrompt', () => {
 	test('formats multiple personas into system prompt', () => {
 		const personas = ['Screen reader user', 'Mobile user on slow connection'];
 
-		const prompt = buildSystemPrompt(personas);
+		const prompt = buildSystemPrompt(personas, false);
 
 		expect(prompt).toContain('Screen reader user');
 		expect(prompt).toContain('Mobile user on slow connection');
@@ -36,7 +36,7 @@ describe('buildSystemPrompt', () => {
 	test('creates valid system prompt with empty personas', () => {
 		const personas: string[] = [];
 
-		const prompt = buildSystemPrompt(personas);
+		const prompt = buildSystemPrompt(personas, false);
 
 		expect(prompt.length).toBeGreaterThan(0);
 		expect(prompt).toContain('UX');
@@ -45,7 +45,7 @@ describe('buildSystemPrompt', () => {
 	test('system prompt includes analysis guidelines', () => {
 		const personas = ['General user'];
 
-		const prompt = buildSystemPrompt(personas);
+		const prompt = buildSystemPrompt(personas, false);
 
 		expect(prompt).toContain('analyze');
 		expect(prompt).toContain('finding');
@@ -55,12 +55,15 @@ describe('buildSystemPrompt', () => {
 // BuildAnalysisPrompt tests
 describe('buildAnalysisPrompt', () => {
 	test('combines snapshot, features, and personas into structured prompt', () => {
-		const prompt = buildAnalysisPrompt({
-			snapshot: '{"role":"form","children":[]}',
-			pageUrl: 'https://example.com',
-			features: 'Login form with OAuth',
-			personas: ['Screen reader user'],
-		});
+		const prompt = buildAnalysisPrompt(
+			{
+				snapshot: '{"role":"form","children":[]}',
+				pageUrl: 'https://example.com',
+				features: 'Login form with OAuth',
+				personas: ['Screen reader user'],
+			},
+			false,
+		);
 
 		expect(prompt).toContain('{"role":"form","children":[]}');
 		expect(prompt).toContain('Login form with OAuth');
@@ -68,12 +71,15 @@ describe('buildAnalysisPrompt', () => {
 	});
 
 	test('includes page URL in prompt', () => {
-		const prompt = buildAnalysisPrompt({
-			snapshot: '{"role":"main"}',
-			pageUrl: 'https://example.com/dashboard',
-			features: 'User dashboard',
-			personas: ['Power user'],
-		});
+		const prompt = buildAnalysisPrompt(
+			{
+				snapshot: '{"role":"main"}',
+				pageUrl: 'https://example.com/dashboard',
+				features: 'User dashboard',
+				personas: ['Power user'],
+			},
+			false,
+		);
 
 		expect(prompt).toContain('https://example.com/dashboard');
 	});
@@ -82,23 +88,29 @@ describe('buildAnalysisPrompt', () => {
 		const longFeatures =
 			'A' + 'very long feature description '.repeat(50) + 'end';
 
-		const prompt = buildAnalysisPrompt({
-			snapshot: '{"role":"main"}',
-			pageUrl: 'https://example.com',
-			features: longFeatures,
-			personas: ['User'],
-		});
+		const prompt = buildAnalysisPrompt(
+			{
+				snapshot: '{"role":"main"}',
+				pageUrl: 'https://example.com',
+				features: longFeatures,
+				personas: ['User'],
+			},
+			false,
+		);
 
 		expect(prompt).toContain(longFeatures);
 	});
 
 	test('formats multiple personas in prompt', () => {
-		const prompt = buildAnalysisPrompt({
-			snapshot: '{"role":"main"}',
-			pageUrl: 'https://example.com',
-			features: 'Dashboard',
-			personas: ['Persona A', 'Persona B', 'Persona C'],
-		});
+		const prompt = buildAnalysisPrompt(
+			{
+				snapshot: '{"role":"main"}',
+				pageUrl: 'https://example.com',
+				features: 'Dashboard',
+				personas: ['Persona A', 'Persona B', 'Persona C'],
+			},
+			false,
+		);
 
 		expect(prompt).toContain('Persona A');
 		expect(prompt).toContain('Persona B');
