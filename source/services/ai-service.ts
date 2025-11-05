@@ -9,8 +9,8 @@ import {createAnthropic} from '@ai-sdk/anthropic';
 import {streamText} from 'ai';
 import type {McpClient} from '../mcp/client/mcp-client.js';
 import {convertMcpToolsToClaudeTools} from '../mcp/client/adapters/tool-adapter.js';
-import type {UxFinding} from './analysis.js';
-import {loadEnvConfig} from './env-config.js';
+import type {UxFinding} from '../models/analysis.js';
+import {loadEnvConfig} from '../infrastructure/config/env-config.js';
 
 /**
  * Analysis prompt input

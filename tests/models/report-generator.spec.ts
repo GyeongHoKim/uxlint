@@ -30,7 +30,7 @@ jest.unstable_mockModule('node:fs/promises', () => ({
 
 // Dynamic imports after mock is set up
 const {generateMarkdownReport, writeReportToFile} = await import(
-	'../../source/models/report-generator.js'
+	'../../source/infrastructure/reports/report-generator.js'
 );
 
 // GenerateMarkdownReport tests

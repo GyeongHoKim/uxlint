@@ -11,7 +11,10 @@ import type {Page} from '../models/config.js';
 import type {WizardAction, WizardState} from '../models/wizard-state.js';
 import {useWizard} from '../hooks/use-wizard.js';
 import {buildConfig} from '../models/config-builder.js';
-import {saveConfigToFile, getDefaultReportPath} from '../models/config-io.js';
+import {
+	saveConfigToFile,
+	getDefaultReportPath,
+} from '../infrastructure/config/config-io.js';
 import {validationEngine} from '../models/validation-engine.js';
 import {Header} from './header.js';
 import {UserInput} from './user-input.js';

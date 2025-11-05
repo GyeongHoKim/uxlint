@@ -3,8 +3,8 @@ import process from 'node:process';
 import {render, Text} from 'ink';
 import meow from 'meow';
 import App from './app.js';
-import {findConfigFile} from './models/config-io.js';
-import {loadEnvConfig} from './models/env-config.js';
+import {findConfigFile} from './infrastructure/config/config-io.js';
+import {loadEnvConfig} from './infrastructure/config/env-config.js';
 
 const cli = meow(
 	`

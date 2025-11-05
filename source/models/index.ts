@@ -18,9 +18,6 @@ export * from './theme.js';
 // Configuration models
 export * from './config.js';
 
-// Configuration I/O (reading, writing, parsing, serializing)
-export * from './config-io.js';
-
 // Wizard state types
 export * from './wizard-state.js';
 

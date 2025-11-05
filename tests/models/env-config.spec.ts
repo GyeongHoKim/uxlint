@@ -4,7 +4,7 @@
  */
 
 import process from 'node:process';
-import {loadEnvConfig} from '../../source/models/env-config.js';
+import {loadEnvConfig} from '../../source/infrastructure/config/env-config.js';
 
 // Store original env vars to restore after tests
 const originalEnv = {

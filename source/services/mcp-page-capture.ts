@@ -156,7 +156,7 @@ export class McpPageCapture {
 		personas: string[],
 	): Promise<{findings: any[]; summary: string}> {
 		// Lazy import to avoid circular dependency
-		const {analyzePageWithAi} = await import('../models/ai-service.js');
+		const {analyzePageWithAi} = await import('./ai-service.js');
 
 		await this.initialize();
 
