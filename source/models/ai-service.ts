@@ -7,8 +7,10 @@
 
 import {createAnthropic} from '@ai-sdk/anthropic';
 import {streamText} from 'ai';
+import type {McpClient} from '../mcp/client/mcp-client.js';
 import type {UxFinding} from './analysis.js';
 import {loadEnvConfig} from './env-config.js';
+import {convertMcpToolsToClaudeTools} from './mcp-tool-adapter.js';
 
 /**
  * Analysis prompt input
@@ -32,7 +34,10 @@ export type AnalysisResult = {
  * Build system prompt for AI model
  * Formats persona context into analysis guidelines
  */
-export function buildSystemPrompt(personas: string[]): string {
+export function buildSystemPrompt(
+	personas: string[],
+	hasTools: boolean,
+): string {
 	const personaSection =
 		personas.length > 0
 			? `\n\nFocus your analysis on these specific personas:\n${personas
@@ -40,9 +45,23 @@ export function buildSystemPrompt(personas: string[]): string {
 					.join('\n')}`
 			: '';
 
+	const toolSection = hasTools
+		? `\n\nYou have access to browser automation tools to:
+- Navigate to pages (browser_navigate)
+- Take screenshots (browser_take_screenshot)
+- Get accessibility tree snapshots (browser_snapshot)
+- Click elements (browser_click)
+- Fill forms (browser_fill_form)
+- Evaluate JavaScript (browser_evaluate)
+
+Use these tools to analyze the page visually and interact with it if needed.
+IMPORTANT: Always take a screenshot of the page to perform visual UX analysis.`
+		: '';
+
 	return `You are an expert UX analyst specialized in web accessibility and usability evaluation.
 
-Your task is to analyze web page accessibility trees and identify UX issues that affect user experience.
+Your task is to analyze web pages and identify UX issues that affect user experience.
+${toolSection}
 
 For each finding, provide:
 - **Severity**: critical | high | medium | low
@@ -60,9 +79,32 @@ Start with a ## Summary section describing the overall UX quality.`;
  * Build analysis prompt combining context
  * Combines snapshot, features, and personas into structured prompt
  */
-export function buildAnalysisPrompt(prompt: AnalysisPrompt): string {
+export function buildAnalysisPrompt(
+	prompt: AnalysisPrompt,
+	hasTools: boolean,
+): string {
 	const {snapshot, pageUrl, features, personas} = prompt;
 
+	if (hasTools) {
+		// When tools are available, LLM can navigate and capture page itself
+		return `# Page Analysis Request
+
+**Page URL**: ${pageUrl}
+
+**Features to Evaluate**: ${features}
+
+**Target Personas**:
+${personas.map(p => `- ${p}`).join('\n')}
+
+Please analyze this page:
+1. Navigate to the page URL
+2. Take a screenshot to see the visual design
+3. Get the accessibility tree snapshot
+4. Analyze the page for UX issues considering the features and personas
+5. Provide your findings in the specified format`;
+	}
+
+	// Legacy mode: snapshot provided in prompt
 	return `# Page Analysis Request
 
 **Page URL**: ${pageUrl}
@@ -189,16 +231,37 @@ export async function retryWithBackoff<T>(
 /**
  * Analyze page with AI using Vercel AI SDK
  * Streams response from Claude and parses findings
+ *
+ * @param prompt - Analysis prompt with page context
+ * @param onChunk - Optional callback for streaming response chunks
+ * @param mcpClient - Optional MCP client for tool calling
  */
 export async function analyzePageWithAi(
 	prompt: AnalysisPrompt,
 	onChunk?: (chunk: string) => void,
+	mcpClient?: McpClient,
 ): Promise<AnalysisResult> {
 	const config = loadEnvConfig();
 
+	// Fetch and convert MCP tools if client is provided
+	let tools: Record<string, any> | undefined;
+	if (mcpClient?.isConnected()) {
+		try {
+			const mcpTools = await mcpClient.listTools();
+			tools = convertMcpToolsToClaudeTools(mcpTools, mcpClient);
+		} catch (error) {
+			console.warn(
+				'Failed to fetch MCP tools, continuing without tools:',
+				error,
+			);
+		}
+	}
+
+	const hasTools = tools !== undefined && Object.keys(tools).length > 0;
+
 	// Build prompts
-	const systemPrompt = buildSystemPrompt(prompt.personas);
-	const userPrompt = buildAnalysisPrompt(prompt);
+	const systemPrompt = buildSystemPrompt(prompt.personas, hasTools);
+	const userPrompt = buildAnalysisPrompt(prompt, hasTools);
 
 	// Create anthropic provider with custom API key
 	const anthropic = createAnthropic({
@@ -215,6 +278,7 @@ export async function analyzePageWithAi(
 			system: systemPrompt,
 			prompt: userPrompt,
 			temperature: 0.3,
+			tools: tools ?? undefined,
 		});
 
 		// Stream response chunks

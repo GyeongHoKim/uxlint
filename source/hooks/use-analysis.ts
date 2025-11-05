@@ -113,42 +113,41 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 			// Initialize MCP client if needed
 			mcpClientRef.current ??= new McpPageCapture();
 
-			const mcpClient = mcpClientRef.current;
+			const mcpService = mcpClientRef.current;
 
 			try {
-				// Stage 1: Navigating
+				// Stage 1: Initializing
 				updateState(previous => ({
 					...previous,
 					currentStage: 'navigating',
 					currentPageIndex: pageIndex,
 				}));
 
-				// Stage 2: Capturing
-				updateState(previous => ({
-					...previous,
-					currentStage: 'capturing',
-				}));
+				// Get the underlying MCP client for AI service
+				const mcpClient = await mcpService.getMcpClient();
 
-				const captureResult = await mcpClient.capturePage(pageUrl);
-
-				// Stage 3: Analyzing
+				// Stage 2: Analyzing (LLM will navigate and capture via tools)
 				updateState(previous => ({
 					...previous,
 					currentStage: 'analyzing',
 				}));
 
-				const analysisResult = await analyzePageWithAi({
-					snapshot: captureResult.snapshot,
-					pageUrl,
-					features,
-					personas: config.personas,
-				});
+				const analysisResult = await analyzePageWithAi(
+					{
+						snapshot: '', // Snapshot not needed - LLM will get it via tools
+						pageUrl,
+						features,
+						personas: config.personas,
+					},
+					undefined, // No chunk callback
+					mcpClient, // Pass MCP client for tool calling
+				);
 
 				// Return successful analysis
 				return {
 					pageUrl,
 					features,
-					snapshot: captureResult.snapshot,
+					snapshot: '', // Snapshot captured by LLM via tools
 					findings: analysisResult.findings,
 					analysisTimestamp: Date.now(),
 					status: 'complete',
