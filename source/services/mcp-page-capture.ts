@@ -142,19 +142,39 @@ export class McpPageCapture {
 	}
 
 	/**
-	 * Get the underlying MCP client
-	 * Initializes the client if not already initialized
+	 * Analyze page with AI
+	 * High-level method that combines page capture with AI analysis
 	 *
-	 * @returns The MCP client instance
+	 * @param url - Target page URL
+	 * @param features - Features to evaluate
+	 * @param personas - Target personas
+	 * @returns Analysis result with findings
 	 */
-	async getMcpClient(): Promise<McpClient> {
+	async analyzeWithAi(
+		url: string,
+		features: string,
+		personas: string[],
+	): Promise<{findings: any[]; summary: string}> {
+		// Lazy import to avoid circular dependency
+		const {analyzePageWithAi} = await import('../models/ai-service.js');
+
 		await this.initialize();
 
 		if (!this.mcpClient) {
 			throw new Error('MCP client not initialized');
 		}
 
-		return this.mcpClient;
+		// LLM will navigate and capture via tools
+		return analyzePageWithAi(
+			{
+				snapshot: '', // LLM will get it via tools
+				pageUrl: url,
+				features,
+				personas,
+			},
+			undefined, // No chunk callback
+			this.mcpClient, // Pass MCP client internally
+		);
 	}
 
 	/**

@@ -3,6 +3,7 @@
 ## Executive Summary
 
 **uxlint** is an AI-powered UX review CLI tool (6,030 lines of TypeScript) with a well-structured, layered architecture. The codebase demonstrates clear separation of concerns with distinct layers for:
+
 - **Domain Models** (14 files): Pure business logic and data structures
 - **Services** (2 files): External integrations (AI, MCP browser automation)
 - **React Hooks** (5 files): Application state management
@@ -41,7 +42,7 @@ source/                                    (39 TypeScript files total)
 │   │   ├── mcp-tool-adapter.ts           - MCP tools → AI SDK conversion
 │   │   ├── errors.ts                     - Custom error classes
 │   │   └── index.ts                      - Barrel export
-│   
+│
 ├── services/                             (2 files) - External service adapters
 │   ├── ai-service.ts                     - Claude AI via Vercel AI SDK
 │   └── mcp-page-capture.ts               - Browser automation via Playwright MCP
@@ -85,46 +86,57 @@ source/                                    (39 TypeScript files total)
 ### 2.1 Domain Models (models/)
 
 #### Analysis Domain
+
 ```typescript
 // Core types in analysis.ts
-type AnalysisStage = 'idle' | 'navigating' | 'analyzing' | 'generating-report' | 'complete' | 'error'
-type AnalysisState = {  // React hook state
-  currentPageIndex: number
-  totalPages: number
-  currentStage: AnalysisStage
-  analyses: PageAnalysis[]
-  report?: UxReport
-  error?: Error
-}
+type AnalysisStage =
+	| 'idle'
+	| 'navigating'
+	| 'analyzing'
+	| 'generating-report'
+	| 'complete'
+	| 'error';
+type AnalysisState = {
+	// React hook state
+	currentPageIndex: number;
+	totalPages: number;
+	currentStage: AnalysisStage;
+	analyses: PageAnalysis[];
+	report?: UxReport;
+	error?: Error;
+};
 
 type PageAnalysis = {
-  pageUrl: string
-  features: string
-  snapshot: string
-  findings: UxFinding[]
-  analysisTimestamp: number
-  status: AnalysisStatus
-  error?: string
-}
+	pageUrl: string;
+	features: string;
+	snapshot: string;
+	findings: UxFinding[];
+	analysisTimestamp: number;
+	status: AnalysisStatus;
+	error?: string;
+};
 
-type UxFinding = {  // Single UX issue
-  severity: 'critical' | 'high' | 'medium' | 'low'
-  category: string
-  description: string
-  personaRelevance: string[]
-  recommendation: string
-  pageUrl: string
-}
+type UxFinding = {
+	// Single UX issue
+	severity: 'critical' | 'high' | 'medium' | 'low';
+	category: string;
+	description: string;
+	personaRelevance: string[];
+	recommendation: string;
+	pageUrl: string;
+};
 
-type UxReport = {  // Final report
-  metadata: ReportMetadata
-  pages: PageAnalysis[]
-  summary: string
-  prioritizedFindings: UxFinding[]
-}
+type UxReport = {
+	// Final report
+	metadata: ReportMetadata;
+	pages: PageAnalysis[];
+	summary: string;
+	prioritizedFindings: UxFinding[];
+};
 ```
 
 #### Configuration Domain
+
 ```typescript
 // Core types in config.ts
 type Page = {
@@ -152,33 +164,47 @@ function isPage(value: unknown): value is Page { ... }
 ```typescript
 // Core types in types.ts
 type Tool = {
-  name: string
-  description?: string
-  inputSchema: Record<string, unknown>
-  outputSchema?: Record<string, unknown>
-}
+	name: string;
+	description?: string;
+	inputSchema: Record<string, unknown>;
+	outputSchema?: Record<string, unknown>;
+};
 
-type NavigateResult = { success: boolean; url: string; title?: string; status?: number }
-type ScreenshotResult = { screenshot: string; width: number; height: number; format?: 'png' | 'jpeg' }
-type SnapshotResult = { snapshot: string; timestamp?: number }
+type NavigateResult = {
+	success: boolean;
+	url: string;
+	title?: string;
+	status?: number;
+};
+type ScreenshotResult = {
+	screenshot: string;
+	width: number;
+	height: number;
+	format?: 'png' | 'jpeg';
+};
+type SnapshotResult = {snapshot: string; timestamp?: number};
 
 // Main client class in mcp-client.ts
 class McpClient {
-  constructor(name: string, version: string)
-  async connect(serverCommand: string, serverArgs: string[]): Promise<void>
-  async listTools(): Promise<Tool[]>
-  async callTool<T>(name: string, args: Record<string, unknown>, timeout?: number): Promise<T>
-  async close(): Promise<void>
-  isConnected(): boolean
+	constructor(name: string, version: string);
+	async connect(serverCommand: string, serverArgs: string[]): Promise<void>;
+	async listTools(): Promise<Tool[]>;
+	async callTool<T>(
+		name: string,
+		args: Record<string, unknown>,
+		timeout?: number,
+	): Promise<T>;
+	async close(): Promise<void>;
+	isConnected(): boolean;
 }
 
 // Playwright wrapper in playwright-client.ts
 class PlaywrightClient {
-  constructor(mcpClient: McpClient)
-  async navigate(url: string, timeout?: number): Promise<NavigateResult>
-  async takeScreenshot(): Promise<ScreenshotResult>
-  async getSnapshot(timeout?: number): Promise<SnapshotResult>
-  async close(): Promise<void>
+	constructor(mcpClient: McpClient);
+	async navigate(url: string, timeout?: number): Promise<NavigateResult>;
+	async takeScreenshot(): Promise<ScreenshotResult>;
+	async getSnapshot(timeout?: number): Promise<SnapshotResult>;
+	async close(): Promise<void>;
 }
 ```
 
@@ -186,20 +212,23 @@ class PlaywrightClient {
 
 ```typescript
 // ai-service.ts - Claude AI service
-function buildSystemPrompt(personas: string[], hasTools: boolean): string
-function buildAnalysisPrompt(prompt: AnalysisPrompt, hasTools: boolean): string
-function parseAnalysisResponse(response: string, pageUrl: string): AnalysisResult
+function buildSystemPrompt(personas: string[], hasTools: boolean): string;
+function buildAnalysisPrompt(prompt: AnalysisPrompt, hasTools: boolean): string;
+function parseAnalysisResponse(
+	response: string,
+	pageUrl: string,
+): AnalysisResult;
 async function analyzePageWithAi(
-  prompt: AnalysisPrompt,
-  onChunk?: (chunk: string) => void,
-  mcpClient?: McpClient,
-): Promise<AnalysisResult>
+	prompt: AnalysisPrompt,
+	onChunk?: (chunk: string) => void,
+	mcpClient?: McpClient,
+): Promise<AnalysisResult>;
 
 // mcp-page-capture.ts - Browser automation wrapper
 class McpPageCapture {
-  async capturePage(url: string, timeout?: number): Promise<PageCaptureResult>
-  async getMcpClient(): Promise<McpClient>
-  async close(): Promise<void>
+	async capturePage(url: string, timeout?: number): Promise<PageCaptureResult>;
+	async getMcpClient(): Promise<McpClient>;
+	async close(): Promise<void>;
 }
 ```
 
@@ -268,14 +297,14 @@ app.tsx
 ### 3.3 Dependency Matrix (Who Imports What)
 
 | Importing Module | imports models | imports services | imports mcp | imports hooks | imports components |
-|------------------|---|---|---|---|---|
-| cli.tsx | ✓ | - | - | - | - |
-| app.tsx | ✓ | - | - | ✓ | ✓ |
-| hooks/ | ✓ | ✓ | ✓ | - | - |
-| components/ | ✓ | - | - | ✓ | - |
-| services/ | ✓ | - | ✓ | - | - |
-| models/ | ✓ | - | - | - | - |
-| mcp/client/ | ✓ | - | - | - | - |
+| ---------------- | -------------- | ---------------- | ----------- | ------------- | ------------------ |
+| cli.tsx          | ✓              | -                | -           | -             | -                  |
+| app.tsx          | ✓              | -                | -           | ✓             | ✓                  |
+| hooks/           | ✓              | ✓                | ✓           | -             | -                  |
+| components/      | ✓              | -                | -           | ✓             | -                  |
+| services/        | ✓              | -                | ✓           | -             | -                  |
+| models/          | ✓              | -                | -           | -             | -                  |
+| mcp/client/      | ✓              | -                | -           | -             | -                  |
 
 ---
 
@@ -306,7 +335,7 @@ User Interaction (Terminal UI)
            - Fetch available tools from server
            - Convert MCP tools to Claude-compatible format
            - Stream Claude response with tool calling
-           - Parse response → UxFinding[] 
+           - Parse response → UxFinding[]
         3. Store PageAnalysis result
     - Generate final report
         ↓
@@ -413,6 +442,7 @@ File: ux-report.md
 ### 5.2 Boundary Enforcement
 
 **Strong Boundaries:**
+
 - ✓ Components DO NOT directly import services or mcp/client
 - ✓ Components only import hooks and models/types
 - ✓ Hooks coordinate between components, services, and models
@@ -420,6 +450,7 @@ File: ux-report.md
 - ✓ Models are independent, no cross-layer imports
 
 **Potential Weak Points:**
+
 - useAnalysis directly instantiates McpPageCapture (tight coupling to service)
   - But this is intentional: hook is responsible for managing service lifecycle
 - Models layer has no abstraction for external SDKs (ai-sdk, @modelcontextprotocol)
@@ -432,6 +463,7 @@ File: ux-report.md
 **Result: NO CIRCULAR DEPENDENCIES DETECTED**
 
 Dependency direction is strictly unidirectional:
+
 ```
 CLI → Components
 Components → Hooks
@@ -449,36 +481,38 @@ All dependencies are bottom-up (toward the domain/infrastructure layers).
 
 ### 7.1 Abstraction Levels
 
-| Layer | Abstraction | Purpose |
-|-------|-------------|---------|
-| **MCP Client** | McpClient class | Hide MCP SDK complexity behind simple API (connect, listTools, callTool) |
-| **Playwright** | PlaywrightClient class | Wrap Playwright MCP operations (navigate, screenshot, snapshot) |
-| **Page Capture** | McpPageCapture class | Combine Playwright ops into higher-level "capture page" abstraction |
-| **AI Service** | analyzePageWithAi function | Abstract Claude API + tool calling + response parsing |
-| **Config I/O** | config-io functions | Separate file I/O, parsing, and validation concerns |
-| **Analysis** | useAnalysis hook | Orchestrate multi-page analysis workflow |
+| Layer            | Abstraction                | Purpose                                                                  |
+| ---------------- | -------------------------- | ------------------------------------------------------------------------ |
+| **MCP Client**   | McpClient class            | Hide MCP SDK complexity behind simple API (connect, listTools, callTool) |
+| **Playwright**   | PlaywrightClient class     | Wrap Playwright MCP operations (navigate, screenshot, snapshot)          |
+| **Page Capture** | McpPageCapture class       | Combine Playwright ops into higher-level "capture page" abstraction      |
+| **AI Service**   | analyzePageWithAi function | Abstract Claude API + tool calling + response parsing                    |
+| **Config I/O**   | config-io functions        | Separate file I/O, parsing, and validation concerns                      |
+| **Analysis**     | useAnalysis hook           | Orchestrate multi-page analysis workflow                                 |
 
 ### 7.2 Design Patterns Used
 
-| Pattern | Location | Purpose |
-|---------|----------|---------|
-| **Adapter** | mcp-tool-adapter.ts | Convert MCP tool schema to Vercel AI SDK Tool format |
-| **Facade** | McpPageCapture | Simplify MCP client usage for page analysis |
-| **Wrapper/Decorator** | PlaywrightClient | Add abstraction over MCP Playwright tools |
-| **Hook (React)** | hooks/*.ts | Extract component logic into reusable state containers |
-| **Barrel Export** | models/index.ts, hooks/index.ts, components/index.ts | Clean public API, hide implementation details |
-| **Type Guard** | config.ts | Runtime type validation (isUxLintConfig, isPage) |
-| **Error Wrapping** | services/mcp-page-capture.ts | Translate low-level errors into domain-specific errors |
+| Pattern               | Location                                             | Purpose                                                |
+| --------------------- | ---------------------------------------------------- | ------------------------------------------------------ |
+| **Adapter**           | mcp-tool-adapter.ts                                  | Convert MCP tool schema to Vercel AI SDK Tool format   |
+| **Facade**            | McpPageCapture                                       | Simplify MCP client usage for page analysis            |
+| **Wrapper/Decorator** | PlaywrightClient                                     | Add abstraction over MCP Playwright tools              |
+| **Hook (React)**      | hooks/\*.ts                                          | Extract component logic into reusable state containers |
+| **Barrel Export**     | models/index.ts, hooks/index.ts, components/index.ts | Clean public API, hide implementation details          |
+| **Type Guard**        | config.ts                                            | Runtime type validation (isUxLintConfig, isPage)       |
+| **Error Wrapping**    | services/mcp-page-capture.ts                         | Translate low-level errors into domain-specific errors |
 
 ### 7.3 State Management Strategy
 
 **React Hooks:**
+
 - useAnalysis: Main orchestration, state = AnalysisState
 - useConfig: Config loading, state = ConfigState
 - useMcpClient: MCP client lifecycle, state = connection status
 - useWizard: Config wizard, state = wizard progress
 
 **No Redux/Context:** Components prop-drill or hook directly as needed
+
 - Simpler for small app
 - Good for UI → model data flow
 - Potential issue: prop drilling for deep component trees (not present currently)
@@ -488,25 +522,30 @@ All dependencies are bottom-up (toward the domain/infrastructure layers).
 ## 8. KEY FILES & THEIR RESPONSIBILITIES
 
 ### Core Domain Models
+
 - **analysis.ts** (80 lines): AnalysisState, PageAnalysis, UxFinding, UxReport types + helper functions
 - **config.ts** (129 lines): UxLintConfig types + type guards
 - **config-io.ts** (404 lines): Filesystem I/O, parsing, validation, serialization
 
 ### Business Logic
+
 - **ai-service.ts** (313 lines): Claude API integration, prompt building, response parsing
 - **report-generator.ts** (179 lines): Markdown report generation
 - **mcp-tool-adapter.ts** (102 lines): MCP tool → AI SDK conversion
 
 ### Application Orchestration
+
 - **use-analysis.ts** (286 lines): Multi-page analysis workflow engine
 - **use-config.ts** (112 lines): Config loading with React lifecycle
 
 ### Infrastructure
+
 - **mcp-client.ts** (238 lines): MCP protocol client (stdio transport)
 - **playwright-client.ts** (not fully read): Playwright MCP wrapper
 - **mcp-page-capture.ts** (212 lines): High-level page capture service
 
 ### UI
+
 - **analysis-runner.tsx** (83 lines): Analysis workflow component
 - **config-wizard.tsx**: Interactive config creation
 - **app.tsx** (172 lines): Mode routing, config loading UI
@@ -516,23 +555,28 @@ All dependencies are bottom-up (toward the domain/infrastructure layers).
 ## 9. STRENGTHS OF THE ARCHITECTURE
 
 1. **Clear Layer Separation**
+
    - Presentation, application, domain, infrastructure layers well-separated
    - Each layer has clear responsibilities
 
 2. **No Circular Dependencies**
+
    - Strict unidirectional dependency graph
    - Easy to reason about module interactions
 
 3. **Good Abstraction**
+
    - MCP client wrapped in PlaywrightClient → McpPageCapture
    - AI service abstracts Vercel SDK complexities
    - Config I/O separates read/parse/validate concerns
 
 4. **React Hooks for State Management**
+
    - useAnalysis orchestrates complex multi-page workflow
    - useConfig manages async config loading with proper lifecycle
 
 5. **Type Safety**
+
    - Strong typing throughout (TypeScript)
    - Type guards for runtime validation (config.ts)
 
@@ -547,24 +591,29 @@ All dependencies are bottom-up (toward the domain/infrastructure layers).
 ## 10. POTENTIAL AREAS FOR IMPROVEMENT
 
 1. **MCP Client Lifecycle in Hook**
+
    - useAnalysis directly creates McpPageCapture
    - Could be abstracted via useRef to dependency injection pattern
    - Currently tight coupling but acceptable for single-use flow
 
 2. **Error Handling Standardization**
+
    - Multiple error types (NavigationError, SnapshotError, ConfigurationError, McpError)
    - Could benefit from error hierarchy or error middleware
 
 3. **Service Layer Thin**
+
    - Only 2 service files (ai-service, mcp-page-capture)
    - Most business logic lives in hooks or models
    - Could consider moving more pure logic to services
 
 4. **Configuration Complexity**
+
    - config-io.ts is 404 lines handling multiple concerns
    - Could split into separate modules: ConfigParser, ConfigValidator, ConfigSerializer
 
 5. **MCP Tool Conversion**
+
    - mcp-tool-adapter.ts is somewhat ad-hoc
    - Could benefit from more robust schema validation and error handling
 
@@ -623,6 +672,7 @@ Infrastructure (MCP Library):
 ## CONCLUSION
 
 The uxlint codebase exhibits a **well-architected, modular design** with:
+
 - ✓ Clear layering (presentation → application → domain → infrastructure)
 - ✓ No circular dependencies
 - ✓ Strong abstraction boundaries
@@ -632,8 +682,8 @@ The uxlint codebase exhibits a **well-architected, modular design** with:
 The main workflow (Config Loading → Analysis → Report Generation) flows cleanly through well-defined layers and makes appropriate use of React hooks for state management and orchestration.
 
 **Recommendation:** This is a solid foundation. As the codebase grows, consider:
+
 1. Further modularization of config-io.ts
 2. More comprehensive error handling layer
 3. Dependency injection for service initialization (reduce tight coupling in hooks)
 4. Additional abstraction if MCP client usage expands beyond current scope
-
