@@ -1,20 +1,14 @@
 /**
  * UseAnalysis Hook
- * Orchestrates multi-page UX analysis workflow
+ * Thin wrapper around AnalysisOrchestrator for React state management
  *
  * @packageDocumentation
  */
 
-import {useState, useCallback, useEffect, useRef} from 'react';
+import {useState, useCallback, useRef} from 'react';
 import type {UxLintConfig} from '../models/config.js';
-import type {
-	AnalysisState,
-	PageAnalysis,
-	UxReport,
-} from '../models/analysis.js';
-import {McpPageCapture} from '../services/mcp-page-capture.js';
-import {analyzePageWithAi} from '../models/ai-service.js';
-import {writeReportToFile} from '../models/report-generator.js';
+import type {AnalysisState} from '../models/analysis.js';
+import {AnalysisOrchestrator} from '../services/analysis-orchestrator.js';
 
 /**
  * State change callback type
@@ -40,7 +34,7 @@ export type UseAnalysisResult = {
 
 /**
  * UseAnalysis Hook
- * Manages analysis state and orchestrates multi-page workflow
+ * Manages analysis state and delegates to AnalysisOrchestrator
  *
  * @param config - UxLint configuration
  * @returns Analysis state and control functions
@@ -58,9 +52,6 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 
 	// Track state change subscribers
 	const subscribersRef = useRef<Set<StateChangeCallback>>(new Set());
-
-	// MCP client reference
-	const mcpClientRef = useRef<McpPageCapture | undefined>(undefined);
 
 	/**
 	 * Update state and notify subscribers
@@ -102,179 +93,37 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 	}, []);
 
 	/**
-	 * Analyze a single page
-	 */
-	const analyzePage = useCallback(
-		async (
-			pageUrl: string,
-			features: string,
-			pageIndex: number,
-		): Promise<PageAnalysis> => {
-			// Initialize MCP client if needed
-			mcpClientRef.current ??= new McpPageCapture();
-
-			const mcpService = mcpClientRef.current;
-
-			try {
-				// Stage 1: Initializing
-				updateState(previous => ({
-					...previous,
-					currentStage: 'navigating',
-					currentPageIndex: pageIndex,
-				}));
-
-				// Get the underlying MCP client for AI service
-				const mcpClient = await mcpService.getMcpClient();
-
-				// Stage 2: Analyzing (LLM will navigate and capture via tools)
-				updateState(previous => ({
-					...previous,
-					currentStage: 'analyzing',
-				}));
-
-				const analysisResult = await analyzePageWithAi(
-					{
-						snapshot: '', // Snapshot not needed - LLM will get it via tools
-						pageUrl,
-						features,
-						personas: config.personas,
-					},
-					undefined, // No chunk callback
-					mcpClient, // Pass MCP client for tool calling
-				);
-
-				// Return successful analysis
-				return {
-					pageUrl,
-					features,
-					snapshot: '', // Snapshot captured by LLM via tools
-					findings: analysisResult.findings,
-					analysisTimestamp: Date.now(),
-					status: 'complete',
-				};
-			} catch (error) {
-				// Return failed analysis
-				const errorMessage =
-					error instanceof Error ? error.message : 'Unknown error';
-
-				return {
-					pageUrl,
-					features,
-					snapshot: '',
-					findings: [],
-					analysisTimestamp: Date.now(),
-					status: 'failed',
-					error: errorMessage,
-				};
-			}
-		},
-		[config.personas, updateState],
-	);
-
-	/**
-	 * Generate final report from analyses
-	 */
-	const generateReport = useCallback(
-		(analyses: PageAnalysis[]): UxReport => {
-			const successfulAnalyses = analyses.filter(a => a.status === 'complete');
-			const failedAnalyses = analyses.filter(a => a.status === 'failed');
-
-			// Collect all findings
-			const allFindings = successfulAnalyses.flatMap(a => a.findings);
-
-			// Sort findings by severity (critical > high > medium > low)
-			const severityOrder = {critical: 0, high: 1, medium: 2, low: 3};
-			const prioritizedFindings = [...allFindings].sort((a, b) => {
-				return severityOrder[a.severity] - severityOrder[b.severity];
-			});
-
-			// Generate summary
-			const summary =
-				successfulAnalyses.length === 0
-					? 'All pages failed analysis. Please check error messages and try again.'
-					: `Analyzed ${successfulAnalyses.length} page(s) successfully. Found ${allFindings.length} UX issue(s) requiring attention.`;
-
-			return {
-				metadata: {
-					timestamp: Date.now(),
-					uxlintVersion: '1.0.0',
-					analyzedPages: successfulAnalyses.map(a => a.pageUrl),
-					failedPages: failedAnalyses.map(a => a.pageUrl),
-					totalFindings: allFindings.length,
-					personas: config.personas,
-				},
-				pages: analyses,
-				summary,
-				prioritizedFindings,
-			};
-		},
-		[config.personas],
-	);
-
-	/**
-	 * Run analysis workflow for all pages
+	 * Run analysis workflow
+	 * Delegates to AnalysisOrchestrator service
 	 */
 	const runAnalysis = useCallback(async () => {
-		const analyses: PageAnalysis[] = [];
+		const orchestrator = new AnalysisOrchestrator();
 
 		try {
-			// Process each page sequentially (await in loop is intentional)
-			for (const [index, page] of config.pages.entries()) {
-				// eslint-disable-next-line no-await-in-loop
-				const analysis = await analyzePage(page.url, page.features, index);
-				analyses.push(analysis);
-
-				// Update analyses array after each page
+			// Update state based on progress
+			const report = await orchestrator.analyzePages(config, progress => {
 				updateState(previous => ({
 					...previous,
-					analyses: [...analyses],
+					currentPageIndex: progress.currentPageIndex,
+					currentStage: progress.stage,
 				}));
-			}
+			});
 
-			// Stage 4: Generating report
-			updateState(previous => ({
-				...previous,
-				currentStage: 'generating-report',
-			}));
-
-			const report = generateReport(analyses);
-
-			// Write report to file
-			await writeReportToFile(report, {outputPath: config.report.output});
-
-			// Stage 5: Complete
+			// Complete
 			updateState(previous => ({
 				...previous,
 				currentStage: 'complete',
 				report,
 			}));
 		} catch (error) {
-			// Fatal error that aborts entire analysis
+			// Fatal error
 			updateState(previous => ({
 				...previous,
 				currentStage: 'error',
 				error: error instanceof Error ? error : new Error('Unknown error'),
 			}));
 		}
-	}, [
-		config.pages,
-		config.report.output,
-		analyzePage,
-		generateReport,
-		updateState,
-	]);
-
-	/**
-	 * Cleanup on unmount
-	 */
-	useEffect(() => {
-		return () => {
-			// Close MCP client
-			if (mcpClientRef.current) {
-				void mcpClientRef.current.close();
-			}
-		};
-	}, []);
+	}, [config, updateState]);
 
 	return {
 		state,

@@ -6,8 +6,8 @@
  */
 
 import {jsonSchema, type Tool as AiTool} from '@ai-sdk/provider-utils';
-import type {McpClient} from '../mcp/client/mcp-client.js';
-import type {Tool as McpTool} from '../mcp/client/types.js';
+import type {McpClient} from '../mcp-client.js';
+import type {Tool as McpTool} from '../types.js';
 
 /**
  * Tool call result
