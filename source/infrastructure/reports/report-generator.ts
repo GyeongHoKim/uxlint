@@ -6,7 +6,7 @@
  */
 
 import {writeFile} from 'node:fs/promises';
-import type {FindingSeverity, UxReport} from './analysis.js';
+import type {FindingSeverity, UxReport} from '../../models/analysis.js';
 
 /**
  * Report generation options
@@ -52,7 +52,7 @@ function countBySeverity(report: UxReport): Record<FindingSeverity, number> {
 	};
 
 	for (const finding of report.prioritizedFindings) {
-		counts[finding.severity]++;
+		counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
 	}
 
 	return counts;
@@ -94,7 +94,7 @@ export function generateMarkdownReport(report: UxReport): string {
 		`| ${severityEmoji.low} Low | ${severityCounts.low} |`,
 		'',
 		'**Target Personas**:',
-		...metadata.personas.map(p => `- ${p}`),
+		...metadata.personas.map((p: string) => `- ${p}`),
 		'',
 		'## Page Analyses\n',
 	);

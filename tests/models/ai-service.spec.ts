@@ -8,7 +8,7 @@ import {
 	buildSystemPrompt,
 	extractSummary,
 	parseAnalysisResponse,
-} from '../../source/models/ai-service.js';
+} from '../../source/services/ai-service.js';
 import type {UxFinding} from '../../source/models/analysis.js';
 
 // BuildSystemPrompt tests

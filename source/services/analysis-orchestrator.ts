@@ -7,7 +7,7 @@
 
 import type {UxLintConfig} from '../models/config.js';
 import type {PageAnalysis, UxReport} from '../models/analysis.js';
-import {writeReportToFile} from '../models/report-generator.js';
+import {writeReportToFile} from '../infrastructure/reports/report-generator.js';
 import {McpPageCapture} from './mcp-page-capture.js';
 import {ReportBuilder} from './report-builder.js';
 

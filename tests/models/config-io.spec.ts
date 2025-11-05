@@ -15,7 +15,7 @@ const {
 	parseConfigFile,
 	readConfigFile,
 	validateConfig,
-} = await import('../../source/models/config-io.js');
+} = await import('../../source/infrastructure/config/config-io.js');
 const {ConfigurationError: configurationError} = await import(
 	'../../source/models/errors.js'
 );

@@ -10,7 +10,7 @@ import type {
 	SaveOptions,
 } from '../../source/models/wizard-state.js';
 import type {UxLintConfig} from '../../source/models/config.js';
-import type {SaveResult} from '../../source/models/config-io.js';
+import type {SaveResult} from '../../source/infrastructure/config/config-io.js';
 import {
 	getMockFsModule,
 	mockFiles,
@@ -32,7 +32,7 @@ const {
 	formatFileSize,
 	saveConfigToFile,
 	trySaveConfig,
-} = await import('../../source/models/config-io.js');
+} = await import('../../source/infrastructure/config/config-io.js');
 const fs = await import('node:fs');
 
 // Test data

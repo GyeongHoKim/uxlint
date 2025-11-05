@@ -7,9 +7,9 @@ import * as fs from 'node:fs';
 import {join} from 'node:path';
 import process from 'node:process';
 import {load as parseYaml, dump as yamlDump} from 'js-yaml';
-import type {UxLintConfig} from './config.js';
-import {ConfigurationError} from './errors.js';
-import type {SaveOptions} from './wizard-state.js';
+import type {UxLintConfig} from '../../models/config.js';
+import {ConfigurationError} from '../../models/errors.js';
+import type {SaveOptions} from '../../models/wizard-state.js';
 
 /**
  * Result of saving configuration
