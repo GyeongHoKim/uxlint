@@ -46,16 +46,20 @@ export function buildSystemPrompt(
 			: '';
 
 	const toolSection = hasTools
-		? `\n\nYou have access to browser automation tools to:
-- Navigate to pages (browser_navigate)
-- Take screenshots (browser_take_screenshot)
-- Get accessibility tree snapshots (browser_snapshot)
-- Click elements (browser_click)
-- Fill forms (browser_fill_form)
-- Evaluate JavaScript (browser_evaluate)
+		? `\n\nYou have access to browser automation tools. Follow these steps:
 
-Use these tools to analyze the page visually and interact with it if needed.
-IMPORTANT: Always take a screenshot of the page to perform visual UX analysis.`
+1. First, call browser_navigate with the provided page URL
+2. Then, call browser_take_screenshot to capture the visual design
+3. Call browser_snapshot to get the accessibility tree
+4. Analyze the results and provide your findings
+
+Available tools:
+- browser_navigate: Navigate to a URL
+- browser_take_screenshot: Capture visual screenshot (REQUIRED for visual UX analysis)
+- browser_snapshot: Get accessibility tree snapshot
+- browser_click, browser_fill_form, browser_evaluate: For interaction if needed
+
+IMPORTANT: You MUST take a screenshot to see the actual visual design. Text-only accessibility trees are not sufficient for complete UX analysis.`
 		: '';
 
 	return `You are an expert UX analyst specialized in web accessibility and usability evaluation.
@@ -279,6 +283,21 @@ export async function analyzePageWithAi(
 			prompt: userPrompt,
 			temperature: 0.3,
 			tools: tools ?? undefined,
+			// @ts-expect-error - maxSteps exists in AI SDK but type definitions may not be up to date
+			maxSteps: 5, // Allow up to 5 sequential tool calls
+			onStepFinish(event) {
+				// Log tool calls for debugging
+				if (event.toolCalls && event.toolCalls.length > 0) {
+					console.log(
+						'[AI] Tool calls:',
+						event.toolCalls.map(tc => tc.toolName),
+					);
+				}
+
+				if (event.toolResults && event.toolResults.length > 0) {
+					console.log('[AI] Tool results:', event.toolResults.length);
+				}
+			},
 		});
 
 		// Stream response chunks
