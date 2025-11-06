@@ -14,7 +14,7 @@ import 'dotenv/config';
 /**
  * Supported AI provider types
  */
-export type ProviderType = 'anthropic' | 'openai' | 'ollama';
+export type ProviderType = 'anthropic' | 'openai' | 'ollama' | 'xai';
 
 /**
  * Anthropic provider configuration
@@ -81,9 +81,34 @@ export type OllamaConfig = {
 };
 
 /**
+ * XAI (Grok) provider configuration
+ */
+export type XaiConfig = {
+	/**
+	 * Provider type
+	 */
+	provider: 'xai';
+
+	/**
+	 * AI model name (from UXLINT_AI_MODEL env var)
+	 * Defaults to 'grok-4' if not specified
+	 */
+	model: string;
+
+	/**
+	 * XAI API key (from UXLINT_XAI_API_KEY env var)
+	 */
+	apiKey: string;
+};
+
+/**
  * Environment configuration for AI service (discriminated union)
  */
-export type EnvConfig = AnthropicConfig | OpenAiConfig | OllamaConfig;
+export type EnvConfig =
+	| AnthropicConfig
+	| OpenAiConfig
+	| OllamaConfig
+	| XaiConfig;
 
 /**
  * Default AI models per provider
@@ -92,6 +117,7 @@ const defaultModels: Record<ProviderType, string> = {
 	anthropic: 'claude-sonnet-4-5-20250929',
 	openai: 'gpt-4o',
 	ollama: 'llama3.1',
+	xai: 'grok-4',
 };
 
 /**
@@ -118,9 +144,9 @@ export function loadEnvConfig(): EnvConfig {
 		(process.env['UXLINT_AI_PROVIDER'] as ProviderType) ?? 'anthropic';
 
 	// Validate provider type
-	if (!['anthropic', 'openai', 'ollama'].includes(provider)) {
+	if (!['anthropic', 'openai', 'ollama', 'xai'].includes(provider)) {
 		throw new Error(
-			`Invalid UXLINT_AI_PROVIDER: "${provider}". Must be one of: anthropic, openai, ollama`,
+			`Invalid UXLINT_AI_PROVIDER: "${provider}". Must be one of: anthropic, openai, ollama, xai`,
 		);
 	}
 
@@ -169,6 +195,22 @@ export function loadEnvConfig(): EnvConfig {
 				provider: 'ollama',
 				model,
 				baseUrl,
+			};
+		}
+
+		case 'xai': {
+			const apiKey = process.env['UXLINT_XAI_API_KEY'];
+			if (!apiKey) {
+				throw new Error(
+					'UXLINT_XAI_API_KEY environment variable is required for xAI provider. ' +
+						'Please set it in your .env file or environment.',
+				);
+			}
+
+			return {
+				provider: 'xai',
+				model,
+				apiKey,
 			};
 		}
 

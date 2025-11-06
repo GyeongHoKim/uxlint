@@ -12,6 +12,7 @@ const originalEnv = {
 	anthropicApiKey: process.env['UXLINT_ANTHROPIC_API_KEY'],
 	openaiApiKey: process.env['UXLINT_OPENAI_API_KEY'],
 	ollamaBaseUrl: process.env['UXLINT_OLLAMA_BASE_URL'],
+	xaiApiKey: process.env['UXLINT_XAI_API_KEY'],
 	model: process.env['UXLINT_AI_MODEL'],
 };
 
@@ -39,6 +40,12 @@ afterEach(() => {
 		process.env['UXLINT_OLLAMA_BASE_URL'] = originalEnv.ollamaBaseUrl;
 	} else {
 		delete process.env['UXLINT_OLLAMA_BASE_URL'];
+	}
+
+	if (originalEnv.xaiApiKey) {
+		process.env['UXLINT_XAI_API_KEY'] = originalEnv.xaiApiKey;
+	} else {
+		delete process.env['UXLINT_XAI_API_KEY'];
 	}
 
 	if (originalEnv.model) {
@@ -228,13 +235,69 @@ describe('Ollama Provider', () => {
 	});
 });
 
+// XAI (Grok) provider tests
+describe('xAI Provider', () => {
+	test('throws error when UXLINT_XAI_API_KEY is missing', () => {
+		delete process.env['UXLINT_XAI_API_KEY'];
+		process.env['UXLINT_AI_PROVIDER'] = 'xai';
+
+		expect(() => loadEnvConfig()).toThrow(
+			'UXLINT_XAI_API_KEY environment variable is required for xAI provider',
+		);
+	});
+
+	test('provides default model when UXLINT_AI_MODEL is not set', () => {
+		process.env['UXLINT_XAI_API_KEY'] = 'test_xai_key';
+		process.env['UXLINT_AI_PROVIDER'] = 'xai';
+		delete process.env['UXLINT_AI_MODEL'];
+
+		const config = loadEnvConfig();
+
+		expect(config.provider).toBe('xai');
+		expect(config.model).toBe('grok-4');
+		if (config.provider === 'xai') {
+			expect(config.apiKey).toBe('test_xai_key');
+		}
+	});
+
+	test('uses custom model when UXLINT_AI_MODEL is set', () => {
+		process.env['UXLINT_XAI_API_KEY'] = 'test_xai_key';
+		process.env['UXLINT_AI_PROVIDER'] = 'xai';
+		process.env['UXLINT_AI_MODEL'] = 'grok-3-beta';
+
+		const config = loadEnvConfig();
+
+		expect(config.provider).toBe('xai');
+		expect(config.model).toBe('grok-3-beta');
+		if (config.provider === 'xai') {
+			expect(config.apiKey).toBe('test_xai_key');
+		}
+	});
+
+	test('returns valid config with all required fields', () => {
+		process.env['UXLINT_XAI_API_KEY'] = 'test_xai_key';
+		process.env['UXLINT_AI_PROVIDER'] = 'xai';
+		process.env['UXLINT_AI_MODEL'] = 'grok-4';
+
+		const config = loadEnvConfig();
+
+		expect(config).toHaveProperty('provider');
+		expect(config).toHaveProperty('model');
+		expect(config.provider).toBe('xai');
+		if (config.provider === 'xai') {
+			expect(config).toHaveProperty('apiKey');
+			expect(typeof config.apiKey).toBe('string');
+		}
+	});
+});
+
 // Provider validation tests
 describe('Provider Validation', () => {
 	test('throws error when invalid provider is specified', () => {
 		process.env['UXLINT_AI_PROVIDER'] = 'invalid-provider';
 
 		expect(() => loadEnvConfig()).toThrow(
-			'Invalid UXLINT_AI_PROVIDER: "invalid-provider". Must be one of: anthropic, openai, ollama',
+			'Invalid UXLINT_AI_PROVIDER: "invalid-provider". Must be one of: anthropic, openai, ollama, xai',
 		);
 	});
 
