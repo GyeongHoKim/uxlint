@@ -42,7 +42,7 @@ test('loadEnvConfig provides default model when UXLINT_AI_MODEL is not set', () 
 	const config = loadEnvConfig();
 
 	expect(config.apiKey).toBe('test_api_key');
-	expect(config.model).toBe('claude-3-5-sonnet-20241022');
+	expect(config.model).toBe('claude-sonnet-4-5-20250929');
 });
 
 test('loadEnvConfig uses custom model when UXLINT_AI_MODEL is set', () => {

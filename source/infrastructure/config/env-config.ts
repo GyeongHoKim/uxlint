@@ -30,7 +30,7 @@ export type EnvConfig = {
 /**
  * Default AI model to use if not specified in environment
  */
-const defaultModel = 'claude-3-5-sonnet-20241022';
+const defaultModel = 'claude-sonnet-4-5-20250929';
 
 /**
  * Load and validate environment configuration
