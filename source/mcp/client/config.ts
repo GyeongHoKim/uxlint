@@ -132,6 +132,7 @@ export function getMcpConfigFromEnv(): McpConfig {
  *
  * @param partial - Partial configuration to override defaults
  * @returns Complete configuration with defaults applied to missing fields
+ * @throws {ConfigurationError} If partial.serverCommand is not in allowlist
  *
  * @example
  * ```typescript
@@ -145,8 +146,14 @@ export function getMcpConfigFromEnv(): McpConfig {
 export function mergeMcpConfig(partial: Partial<McpConfig>): McpConfig {
 	const defaultConfig = getDefaultMcpConfig();
 
+	// Validate server command if provided
+	const serverCommand = partial.serverCommand ?? defaultConfig.serverCommand;
+	if (partial.serverCommand) {
+		validateServerCommand(partial.serverCommand);
+	}
+
 	return {
-		serverCommand: partial.serverCommand ?? defaultConfig.serverCommand,
+		serverCommand,
 		serverArgs: partial.serverArgs ?? defaultConfig.serverArgs,
 		browser: partial.browser ?? defaultConfig.browser,
 		headless: partial.headless ?? defaultConfig.headless,

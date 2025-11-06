@@ -33,10 +33,12 @@ export function AnalysisRunner({theme, config}: AnalysisRunnerProps) {
 	const {state, runAnalysis, getCurrentPageUrl} = useAnalysis(config);
 	const [showExitPrompt, setShowExitPrompt] = useState(false);
 
-	// Start analysis on mount
+	// Start analysis on mount ONCE only
+	// Adding runAnalysis to deps would cause re-runs whenever parent re-renders
+	// This effect should fire exactly once when component mounts to initiate the workflow
 	useEffect(() => {
 		void runAnalysis();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- Effect must run exactly once on mount, not on every runAnalysis reference change
 	}, []);
 
 	// Show exit prompt when complete or error

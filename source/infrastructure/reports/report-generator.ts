@@ -78,12 +78,12 @@ export function generateMarkdownReport(report: UxReport): string {
 		sections.push(`**Failed Pages**: ${metadata.failedPages.length}`);
 	}
 
-	// Executive Summary
-	sections.push('', '## Executive Summary\n', summary, '');
-
-	// Statistics and Page Analyses Header
-	// eslint-disable-next-line unicorn/prefer-single-call
+	// Executive Summary and Statistics
 	sections.push(
+		'',
+		'## Executive Summary\n',
+		summary,
+		'',
 		'## Statistics\n',
 		'| Metric | Value |',
 		'|--------|-------|',

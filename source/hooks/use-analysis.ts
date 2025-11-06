@@ -116,11 +116,15 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 				report,
 			}));
 		} catch (error) {
-			// Fatal error
+			// Fatal error - log for debugging
+			const analysisError =
+				error instanceof Error ? error : new Error('Unknown error');
+			console.error('[useAnalysis] Analysis failed:', analysisError);
+
 			updateState(previous => ({
 				...previous,
 				currentStage: 'error',
-				error: error instanceof Error ? error : new Error('Unknown error'),
+				error: analysisError,
 			}));
 		}
 	}, [config, updateState]);

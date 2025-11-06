@@ -59,8 +59,11 @@ export class AnalysisOrchestrator {
 
 		try {
 			// Process each page sequentially
+			// Browser automation MUST be sequential - parallel execution would overwhelm the browser
+			// and cause resource conflicts (same browser instance, same viewport)
 			for (const [index, page] of config.pages.entries()) {
-				// eslint-disable-next-line no-await-in-loop
+				// Sequential page analysis required for browser automation stability
+				// eslint-disable-next-line no-await-in-loop -- Browser automation must be sequential, not parallel
 				const analysis = await this.analyzeSinglePage({
 					pageUrl: page.url,
 					features: page.features,

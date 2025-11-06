@@ -229,7 +229,9 @@ export async function retryWithBackoff<T>(
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		try {
-			// eslint-disable-next-line no-await-in-loop
+			// Sequential retry logic requires await in loop
+			// Each attempt must complete before deciding whether to retry
+			// eslint-disable-next-line no-await-in-loop -- Required for sequential retry with exponential backoff
 			return await fn();
 		} catch (error) {
 			lastError = error instanceof Error ? error : new Error(String(error));
@@ -241,7 +243,8 @@ export async function retryWithBackoff<T>(
 
 			// Calculate delay with exponential backoff: 1s, 2s, 4s
 			const delay = initialDelay * 2 ** attempt;
-			// eslint-disable-next-line no-await-in-loop
+			// Sequential backoff delay must complete before next retry attempt
+			// eslint-disable-next-line no-await-in-loop -- Required for exponential backoff between retries
 			await new Promise(resolve => {
 				setTimeout(resolve, delay);
 			});
@@ -249,6 +252,47 @@ export async function retryWithBackoff<T>(
 	}
 
 	throw lastError ?? new Error('Retry failed with unknown error');
+}
+
+/**
+ * Estimate token count from text
+ * Uses rough approximation: 1 token ≈ 4 characters
+ *
+ * @param text - Text to estimate
+ * @returns Estimated token count
+ */
+function estimateTokenCount(text: string): number {
+	return Math.ceil(text.length / aiConfig.contextWindow.charsPerToken);
+}
+
+/**
+ * Check if prompt size is within context window limits
+ * Warns if approaching limits to prevent failures
+ *
+ * @param systemPrompt - System prompt text
+ * @param userPrompt - User prompt text
+ */
+function validateContextWindow(systemPrompt: string, userPrompt: string): void {
+	const systemTokens = estimateTokenCount(systemPrompt);
+	const userTokens = estimateTokenCount(userPrompt);
+	const totalTokens = systemTokens + userTokens;
+
+	const {maxInputTokens, warningThreshold} = aiConfig.contextWindow;
+
+	if (totalTokens > maxInputTokens) {
+		throw new Error(
+			`Prompt exceeds context window: ${totalTokens} tokens (max: ${maxInputTokens}). ` +
+				'Consider reducing accessibility tree size or page complexity.',
+		);
+	}
+
+	if (totalTokens > warningThreshold) {
+		console.warn(
+			`[AI] Large prompt detected: ${totalTokens} tokens (${Math.round(
+				(totalTokens / maxInputTokens) * 100,
+			)}% of context window). This may impact performance and cost.`,
+		);
+	}
 }
 
 /**
@@ -288,6 +332,9 @@ export async function analyzePageWithAi(
 	const systemPrompt = buildSystemPrompt(prompt.personas, hasTools);
 	const userPrompt = buildAnalysisPrompt(prompt, hasTools);
 
+	// Validate context window size
+	validateContextWindow(systemPrompt, userPrompt);
+
 	// Create anthropic provider with custom API key
 	const anthropic = createAnthropic({
 		apiKey: config.apiKey,
@@ -297,31 +344,42 @@ export async function analyzePageWithAi(
 	return retryWithBackoff(async () => {
 		const chunks: string[] = [];
 
-		// StreamText with experimental maxSteps parameter
-		// MaxSteps enables multi-turn tool calling (required for MCP tools)
-		// Type definitions don't include maxSteps yet (AI SDK v5.0.68), but it's available at runtime
-		const experimentalParameters: StreamTextWithMaxSteps = {
-			maxSteps: aiConfig.maxToolSteps,
-		};
+		// Setup timeout with AbortController
+		const abortController = new AbortController();
+		const timeout = setTimeout(() => {
+			abortController.abort();
+		}, aiConfig.aiCallTimeoutMs);
 
-		// eslint-disable-next-line @typescript-eslint/await-thenable
-		const result = await streamText({
-			model: anthropic(config.model),
-			system: systemPrompt,
-			prompt: userPrompt,
-			temperature: aiConfig.temperature,
-			tools: tools ?? undefined,
-			...experimentalParameters,
-		});
+		try {
+			// StreamText with experimental maxSteps parameter
+			// MaxSteps enables multi-turn tool calling (required for MCP tools)
+			// Type definitions don't include maxSteps yet (AI SDK v5.0.68), but it's available at runtime
+			const experimentalParameters: StreamTextWithMaxSteps = {
+				maxSteps: aiConfig.maxToolSteps,
+			};
 
-		// Stream response chunks
-		for await (const chunk of result.textStream) {
-			chunks.push(chunk);
-			onChunk?.(chunk);
+			const result = streamText({
+				model: anthropic(config.model),
+				system: systemPrompt,
+				prompt: userPrompt,
+				temperature: aiConfig.temperature,
+				tools: tools ?? undefined,
+				abortSignal: abortController.signal,
+				...experimentalParameters,
+			});
+
+			// Stream response chunks
+			for await (const chunk of result.textStream) {
+				chunks.push(chunk);
+				onChunk?.(chunk);
+			}
+
+			// Parse complete response
+			const fullResponse = chunks.join('');
+			return parseAnalysisResponse(fullResponse, prompt.pageUrl);
+		} finally {
+			// Clean up timeout
+			clearTimeout(timeout);
 		}
-
-		// Parse complete response
-		const fullResponse = chunks.join('');
-		return parseAnalysisResponse(fullResponse, prompt.pageUrl);
 	});
 }
