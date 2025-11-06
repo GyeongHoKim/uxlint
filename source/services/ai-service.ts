@@ -6,9 +6,7 @@
  */
 
 import {createAnthropic} from '@ai-sdk/anthropic';
-import {streamText} from 'ai';
-import type {McpClient} from '../mcp/client/mcp-client.js';
-import {convertMcpToolsToClaudeTools} from '../mcp/client/adapters/tool-adapter.js';
+import {streamText, type experimental_MCPClient} from 'ai';
 import type {UxFinding} from '../models/analysis.js';
 import {loadEnvConfig} from '../infrastructure/config/env-config.js';
 
@@ -238,21 +236,20 @@ export async function retryWithBackoff<T>(
  *
  * @param prompt - Analysis prompt with page context
  * @param onChunk - Optional callback for streaming response chunks
- * @param mcpClient - Optional MCP client for tool calling
+ * @param mcpClient - Optional MCP client for tool calling (AI SDK integration)
  */
 export async function analyzePageWithAi(
 	prompt: AnalysisPrompt,
 	onChunk?: (chunk: string) => void,
-	mcpClient?: McpClient,
+	mcpClient?: experimental_MCPClient,
 ): Promise<AnalysisResult> {
 	const config = loadEnvConfig();
 
-	// Fetch and convert MCP tools if client is provided
+	// Get tools from MCP client (AI SDK automatically converts them)
 	let tools: Record<string, any> | undefined;
-	if (mcpClient?.isConnected()) {
+	if (mcpClient) {
 		try {
-			const mcpTools = await mcpClient.listTools();
-			tools = convertMcpToolsToClaudeTools(mcpTools, mcpClient);
+			tools = await mcpClient.tools();
 		} catch (error) {
 			console.warn(
 				'Failed to fetch MCP tools, continuing without tools:',
