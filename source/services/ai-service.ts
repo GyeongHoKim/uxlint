@@ -311,19 +311,6 @@ export async function analyzePageWithAi(
 			prompt: userPrompt,
 			temperature: aiConfig.temperature,
 			tools: tools ?? undefined,
-			onStepFinish(event) {
-				// Log tool calls for debugging
-				if (event.toolCalls && event.toolCalls.length > 0) {
-					console.log(
-						'[AI] Tool calls:',
-						event.toolCalls.map(tc => tc.toolName),
-					);
-				}
-
-				if (event.toolResults && event.toolResults.length > 0) {
-					console.log('[AI] Tool results:', event.toolResults.length);
-				}
-			},
 			...experimentalParameters,
 		});
 
