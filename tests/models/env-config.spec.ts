@@ -145,7 +145,7 @@ describe('OpenAI Provider', () => {
 		const config = loadEnvConfig();
 
 		expect(config.provider).toBe('openai');
-		expect(config.model).toBe('gpt-4o');
+		expect(config.model).toBe('gpt-5');
 		if (config.provider === 'openai') {
 			expect(config.apiKey).toBe('test_openai_key');
 		}
@@ -168,7 +168,7 @@ describe('OpenAI Provider', () => {
 	test('returns valid config with all required fields', () => {
 		process.env['UXLINT_OPENAI_API_KEY'] = 'test_openai_key';
 		process.env['UXLINT_AI_PROVIDER'] = 'openai';
-		process.env['UXLINT_AI_MODEL'] = 'gpt-4o';
+		process.env['UXLINT_AI_MODEL'] = 'gpt-5';
 
 		const config = loadEnvConfig();
 
@@ -192,9 +192,9 @@ describe('Ollama Provider', () => {
 		const config = loadEnvConfig();
 
 		expect(config.provider).toBe('ollama');
-		expect(config.model).toBe('llama3.1');
+		expect(config.model).toBe('qwen3-vl');
 		if (config.provider === 'ollama') {
-			expect(config.baseUrl).toBe('http://localhost:11434');
+			expect(config.baseUrl).toBe('http://localhost:11434/api');
 		}
 	});
 
@@ -221,7 +221,7 @@ describe('Ollama Provider', () => {
 		expect(config.provider).toBe('ollama');
 		expect(config.model).toBe('llama3:70b');
 		if (config.provider === 'ollama') {
-			expect(config.baseUrl).toBe('http://localhost:11434');
+			expect(config.baseUrl).toBe('http://localhost:11434/api');
 		}
 	});
 

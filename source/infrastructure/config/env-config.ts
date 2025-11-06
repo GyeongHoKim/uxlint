@@ -48,7 +48,7 @@ export type OpenAiConfig = {
 
 	/**
 	 * AI model name (from UXLINT_AI_MODEL env var)
-	 * Defaults to 'gpt-4o' if not specified
+	 * Defaults to 'gpt-5' if not specified
 	 */
 	model: string;
 
@@ -69,7 +69,7 @@ export type OllamaConfig = {
 
 	/**
 	 * AI model name (from UXLINT_AI_MODEL env var)
-	 * Defaults to 'qwen2-vl:7b' if not specified
+	 * Defaults to 'qwen3-vl' if not specified
 	 * IMPORTANT: Must support both vision and tool calling
 	 */
 	model: string;
@@ -138,8 +138,8 @@ export type EnvConfig =
  */
 const defaultModels: Record<ProviderType, string> = {
 	anthropic: 'claude-sonnet-4-5-20250929',
-	openai: 'gpt-4o',
-	ollama: 'qwen2-vl:7b',
+	openai: 'gpt-5',
+	ollama: 'qwen3-vl',
 	xai: 'grok-4',
 	google: 'gemini-2.5-pro',
 };

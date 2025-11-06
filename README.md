@@ -71,7 +71,7 @@ UXLINT_ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # UXLINT_GOOGLE_API_KEY=your_google_api_key_here
 
 # Optional: Customize AI model
-# Defaults: claude-sonnet-4-5-20250929 (anthropic), gpt-4o (openai), qwen2-vl:7b (ollama), grok-4 (xai), gemini-2.5-pro (google)
+# Defaults: claude-sonnet-4-5-20250929 (anthropic), gpt-5 (openai), qwen3-vl (ollama), grok-4 (xai), gemini-2.5-pro (google)
 UXLINT_AI_MODEL=claude-sonnet-4-5-20250929
 
 # MCP Server Configuration
@@ -98,16 +98,16 @@ Choose one of the following providers:
 
   - `UXLINT_AI_PROVIDER=openai`
   - `UXLINT_OPENAI_API_KEY`: Your OpenAI API key from https://platform.openai.com/api-keys
-  - Default model: `gpt-4o`
+  - Default model: `gpt-5`
 
 - **Ollama** (local):
 
   - `UXLINT_AI_PROVIDER=ollama`
   - `UXLINT_OLLAMA_BASE_URL`: Your Ollama server URL (default: http://localhost:11434/api)
-  - Default model: `qwen2-vl:7b`
+  - Default model: `qwen3-vl`
   - Requires [Ollama](https://ollama.ai/) to be installed and running locally
   - **⚠️ Important**: The model must support **both vision (multimodal) and tool calling**
-    - ✅ Recommended: `qwen2-vl:7b`, `qwen2-vl:2b`
+    - ✅ Recommended: `qwen3-vl`, `qwen2-vl:7b`, `qwen2-vl:2b`
     - ❌ Not supported: `llama3.2-vision` (no tool calling), `llama3.1` (no vision)
 
 - **xAI (Grok)**:
@@ -330,10 +330,10 @@ The command exits after writing the report to the configured path.
 
   - Ensure Ollama is installed and running: `ollama serve`
   - Verify the base URL is correct (default: `http://localhost:11434/api`)
-  - Check that your chosen model is pulled: `ollama pull qwen2-vl:7b`
+  - Check that your chosen model is pulled: `ollama pull qwen3-vl`
   - Try accessing the Ollama API directly: `curl http://localhost:11434/api/tags`
   - **Model compatibility**: Ensure your model supports both vision and tool calling
-    - Use `qwen2-vl:7b` or `qwen2-vl:2b` for best compatibility
+    - Use `qwen3-vl`, `qwen2-vl:7b` or `qwen2-vl:2b` for best compatibility
     - Models like `llama3.2-vision` lack tool calling support and will fail
     - Models like `llama3.1` lack vision support and cannot analyze screenshots
 
