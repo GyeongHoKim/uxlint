@@ -109,20 +109,54 @@ export function buildSystemPrompt(
 			: '';
 
 	const toolSection = hasTools
-		? `\n\nYou have access to browser automation tools. Follow these steps:
+		? `\n\nYou have access to comprehensive browser automation tools via Playwright MCP.
 
-1. First, call browser_navigate with the provided page URL
-2. Then, call browser_take_screenshot to capture the visual design
-3. Call browser_snapshot to get the accessibility tree
-4. Analyze the results and provide your findings
+## Required Analysis Workflow
 
-Available tools:
-- browser_navigate: Navigate to a URL
-- browser_take_screenshot: Capture visual screenshot (REQUIRED for visual UX analysis)
-- browser_snapshot: Get accessibility tree snapshot
-- browser_click, browser_fill_form, browser_evaluate: For interaction if needed
+1. **Set Desktop Viewport**: Call browser_resize to set desktop resolution (1920x1080 or 1440x900)
+2. **Navigate**: Call browser_navigate with the provided page URL
+3. **Capture Visual**: Call browser_take_screenshot (REQUIRED for visual UX analysis)
+4. **Get Structure**: Call browser_snapshot to get accessibility tree
+5. **Interact & Test** (if needed): Use interaction tools to test UI elements
+6. **Analyze**: Provide comprehensive UX findings
 
-IMPORTANT: You MUST take a screenshot to see the actual visual design. Text-only accessibility trees are not sufficient for complete UX analysis.`
+## Complete Toolset Available
+
+**Navigation & Page Control:**
+- browser_navigate: Navigate to URL
+- browser_navigate_back: Go back in history
+- browser_resize: Set viewport size (USE THIS for desktop testing - 1920x1080 or 1440x900)
+- browser_tabs: Manage multiple tabs (if page has tabs/links that open new windows)
+- browser_close: Close browser
+- browser_wait_for: Wait for elements/conditions
+
+**Visual Inspection:**
+- browser_take_screenshot: Capture visual design (REQUIRED - call this BEFORE analyzing)
+- browser_snapshot: Get accessibility tree structure
+
+**Element Interaction:**
+- browser_click: Click buttons, links, tabs, UI elements
+- browser_hover: Hover over elements (test hover states)
+- browser_drag: Drag and drop operations
+- browser_type: Type text into inputs
+- browser_press_key: Press keyboard keys (test keyboard navigation)
+- browser_fill_form: Fill multiple form fields
+- browser_select_option: Select from dropdowns
+
+**Advanced Testing:**
+- browser_evaluate: Execute JavaScript for custom checks
+- browser_file_upload: Upload files to test file inputs
+- browser_handle_dialog: Handle alerts/confirms/prompts
+- browser_console_messages: Check for JavaScript errors
+- browser_network_requests: Inspect network activity
+
+**CRITICAL REQUIREMENTS:**
+1. ALWAYS call browser_resize FIRST to set desktop viewport
+2. ALWAYS take screenshot for visual analysis
+3. USE browser_click for interactive elements (tabs, buttons, etc.)
+4. TEST hover states with browser_hover
+5. CHECK keyboard navigation with browser_press_key
+6. For multi-tab interfaces, use browser_tabs to switch between them`
 		: '';
 
 	return `You are an expert UX analyst specialized in web accessibility and usability evaluation.
@@ -211,29 +245,58 @@ export function buildAnalysisPrompt(
 **Target Personas**:
 ${personas.map(p => `- ${p}`).join('\n')}
 
-## Analysis Task
+## Required Analysis Steps (Execute in Order)
 
-Please analyze this page comprehensively:
+**Step 1: Set Desktop Viewport**
+- Use browser_resize to set viewport to 1920x1080 or 1440x900
+- This ensures proper desktop UX evaluation
 
-1. Navigate to the page URL
-2. Take a screenshot to see the visual design
-3. Get the accessibility tree snapshot
-4. Conduct a thorough UX analysis
+**Step 2: Navigate & Capture**
+- Navigate to the page URL using browser_navigate
+- Take a screenshot using browser_take_screenshot
+- Get accessibility tree using browser_snapshot
 
-## Evaluation Checklist
+**Step 3: Test Interactive Elements**
+- If the features mention **tabs, navigation, or interactive UI**:
+  * USE browser_click to click on each tab/button
+  * Capture screenshots of different states
+  * Test hover effects with browser_hover
+- If forms are mentioned:
+  * Test input fields with browser_type or browser_fill_form
+  * Check validation and error states
+- If dropdowns/selects exist:
+  * Test with browser_select_option
+- Test keyboard navigation:
+  * Use browser_press_key to test Tab key navigation
+  * Verify focus indicators are visible
 
-Examine the page for:
-- Accessibility issues (ARIA, semantic HTML, keyboard nav, color contrast)
-- Usability problems (navigation, visual hierarchy, consistency)
-- Performance concerns (load times, perceived performance)
-- Visual design issues (typography, spacing, alignment)
-- Content quality (clarity, scannability, microcopy)
-- Mobile responsiveness (touch targets, viewport, layout)
-- Persona-specific concerns based on the target users
+**Step 4: Check Console & Network**
+- Use browser_console_messages to check for JavaScript errors
+- Use browser_network_requests to identify slow resources
 
-**IMPORTANT**: Even if the page is well-designed, identify at least 2-3 opportunities for improvement or potential enhancements. Consider edge cases, error states, and advanced accessibility features.
+**Step 5: Conduct Thorough Analysis**
+Examine for:
+- **Accessibility**: ARIA labels, semantic HTML, keyboard nav, color contrast, alt text
+- **Usability**: Navigation clarity, visual hierarchy, consistency, touch targets (44x44px min)
+- **Performance**: Load indicators, image optimization, unnecessary animations
+- **Visual Design**: Typography, spacing, alignment, whitespace, clear CTAs
+- **Content**: Scannable structure, heading hierarchy, microcopy quality
+- **Mobile Responsiveness**: Touch-friendly elements, readable text, proper viewport
+- **Interactive States**: Hover, focus, active, disabled states
+- **Error Handling**: Validation messages, error recovery, empty states
+- **Persona-specific concerns**: Based on the target users
 
-Provide your findings in the structured format with clear, actionable recommendations.`;
+## Critical Instructions
+
+1. ⚠️ **ALWAYS resize viewport first** - Desktop sites need proper resolution
+2. ⚠️ **CLICK interactive elements** - Tabs, buttons, links mentioned in features
+3. ⚠️ **TEST keyboard navigation** - Press Tab key and verify focus indicators
+4. ⚠️ **CAPTURE multiple states** - Different tabs, hover states, form states
+5. ⚠️ **CHECK console for errors** - JavaScript errors affect UX
+
+**IMPORTANT**: Even if the page is well-designed, identify at least 2-3 opportunities for improvement. Consider edge cases, error states, keyboard-only users, and screen reader compatibility.
+
+Provide your findings in the structured JSON format with clear, actionable recommendations.`;
 	}
 
 	// Legacy mode: snapshot provided in prompt
