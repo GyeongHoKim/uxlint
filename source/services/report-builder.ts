@@ -5,7 +5,29 @@
  * @packageDocumentation
  */
 
+import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {dirname, join} from 'node:path';
 import type {PageAnalysis, UxReport, UxFinding} from '../models/analysis.js';
+
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDirectory = dirname(currentFilePath);
+const packageJsonPath = join(currentDirectory, '../../package.json');
+
+/**
+ * Get package version from package.json
+ * Falls back to '0.0.0' if reading fails
+ */
+function getPackageVersion(): string {
+	try {
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+			version?: string;
+		};
+		return packageJson.version ?? '0.0.0';
+	} catch {
+		return '0.0.0';
+	}
+}
 
 /**
  * Report Builder
@@ -14,8 +36,9 @@ import type {PageAnalysis, UxReport, UxFinding} from '../models/analysis.js';
 export class ReportBuilder {
 	private readonly uxlintVersion: string;
 
-	constructor(version = '1.0.0') {
-		this.uxlintVersion = version;
+	constructor(version?: string) {
+		// Use provided version or read from package.json
+		this.uxlintVersion = version ?? getPackageVersion();
 	}
 
 	/**

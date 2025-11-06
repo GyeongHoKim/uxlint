@@ -6,7 +6,9 @@
  */
 
 import process from 'node:process';
-// eslint-disable-next-line import-x/no-unassigned-import
+// Side-effect import required: dotenv/config loads .env file into process.env at module initialization
+// This import MUST execute its side effects before loadEnvConfig() reads from process.env
+// eslint-disable-next-line import-x/no-unassigned-import -- Required side-effect import for .env file loading
 import 'dotenv/config';
 
 /**

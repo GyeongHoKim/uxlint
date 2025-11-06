@@ -127,7 +127,8 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientReturn {
 
 			for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 				try {
-					// eslint-disable-next-line no-await-in-loop
+					// Sequential reconnection attempts - each must complete before deciding to retry
+					// eslint-disable-next-line no-await-in-loop -- Required for sequential reconnection with retry logic
 					await attemptReconnection(attempt);
 					return; // Success
 				} catch (error_) {
@@ -141,7 +142,8 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientReturn {
 
 					// Wait before retry (exponential backoff)
 					const waitTime = 1000 * attempt;
-					// eslint-disable-next-line no-await-in-loop
+					// Sequential backoff delay must complete before next reconnection attempt
+					// eslint-disable-next-line no-await-in-loop -- Required for exponential backoff between reconnection attempts
 					await new Promise(resolve => {
 						setTimeout(resolve, waitTime);
 					});
