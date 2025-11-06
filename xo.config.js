@@ -26,6 +26,7 @@ export default [
 			'unicorn/expiring-todo-comments': 'off',
 			'unicorn/no-process-exit': 'off',
 			'@typescript-eslint/parameter-properties': 'off',
+			'@typescript-eslint/naming-convention': 'off',
 		},
 		semicolon: true,
 	},

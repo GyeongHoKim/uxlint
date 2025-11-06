@@ -3,9 +3,9 @@
  * @packageDocumentation
  */
 
-import {useState, useCallback, useEffect, useRef} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {McpClient} from '../mcp/client/mcp-client.js';
-import type {UseMcpClientOptions, Tool} from '../mcp/client/types.js';
+import type {Tool, UseMcpClientOptions} from '../mcp/client/types.js';
 
 /**
  * Return type for useMcpClient hook
