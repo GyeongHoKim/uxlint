@@ -53,6 +53,7 @@
 		"@ai-sdk/anthropic": "^2.0.27",
 		"@ai-sdk/mcp": "^0.0.7",
 		"@ai-sdk/openai": "^2.0.50",
+		"@ai-sdk/provider": "^2.0.0",
 		"@ai-sdk/provider-utils": "^3.0.16",
 		"@inkjs/ui": "^2.0.0",
 		"@modelcontextprotocol/sdk": "^1.20.0",
@@ -64,8 +65,9 @@
 		"ink-text-input": "^6.0.0",
 		"js-yaml": "^4.1.0",
 		"meow": "^11.0.0",
+		"ollama-ai-provider-v2": "^1.5.2",
 		"react": "^18.2.0",
-		"zod": "^3.25.76"
+		"zod": "^4.1.12"
 	},
 	"devDependencies": {
 		"@commitlint/cli": "^20.1.0",
