@@ -9,6 +9,7 @@ import {createAnthropic} from '@ai-sdk/anthropic';
 import {streamText, type experimental_MCPClient} from 'ai';
 import type {UxFinding} from '../models/analysis.js';
 import {loadEnvConfig} from '../infrastructure/config/env-config.js';
+import {aiConfig} from './ai-service-config.js';
 
 /**
  * Analysis prompt input
@@ -207,8 +208,8 @@ export function extractSummary(response: string): string {
  */
 export async function retryWithBackoff<T>(
 	fn: () => Promise<T>,
-	maxRetries = 3,
-	initialDelay = 1000,
+	maxRetries = aiConfig.maxRetries,
+	initialDelay = aiConfig.initialRetryDelayMs,
 ): Promise<T> {
 	let lastError: Error | undefined;
 
@@ -257,9 +258,12 @@ export async function analyzePageWithAi(
 		try {
 			tools = await mcpClient.tools();
 		} catch (error) {
-			console.warn(
-				'Failed to fetch MCP tools, continuing without tools:',
-				error,
+			// MCP client provided but tools unavailable - this is a critical error
+			// Without tools, LLM cannot navigate or capture screenshots
+			const errorMessage =
+				error instanceof Error ? error.message : 'Unknown error';
+			throw new Error(
+				`MCP client provided but tools unavailable: ${errorMessage}. Analysis requires browser automation tools for screenshot capture and navigation.`,
 			);
 		}
 	}
@@ -284,12 +288,12 @@ export async function analyzePageWithAi(
 			model: anthropic(config.model),
 			system: systemPrompt,
 			prompt: userPrompt,
-			temperature: 0.3,
+			temperature: aiConfig.temperature,
 			tools: tools ?? undefined,
 			// @ts-expect-error - maxSteps is an experimental feature in AI SDK v5.0.68
 			// It enables multi-turn tool calling (required for MCP tools to work properly)
 			// Type definitions are not yet updated. See: https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling
-			maxSteps: 5, // Allow up to 5 sequential tool calls for complete browser automation workflow
+			maxSteps: aiConfig.maxToolSteps,
 			onStepFinish(event) {
 				// Log tool calls for debugging
 				if (event.toolCalls && event.toolCalls.length > 0) {

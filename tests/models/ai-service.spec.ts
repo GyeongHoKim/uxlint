@@ -50,6 +50,36 @@ describe('buildSystemPrompt', () => {
 		expect(prompt).toContain('analyze');
 		expect(prompt).toContain('finding');
 	});
+
+	test('includes tool instructions when hasTools=true', () => {
+		const personas = ['Screen reader user'];
+
+		const prompt = buildSystemPrompt(personas, true);
+
+		expect(prompt).toContain('browser_navigate');
+		expect(prompt).toContain('browser_take_screenshot');
+		expect(prompt).toContain('browser_snapshot');
+		expect(prompt).toContain('accessibility tree');
+	});
+
+	test('omits tool instructions when hasTools=false', () => {
+		const personas = ['Screen reader user'];
+
+		const prompt = buildSystemPrompt(personas, false);
+
+		expect(prompt).not.toContain('browser_navigate');
+		expect(prompt).not.toContain('browser_take_screenshot');
+	});
+
+	test('emphasizes screenshot requirement when tools are available', () => {
+		const personas = ['Mobile user'];
+
+		const prompt = buildSystemPrompt(personas, true);
+
+		expect(prompt).toContain('screenshot');
+		expect(prompt).toContain('visual');
+		expect(prompt).toContain('REQUIRED');
+	});
 });
 
 // BuildAnalysisPrompt tests
@@ -115,6 +145,62 @@ describe('buildAnalysisPrompt', () => {
 		expect(prompt).toContain('Persona A');
 		expect(prompt).toContain('Persona B');
 		expect(prompt).toContain('Persona C');
+	});
+
+	test('omits snapshot when hasTools=true', () => {
+		const prompt = buildAnalysisPrompt(
+			{
+				pageUrl: 'https://example.com',
+				features: 'Login form',
+				personas: ['Screen reader user'],
+			},
+			true,
+		);
+
+		expect(prompt).not.toContain('Accessibility Tree Snapshot');
+		expect(prompt).not.toContain('```json');
+	});
+
+	test('includes navigation instructions when hasTools=true', () => {
+		const prompt = buildAnalysisPrompt(
+			{
+				pageUrl: 'https://example.com',
+				features: 'Login form',
+				personas: ['Mobile user'],
+			},
+			true,
+		);
+
+		expect(prompt).toContain('Navigate to the page URL');
+		expect(prompt).toContain('Take a screenshot');
+		expect(prompt).toContain('accessibility tree snapshot');
+	});
+
+	test('requires snapshot when hasTools=false', () => {
+		expect(() => {
+			buildAnalysisPrompt(
+				{
+					pageUrl: 'https://example.com',
+					features: 'Dashboard',
+					personas: ['User'],
+				},
+				false,
+			);
+		}).toThrow('Snapshot is required when MCP tools are not available');
+	});
+
+	test('allows missing snapshot when hasTools=true', () => {
+		const prompt = buildAnalysisPrompt(
+			{
+				pageUrl: 'https://example.com',
+				features: 'Dashboard',
+				personas: ['User'],
+			},
+			true,
+		);
+
+		expect(prompt).toContain('https://example.com');
+		expect(prompt).toContain('Dashboard');
 	});
 });
 
