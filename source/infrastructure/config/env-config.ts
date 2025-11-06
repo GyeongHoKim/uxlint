@@ -69,13 +69,14 @@ export type OllamaConfig = {
 
 	/**
 	 * AI model name (from UXLINT_AI_MODEL env var)
-	 * Defaults to 'llama3.1' if not specified
+	 * Defaults to 'qwen2-vl:7b' if not specified
+	 * IMPORTANT: Must support both vision and tool calling
 	 */
 	model: string;
 
 	/**
 	 * Ollama server base URL (from UXLINT_OLLAMA_BASE_URL env var)
-	 * Defaults to 'http://localhost:11434' if not specified
+	 * Defaults to 'http://localhost:11434/api' if not specified
 	 */
 	baseUrl: string;
 };
@@ -138,7 +139,7 @@ export type EnvConfig =
 const defaultModels: Record<ProviderType, string> = {
 	anthropic: 'claude-sonnet-4-5-20250929',
 	openai: 'gpt-4o',
-	ollama: 'llama3.1',
+	ollama: 'qwen2-vl:7b',
 	xai: 'grok-4',
 	google: 'gemini-2.5-pro',
 };
@@ -212,7 +213,7 @@ export function loadEnvConfig(): EnvConfig {
 
 		case 'ollama': {
 			const baseUrl =
-				process.env['UXLINT_OLLAMA_BASE_URL'] ?? 'http://localhost:11434';
+				process.env['UXLINT_OLLAMA_BASE_URL'] ?? 'http://localhost:11434/api';
 
 			return {
 				provider: 'ollama',

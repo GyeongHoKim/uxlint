@@ -11,18 +11,18 @@
  */
 
 import {createAnthropic} from '@ai-sdk/anthropic';
-import {createOpenAI} from '@ai-sdk/openai';
-import {createOllama} from 'ollama-ai-provider-v2';
-import {createXai} from '@ai-sdk/xai';
 import {createGoogleGenerativeAI} from '@ai-sdk/google';
+import {createOpenAI} from '@ai-sdk/openai';
 import type {LanguageModelV2} from '@ai-sdk/provider';
+import {createXai} from '@ai-sdk/xai';
+import {createOllama} from 'ollama-ai-provider-v2';
 import type {
-	EnvConfig,
 	AnthropicConfig,
-	OpenAiConfig,
-	OllamaConfig,
-	XaiConfig,
+	EnvConfig,
 	GoogleConfig,
+	OllamaConfig,
+	OpenAiConfig,
+	XaiConfig,
 } from '../infrastructure/config/env-config.js';
 
 /**
@@ -123,7 +123,6 @@ export const createOpenAiProvider: ProviderFactory<OpenAiConfig> = config => {
  */
 export const createOllamaProvider: ProviderFactory<OllamaConfig> = config => {
 	const ollamaProvider = createOllama({
-		// eslint-disable-next-line @typescript-eslint/naming-convention -- baseURL is required by ollama-ai-provider-v2 API
 		baseURL: config.baseUrl,
 	});
 
