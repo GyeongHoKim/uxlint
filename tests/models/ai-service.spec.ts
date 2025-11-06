@@ -1,15 +1,12 @@
 /**
  * AI Service Tests
- * Unit tests for AI prompt building and response parsing
+ * Unit tests for AI prompt building with structured output
  */
 
 import {
 	buildAnalysisPrompt,
 	buildSystemPrompt,
-	extractSummary,
-	parseAnalysisResponse,
 } from '../../source/services/ai-service.js';
-import type {UxFinding} from '../../source/models/analysis.js';
 
 // BuildSystemPrompt tests
 describe('buildSystemPrompt', () => {
@@ -79,6 +76,38 @@ describe('buildSystemPrompt', () => {
 		expect(prompt).toContain('screenshot');
 		expect(prompt).toContain('visual');
 		expect(prompt).toContain('REQUIRED');
+	});
+
+	test('includes comprehensive UX analysis framework', () => {
+		const personas = ['General user'];
+
+		const prompt = buildSystemPrompt(personas, false);
+
+		expect(prompt).toContain('Accessibility');
+		expect(prompt).toContain('Usability');
+		expect(prompt).toContain('Performance');
+		expect(prompt).toContain('Visual Design');
+		expect(prompt).toContain('Content');
+		expect(prompt).toContain('Mobile Responsiveness');
+	});
+
+	test('instructs AI to always provide findings', () => {
+		const personas = ['General user'];
+
+		const prompt = buildSystemPrompt(personas, false);
+
+		expect(prompt).toContain('at least 2-3 findings');
+		expect(prompt).toContain('even for well-designed pages');
+	});
+
+	test('includes WCAG guidelines reference', () => {
+		const personas = ['Screen reader user'];
+
+		const prompt = buildSystemPrompt(personas, false);
+
+		expect(prompt).toContain('WCAG');
+		expect(prompt).toContain('color contrast');
+		expect(prompt).toContain('ARIA');
 	});
 });
 
@@ -202,222 +231,97 @@ describe('buildAnalysisPrompt', () => {
 		expect(prompt).toContain('https://example.com');
 		expect(prompt).toContain('Dashboard');
 	});
-});
 
-// ParseAnalysisResponse tests
-describe('parseAnalysisResponse', () => {
-	test('extracts findings from markdown response', () => {
-		const response = `
-## Finding 1
-**Severity**: high
-**Category**: Accessibility
-**Description**: Missing form labels
-**Personas Affected**: Screen reader user
-**Recommendation**: Add label elements
+	test('includes evaluation checklist', () => {
+		const prompt = buildAnalysisPrompt(
+			{
+				pageUrl: 'https://example.com',
+				features: 'Login form',
+				personas: ['User'],
+			},
+			true,
+		);
 
-## Finding 2
-**Severity**: medium
-**Category**: Usability
-**Description**: Low contrast button
-**Personas Affected**: Low vision user
-**Recommendation**: Increase contrast ratio
-`;
-
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		expect(result.findings).toHaveLength(2);
-		expect(result.findings[0]?.severity).toBe('high');
-		expect(result.findings[0]?.category).toBe('Accessibility');
-		expect(result.findings[0]?.description).toBe('Missing form labels');
-		expect(result.findings[0]?.personaRelevance).toEqual([
-			'Screen reader user',
-		]);
-		expect(result.findings[0]?.recommendation).toBe('Add label elements');
-		expect(result.findings[0]?.pageUrl).toBe('https://example.com');
+		expect(prompt).toContain('Evaluation Checklist');
+		expect(prompt).toContain('Accessibility issues');
+		expect(prompt).toContain('Usability problems');
+		expect(prompt).toContain('Performance concerns');
 	});
 
-	test('handles multiple personas in finding', () => {
-		const response = `
-## Finding 1
-**Severity**: critical
-**Category**: Security
-**Description**: Insecure authentication
-**Personas Affected**: All users, Mobile users
-**Recommendation**: Implement 2FA
-`;
+	test('emphasizes finding opportunities for improvement', () => {
+		const prompt = buildAnalysisPrompt(
+			{
+				pageUrl: 'https://example.com',
+				features: 'Dashboard',
+				personas: ['User'],
+			},
+			true,
+		);
 
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		expect(result.findings[0]?.personaRelevance).toEqual([
-			'All users',
-			'Mobile users',
-		]);
+		expect(prompt).toContain('IMPORTANT');
+		expect(prompt).toContain('at least 2-3 opportunities');
+		expect(prompt).toContain('even if the page is well-designed');
 	});
 
-	test('returns empty findings for malformed response', () => {
-		const response = 'This is not a properly formatted response';
+	test('mentions structured format output', () => {
+		const prompt = buildAnalysisPrompt(
+			{
+				pageUrl: 'https://example.com',
+				features: 'Form',
+				personas: ['User'],
+			},
+			true,
+		);
 
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		expect(result.findings).toEqual([]);
-	});
-
-	test('handles response with no findings', () => {
-		const response = `
-No significant UX issues were found on this page.
-`;
-
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		expect(result.findings).toEqual([]);
-	});
-
-	test('extracts summary from response', () => {
-		const response = `
-## Summary
-This page has 2 accessibility issues affecting screen reader users.
-
-## Finding 1
-**Severity**: high
-**Category**: Accessibility
-**Description**: Issue description
-**Personas Affected**: Screen reader user
-**Recommendation**: Fix it
-`;
-
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		expect(result.summary).toContain('2 accessibility issues');
-		expect(result.summary).toContain('screen reader users');
-	});
-
-	test('assigns correct page URL to all findings', () => {
-		const response = `
-## Finding 1
-**Severity**: low
-**Category**: Performance
-**Description**: Slow loading
-**Personas Affected**: Mobile user
-**Recommendation**: Optimize images
-
-## Finding 2
-**Severity**: high
-**Category**: Accessibility
-**Description**: Missing alt text
-**Personas Affected**: Screen reader user
-**Recommendation**: Add alt attributes
-`;
-
-		const pageUrl = 'https://example.com/products';
-		const result = parseAnalysisResponse(response, pageUrl);
-
-		expect(result.findings[0]?.pageUrl).toBe(pageUrl);
-		expect(result.findings[1]?.pageUrl).toBe(pageUrl);
-	});
-
-	test('validates severity levels', () => {
-		const response = `
-## Finding 1
-**Severity**: critical
-**Category**: Security
-**Description**: XSS vulnerability
-**Personas Affected**: All users
-**Recommendation**: Sanitize input
-`;
-
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		expect(result.findings[0]?.severity).toBe('critical');
-	});
-
-	test('handles missing optional fields gracefully', () => {
-		const response = `
-## Finding 1
-**Severity**: medium
-**Category**: Usability
-**Description**: Confusing navigation
-**Personas Affected**:
-**Recommendation**: Simplify menu structure
-`;
-
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		expect(result.findings[0]?.personaRelevance).toEqual([]);
+		expect(prompt).toContain('structured format');
+		expect(prompt).toContain('actionable recommendations');
 	});
 });
 
-// ExtractSummary tests
-describe('extractSummary', () => {
-	test('extracts summary section from AI response', () => {
-		const response = `
-## Summary
-This analysis found 3 critical issues.
+// Structured output integration tests
+describe('structured output approach', () => {
+	test('removed parseAnalysisResponse function (now using Zod schema)', async () => {
+		// This test verifies that we're no longer using regex parsing
+		// The Zod schema in ai-service.ts now handles structured output
+		const aiServiceModule = await import('../../source/services/ai-service.js');
 
-## Finding 1
-...
-`;
-
-		const summary = extractSummary(response);
-
-		expect(summary).toContain('3 critical issues');
+		// ParseAnalysisResponse should not exist in the exported functions
+		expect(aiServiceModule).not.toHaveProperty('parseAnalysisResponse');
 	});
 
-	test('returns default message when no summary found', () => {
-		const response = 'Just some findings without summary section';
+	test('removed extractSummary function (now part of Zod schema)', async () => {
+		// This test verifies that summary extraction is handled by Zod
+		const aiServiceModule = await import('../../source/services/ai-service.js');
 
-		const summary = extractSummary(response);
-
-		expect(summary.length).toBeGreaterThan(0);
+		// ExtractSummary should not exist in the exported functions
+		expect(aiServiceModule).not.toHaveProperty('extractSummary');
 	});
 
-	test('handles multi-line summary', () => {
-		const response = `
-## Summary
-This page has several issues:
-- 2 critical security problems
-- 3 accessibility barriers
-- 1 performance concern
-`;
+	test('system prompt encourages finding issues', () => {
+		const prompt = buildSystemPrompt(['Test user'], false);
 
-		const summary = extractSummary(response);
-
-		expect(summary).toContain('2 critical security problems');
-		expect(summary).toContain('3 accessibility barriers');
-		expect(summary).toContain('1 performance concern');
-	});
-});
-
-// Type validation tests
-describe('parseAnalysisResponse type validation', () => {
-	test('returns UxFinding[] with correct types', () => {
-		const response = `
-## Finding 1
-**Severity**: high
-**Category**: Accessibility
-**Description**: Test description
-**Personas Affected**: User A
-**Recommendation**: Fix it
-`;
-
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		const finding: UxFinding = result.findings[0]!;
-		expect(typeof finding.severity).toBe('string');
-		expect(typeof finding.category).toBe('string');
-		expect(typeof finding.description).toBe('string');
-		expect(Array.isArray(finding.personaRelevance)).toBeTruthy();
-		expect(typeof finding.recommendation).toBe('string');
-		expect(typeof finding.pageUrl).toBe('string');
+		// Verify the prompt explicitly asks for findings even on well-designed pages
+		expect(prompt.toLowerCase()).toMatch(/at least \d+-\d+ findings/);
+		expect(prompt.toLowerCase()).toContain('even for well-designed pages');
 	});
 
-	test('returns AnalysisResult with correct structure', () => {
-		const response = 'Test response';
+	test('analysis prompt includes comprehensive checklist', () => {
+		const prompt = buildAnalysisPrompt(
+			{
+				pageUrl: 'https://example.com',
+				features: 'Homepage',
+				personas: ['User'],
+			},
+			true,
+		);
 
-		const result = parseAnalysisResponse(response, 'https://example.com');
-
-		expect(result).toHaveProperty('findings');
-		expect(result).toHaveProperty('summary');
-		expect(Array.isArray(result.findings)).toBeTruthy();
-		expect(typeof result.summary).toBe('string');
+		// Verify checklist covers key UX dimensions
+		const lowerPrompt = prompt.toLowerCase();
+		expect(lowerPrompt).toContain('accessibility');
+		expect(lowerPrompt).toContain('usability');
+		expect(lowerPrompt).toContain('performance');
+		expect(lowerPrompt).toContain('visual design');
+		expect(lowerPrompt).toContain('content');
+		expect(lowerPrompt).toContain('mobile');
 	});
 });

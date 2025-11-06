@@ -1,11 +1,12 @@
 /**
  * AI Service
- * Business logic for AI-powered UX analysis
+ * Business logic for AI-powered UX analysis with structured output
  *
  * @packageDocumentation
  */
 
 import {streamText, type experimental_MCPClient} from 'ai';
+import {z} from 'zod';
 import type {UxFinding} from '../models/analysis.js';
 import {loadEnvConfig} from '../infrastructure/config/env-config.js';
 import {aiConfig} from './ai-service-config.js';
@@ -24,6 +25,55 @@ type McpTools = Awaited<ReturnType<experimental_MCPClient['tools']>>;
 type StreamTextWithMaxSteps = {
 	maxSteps?: number;
 };
+
+/**
+ * Zod schema for UX finding
+ * Enforces structured output from AI model
+ */
+const uxFindingSchema = z.object({
+	severity: z
+		.enum(['critical', 'high', 'medium', 'low'])
+		.describe(
+			'Severity level: critical (blocks core functionality), high (major usability issue), medium (affects some users), low (minor improvement)',
+		),
+	category: z
+		.string()
+		.describe(
+			'Category of the issue: Accessibility, Usability, Performance, Visual Design, Content, Navigation, Forms, Mobile Responsiveness, Security, or other relevant category',
+		),
+	description: z
+		.string()
+		.describe(
+			'Clear, specific description of the UX issue. Include what is wrong and why it matters.',
+		),
+	personaRelevance: z
+		.array(z.string())
+		.describe(
+			'List of persona names affected by this issue. Use exact persona names from the analysis request.',
+		),
+	recommendation: z
+		.string()
+		.describe(
+			'Actionable recommendation to fix the issue. Be specific about what to change and how.',
+		),
+});
+
+/**
+ * Zod schema for complete analysis result
+ * Defines the structure of AI response
+ */
+const analysisResultSchema = z.object({
+	summary: z
+		.string()
+		.describe(
+			'Brief summary (2-3 sentences) of the overall UX quality and key findings',
+		),
+	findings: z
+		.array(uxFindingSchema)
+		.describe(
+			'Array of UX findings. IMPORTANT: Always provide at least 2-3 findings even for well-designed pages. Look for opportunities for improvement in accessibility, usability, performance, and design.',
+		),
+});
 
 /**
  * Analysis prompt input
@@ -45,7 +95,7 @@ export type AnalysisResult = {
 
 /**
  * Build system prompt for AI model
- * Formats persona context into analysis guidelines
+ * Formats persona context into analysis guidelines with comprehensive UX checklist
  */
 export function buildSystemPrompt(
 	personas: string[],
@@ -80,21 +130,69 @@ IMPORTANT: You MUST take a screenshot to see the actual visual design. Text-only
 Your task is to analyze web pages and identify UX issues that affect user experience.
 ${toolSection}
 
-For each finding, provide:
-- **Severity**: critical | high | medium | low
-- **Category**: The type of issue (e.g., Accessibility, Usability, Performance, Security)
-- **Description**: Clear description of the issue
-- **Personas Affected**: Which personas are impacted (comma-separated)
-- **Recommendation**: Actionable steps to fix the issue
+## UX Analysis Framework
+
+Evaluate pages across these dimensions:
+
+1. **Accessibility**
+   - Screen reader compatibility (proper ARIA labels, semantic HTML)
+   - Keyboard navigation support (focus indicators, tab order)
+   - Color contrast ratios (WCAG AA/AAA compliance)
+   - Alt text for images and icons
+   - Form labels and error messages
+
+2. **Usability**
+   - Clear visual hierarchy and information architecture
+   - Intuitive navigation and wayfinding
+   - Consistent UI patterns and terminology
+   - Appropriate touch target sizes (minimum 44x44px)
+   - Error prevention and recovery
+
+3. **Performance**
+   - Page load indicators and perceived performance
+   - Image optimization and lazy loading
+   - Unnecessary animations or heavy resources
+
+4. **Visual Design**
+   - Visual consistency and brand alignment
+   - Appropriate use of whitespace
+   - Readable typography (font size, line height, line length)
+   - Clear call-to-action buttons
+
+5. **Content**
+   - Clear, scannable content structure
+   - Appropriate heading hierarchy
+   - Concise, action-oriented microcopy
+   - Helpful empty states and placeholder text
+
+6. **Mobile Responsiveness**
+   - Touch-friendly interface elements
+   - Readable text without zooming
+   - Proper viewport configuration
+   - Mobile-optimized interactions
 ${personaSection}
 
-Format your response as markdown with ## Finding N headings for each issue.
-Start with a ## Summary section describing the overall UX quality.`;
+## Analysis Guidelines
+
+- **Always provide at least 2-3 findings** even for well-designed pages
+- Look for opportunities for improvement, not just critical issues
+- Consider edge cases and error states
+- Prioritize findings by impact on user experience
+- Be specific and actionable in your recommendations
+- Consider the provided personas and their specific needs
+
+## Output Requirements
+
+Your response will be automatically structured with the following fields:
+- summary: Overall assessment of UX quality
+- findings: Array of UX issues with severity, category, description, affected personas, and recommendations
+
+Focus on providing valuable, actionable insights that will help improve the user experience.`;
 }
 
 /**
  * Build analysis prompt combining context
- * Combines snapshot, features, and personas into structured prompt
+ * Combines snapshot, features, and personas into structured prompt with specific evaluation criteria
  */
 export function buildAnalysisPrompt(
 	prompt: AnalysisPrompt,
@@ -113,12 +211,29 @@ export function buildAnalysisPrompt(
 **Target Personas**:
 ${personas.map(p => `- ${p}`).join('\n')}
 
-Please analyze this page:
+## Analysis Task
+
+Please analyze this page comprehensively:
+
 1. Navigate to the page URL
 2. Take a screenshot to see the visual design
 3. Get the accessibility tree snapshot
-4. Analyze the page for UX issues considering the features and personas
-5. Provide your findings in the specified format`;
+4. Conduct a thorough UX analysis
+
+## Evaluation Checklist
+
+Examine the page for:
+- Accessibility issues (ARIA, semantic HTML, keyboard nav, color contrast)
+- Usability problems (navigation, visual hierarchy, consistency)
+- Performance concerns (load times, perceived performance)
+- Visual design issues (typography, spacing, alignment)
+- Content quality (clarity, scannability, microcopy)
+- Mobile responsiveness (touch targets, viewport, layout)
+- Persona-specific concerns based on the target users
+
+**IMPORTANT**: Even if the page is well-designed, identify at least 2-3 opportunities for improvement or potential enhancements. Consider edge cases, error states, and advanced accessibility features.
+
+Provide your findings in the structured format with clear, actionable recommendations.`;
 	}
 
 	// Legacy mode: snapshot provided in prompt
@@ -142,78 +257,21 @@ ${personas.map(p => `- ${p}`).join('\n')}
 ${snapshot}
 \`\`\`
 
-Please analyze this page and identify any UX issues or recommendations.`;
-}
+## Analysis Task
 
-/**
- * Parse AI response to extract findings
- * Uses regex to extract structured finding data from markdown
- */
-export function parseAnalysisResponse(
-	response: string,
-	pageUrl: string,
-): AnalysisResult {
-	const findings: UxFinding[] = [];
+Conduct a thorough UX analysis of this page based on the accessibility tree and feature description.
 
-	// Extract findings using regex
-	const findingPattern =
-		/## Finding \d+\s+\*\*Severity\*\*:\s*(\w+)\s+\*\*Category\*\*:\s*([^\n]+)\s+\*\*Description\*\*:\s*([^\n]+)\s+\*\*Personas Affected\*\*:\s*([^\n]*)\s+\*\*Recommendation\*\*:\s*([^\n]+)/g;
+## Evaluation Checklist
 
-	let match;
-	while ((match = findingPattern.exec(response)) !== null) {
-		const [, severity, category, description, personasText, recommendation] =
-			match;
+Examine the page for:
+- Accessibility issues (ARIA, semantic HTML, form labels, alt text)
+- Usability problems (navigation structure, information architecture)
+- Content quality (heading hierarchy, descriptive text)
+- Persona-specific concerns based on the target users
 
-		// Parse severity
-		const validSeverity = severity?.toLowerCase() as
-			| UxFinding['severity']
-			| undefined;
-		if (
-			!validSeverity ||
-			!['critical', 'high', 'medium', 'low'].includes(validSeverity)
-		) {
-			continue;
-		}
+**IMPORTANT**: Even if the structure appears sound, identify at least 2-3 opportunities for improvement or potential enhancements. Consider edge cases, missing ARIA attributes, and advanced accessibility features.
 
-		// Parse personas (comma-separated)
-		const personaRelevance = personasText
-			? personasText
-					.split(',')
-					.map(p => p.trim())
-					.filter(p => p.length > 0)
-			: [];
-
-		findings.push({
-			severity: validSeverity,
-			category: category?.trim() ?? '',
-			description: description?.trim() ?? '',
-			personaRelevance,
-			recommendation: recommendation?.trim() ?? '',
-			pageUrl,
-		});
-	}
-
-	const summary = extractSummary(response);
-
-	return {
-		findings,
-		summary,
-	};
-}
-
-/**
- * Extract summary from AI response
- * Finds and returns the Summary section content
- */
-export function extractSummary(response: string): string {
-	const summaryPattern = /## Summary\s+([^#]+)/;
-	const match = summaryPattern.exec(response);
-
-	if (match?.[1]) {
-		return match[1].trim();
-	}
-
-	return 'Analysis completed. Review findings for details.';
+Provide your findings in the structured format with clear, actionable recommendations.`;
 }
 
 /**
@@ -296,8 +354,8 @@ function validateContextWindow(systemPrompt: string, userPrompt: string): void {
 }
 
 /**
- * Analyze page with AI using Vercel AI SDK
- * Streams response from Claude and parses findings
+ * Analyze page with AI using Vercel AI SDK with structured output
+ * Uses streamText with JSON mode + Zod validation to support tool calling
  *
  * @param prompt - Analysis prompt with page context
  * @param onChunk - Optional callback for streaming response chunks
@@ -328,8 +386,11 @@ export async function analyzePageWithAi(
 
 	const hasTools = tools !== undefined && Object.keys(tools).length > 0;
 
-	// Build prompts
-	const systemPrompt = buildSystemPrompt(prompt.personas, hasTools);
+	// Build prompts with JSON schema specification
+	const systemPrompt = buildSystemPromptWithJsonSchema(
+		prompt.personas,
+		hasTools,
+	);
 	const userPrompt = buildAnalysisPrompt(prompt, hasTools);
 
 	// Validate context window size
@@ -340,8 +401,6 @@ export async function analyzePageWithAi(
 
 	// Call AI with retry logic
 	return retryWithBackoff(async () => {
-		const chunks: string[] = [];
-
 		// Setup timeout with AbortController
 		const abortController = new AbortController();
 		const timeout = setTimeout(() => {
@@ -349,7 +408,7 @@ export async function analyzePageWithAi(
 		}, aiConfig.aiCallTimeoutMs);
 
 		try {
-			// StreamText with experimental maxSteps parameter
+			// StreamText with experimental maxSteps parameter for tool calling
 			// MaxSteps enables multi-turn tool calling (required for MCP tools)
 			// Type definitions don't include maxSteps yet (AI SDK v5.0.68), but it's available at runtime
 			const experimentalParameters: StreamTextWithMaxSteps = {
@@ -366,18 +425,82 @@ export async function analyzePageWithAi(
 				...experimentalParameters,
 			});
 
-			// Stream response chunks
+			// Stream response chunks for progress feedback
+			const chunks: string[] = [];
 			for await (const chunk of result.textStream) {
 				chunks.push(chunk);
 				onChunk?.(chunk);
 			}
 
-			// Parse complete response
+			// Parse complete response as JSON and validate with Zod
 			const fullResponse = chunks.join('');
-			return parseAnalysisResponse(fullResponse, prompt.pageUrl);
+
+			// Extract JSON from response (handles cases where LLM includes explanatory text)
+			const jsonPattern = /{[\s\S]*}/;
+			const jsonMatch = jsonPattern.exec(fullResponse);
+			if (!jsonMatch) {
+				throw new Error('AI response does not contain valid JSON');
+			}
+
+			const jsonResponse = JSON.parse(jsonMatch[0]) as unknown;
+
+			// Validate with Zod schema
+			const validatedResponse = analysisResultSchema.parse(jsonResponse);
+
+			// Transform to AnalysisResult format
+			// Add pageUrl to each finding (required by UxFinding type)
+			const findings: UxFinding[] = validatedResponse.findings.map(finding => ({
+				...finding,
+				pageUrl: prompt.pageUrl,
+			}));
+
+			return {
+				findings,
+				summary: validatedResponse.summary,
+			};
 		} finally {
 			// Clean up timeout
 			clearTimeout(timeout);
 		}
 	});
+}
+
+/**
+ * Build system prompt with JSON schema specification
+ * Includes explicit JSON schema to guide AI response format
+ */
+function buildSystemPromptWithJsonSchema(
+	personas: string[],
+	hasTools: boolean,
+): string {
+	const basePrompt = buildSystemPrompt(personas, hasTools);
+
+	const jsonSchema = `
+
+## Response Format
+
+You MUST respond with a valid JSON object (and ONLY JSON, no additional text) following this exact schema:
+
+\`\`\`json
+{
+  "summary": "Brief 2-3 sentence summary of overall UX quality and key findings",
+  "findings": [
+    {
+      "severity": "critical" | "high" | "medium" | "low",
+      "category": "Category name (e.g., Accessibility, Usability, Performance, etc.)",
+      "description": "Clear, specific description of the UX issue",
+      "personaRelevance": ["Persona Name 1", "Persona Name 2"],
+      "recommendation": "Actionable recommendation to fix the issue"
+    }
+  ]
+}
+\`\`\`
+
+**CRITICAL**:
+- Respond with ONLY the JSON object, nothing else
+- Ensure the JSON is valid and parseable
+- Always include at least 2-3 findings in the findings array
+- Use exact persona names from the analysis request`;
+
+	return basePrompt + jsonSchema;
 }
