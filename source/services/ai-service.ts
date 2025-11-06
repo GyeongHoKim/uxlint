@@ -5,7 +5,8 @@
  * @packageDocumentation
  */
 
-import {streamText, type experimental_MCPClient, Output} from 'ai';
+import {generateText, Output} from 'ai';
+import type {experimental_MCPClient} from '@ai-sdk/mcp';
 import {z} from 'zod';
 import type {UxFinding} from '../models/analysis.js';
 import {loadEnvConfig} from '../infrastructure/config/env-config.js';
@@ -14,26 +15,17 @@ import {createAiProvider} from './ai-provider-factory.js';
 
 /**
  * Type for MCP tools returned from experimental_MCPClient.tools()
- * Uses 'ai' package export for full type compatibility with streamText
+ * Uses 'ai' package export for full type compatibility with generateText/streamText
  */
 type McpTools = Awaited<ReturnType<experimental_MCPClient['tools']>>;
 
 /**
- * Extended StreamText parameters to include experimental features
+ * Extended generateText parameters to include experimental features
  * maxSteps and experimental_output available in runtime but not in type definitions yet
  */
-type StreamTextWithExperimentalFeatures = {
+type GenerateTextWithExperimentalFeatures = {
 	maxSteps?: number;
 	experimental_output?: ReturnType<typeof Output.object>;
-};
-
-/**
- * Extended StreamTextResult to include experimental features
- * These properties are available at runtime but not in type definitions yet
- */
-type StreamTextResultWithExperimental<T> = {
-	experimental_partialOutputStream: AsyncIterable<T>;
-	experimental_output: Promise<T>;
 };
 
 /**
@@ -408,26 +400,9 @@ function validateContextWindow(systemPrompt: string, userPrompt: string): void {
  */
 export async function analyzePageWithAi(
 	prompt: AnalysisPrompt,
-	onChunk?: (chunk: string) => void,
-	mcpClient?: experimental_MCPClient,
+	tools?: McpTools,
 ): Promise<AnalysisResult> {
 	const config = loadEnvConfig();
-
-	// Get tools from MCP client (AI SDK automatically converts them)
-	let tools: McpTools | undefined;
-	if (mcpClient) {
-		try {
-			tools = await mcpClient.tools();
-		} catch (error) {
-			// MCP client provided but tools unavailable - this is a critical error
-			// Without tools, LLM cannot navigate or capture screenshots
-			const errorMessage =
-				error instanceof Error ? error.message : 'Unknown error';
-			throw new Error(
-				`MCP client provided but tools unavailable: ${errorMessage}. Analysis requires browser automation tools for screenshot capture and navigation.`,
-			);
-		}
-	}
 
 	const hasTools = tools !== undefined && Object.keys(tools).length > 0;
 
@@ -450,43 +425,32 @@ export async function analyzePageWithAi(
 		}, aiConfig.aiCallTimeoutMs);
 
 		try {
-			// StreamText with experimental features:
+			// GenerateText with experimental features:
 			// - maxSteps: Enables multi-turn tool calling (required for MCP tools)
 			// - experimental_output: Enforces structured output with Zod schema
-			// Per AI SDK docs: use streamText + experimental_output for tool calling + structured output
-			const experimentalParameters: StreamTextWithExperimentalFeatures = {
+			// Per AI SDK docs: use generateText + experimental_output for tool calling + structured output
+			const experimentalParameters: GenerateTextWithExperimentalFeatures = {
 				maxSteps: aiConfig.maxToolSteps,
 				experimental_output: Output.object({
 					schema: analysisResultSchema,
 				}),
 			};
 
-			const result = streamText({
+			const result = await generateText({
 				model: provider.getModel(),
 				system: systemPrompt,
 				prompt: userPrompt,
 				temperature: aiConfig.temperature,
-				tools: tools ?? undefined,
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- MCP tools type not fully compatible with AI SDK ToolSet
+				tools: tools as any,
 				abortSignal: abortController.signal,
 				...experimentalParameters,
 			});
 
-			// Stream partial results for progress feedback
+			// Get structured output from experimental_output
 			// Type assertion needed for experimental features not yet in official AI SDK types
 			type AnalysisOutput = z.infer<typeof analysisResultSchema>;
-			const experimentalResult =
-				result as unknown as StreamTextResultWithExperimental<AnalysisOutput>;
-
-			let lastSummary = '';
-			for await (const chunk of experimentalResult.experimental_partialOutputStream) {
-				if (chunk.summary && chunk.summary !== lastSummary) {
-					onChunk?.(chunk.summary);
-					lastSummary = chunk.summary;
-				}
-			}
-
-			// Get final structured output
-			const output = await experimentalResult.experimental_output;
+			const output = (result as any).experimental_output as AnalysisOutput;
 
 			// Transform to AnalysisResult format
 			// Add pageUrl to each finding (required by UxFinding type)

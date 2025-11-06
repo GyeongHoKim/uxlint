@@ -5,7 +5,10 @@
  * @packageDocumentation
  */
 
-import {experimental_createMCPClient, type experimental_MCPClient} from 'ai';
+import {
+	experimental_createMCPClient,
+	type experimental_MCPClient,
+} from '@ai-sdk/mcp';
 import {Experimental_StdioMCPTransport} from '@ai-sdk/mcp/mcp-stdio';
 import {getMcpConfigFromEnv} from '../../mcp/client/config.js';
 

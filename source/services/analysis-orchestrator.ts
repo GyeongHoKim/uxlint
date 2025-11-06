@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 
-import type {experimental_MCPClient} from 'ai';
+import type {experimental_MCPClient} from '@ai-sdk/mcp';
 import type {UxLintConfig} from '../models/config.js';
 import type {PageAnalysis, UxReport} from '../models/analysis.js';
 import {writeReportToFile} from '../infrastructure/reports/report-generator.js';
@@ -54,8 +54,9 @@ export class AnalysisOrchestrator {
 	): Promise<UxReport> {
 		const analyses: PageAnalysis[] = [];
 
-		// Initialize MCP client
+		// Initialize MCP client and get tools
 		this.mcpClient = await this.mcpClientFactory.createClient();
+		const tools = await this.mcpClient.tools();
 
 		try {
 			// Process each page sequentially
@@ -71,6 +72,7 @@ export class AnalysisOrchestrator {
 					pageIndex: index,
 					totalPages: config.pages.length,
 					onProgress,
+					tools,
 				});
 
 				analyses.push(analysis);
@@ -108,12 +110,17 @@ export class AnalysisOrchestrator {
 		pageIndex: number;
 		totalPages: number;
 		onProgress?: AnalysisProgressCallback;
+		tools: Awaited<ReturnType<experimental_MCPClient['tools']>>;
 	}): Promise<PageAnalysis> {
-		const {pageUrl, features, personas, pageIndex, totalPages, onProgress} =
-			options;
-		if (!this.mcpClient) {
-			throw new Error('MCP client not initialized');
-		}
+		const {
+			pageUrl,
+			features,
+			personas,
+			pageIndex,
+			totalPages,
+			onProgress,
+			tools,
+		} = options;
 
 		try {
 			// Stage 1: Navigating
@@ -140,8 +147,7 @@ export class AnalysisOrchestrator {
 					features,
 					personas,
 				},
-				undefined, // No chunk callback
-				this.mcpClient,
+				tools,
 			);
 
 			// Return successful analysis
