@@ -55,6 +55,7 @@
 		"@ai-sdk/openai": "^2.0.50",
 		"@ai-sdk/provider": "^2.0.0",
 		"@ai-sdk/provider-utils": "^3.0.16",
+		"@ai-sdk/xai": "^2.0.31",
 		"@inkjs/ui": "^2.0.0",
 		"@modelcontextprotocol/sdk": "^1.20.0",
 		"ai": "^5.0.68",

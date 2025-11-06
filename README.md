@@ -48,7 +48,7 @@ Or if you're using the tool via npx, create a `.env` file manually in your proje
 ```bash
 # AI Service Configuration
 # Choose your AI provider (default: anthropic)
-UXLINT_AI_PROVIDER=anthropic  # Options: anthropic, openai, ollama
+UXLINT_AI_PROVIDER=anthropic  # Options: anthropic, openai, ollama, xai
 
 # Anthropic Configuration (required if using anthropic)
 # Get your API key from https://console.anthropic.com/
@@ -62,8 +62,12 @@ UXLINT_ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # Base URL for your local Ollama server
 # UXLINT_OLLAMA_BASE_URL=http://localhost:11434
 
+# xAI (Grok) Configuration (required if using xai)
+# Get your API key from https://x.ai/
+# UXLINT_XAI_API_KEY=your_xai_api_key_here
+
 # Optional: Customize AI model
-# Defaults: claude-sonnet-4-5-20250929 (anthropic), gpt-4o (openai), llama3.1 (ollama)
+# Defaults: claude-sonnet-4-5-20250929 (anthropic), gpt-4o (openai), llama3.1 (ollama), grok-4 (xai)
 UXLINT_AI_MODEL=claude-sonnet-4-5-20250929
 
 # MCP Server Configuration
@@ -93,10 +97,16 @@ Choose one of the following providers:
   - Default model: `gpt-4o`
 
 - **Ollama** (local):
+
   - `UXLINT_AI_PROVIDER=ollama`
   - `UXLINT_OLLAMA_BASE_URL`: Your Ollama server URL (default: http://localhost:11434)
   - Default model: `llama3.1`
   - Requires [Ollama](https://ollama.ai/) to be installed and running locally
+
+- **xAI (Grok)**:
+  - `UXLINT_AI_PROVIDER=xai`
+  - `UXLINT_XAI_API_KEY`: Your xAI API key from https://x.ai/
+  - Default model: `grok-4`
 
 **Optional Configuration:**
 
@@ -294,11 +304,12 @@ The command exits after writing the report to the configured path.
 
   - For Anthropic: Set `UXLINT_ANTHROPIC_API_KEY` in your `.env` file
   - For OpenAI: Set `UXLINT_OPENAI_API_KEY` in your `.env` file
+  - For xAI: Set `UXLINT_XAI_API_KEY` in your `.env` file
   - Make sure `UXLINT_AI_PROVIDER` matches your chosen provider
 
 - **Invalid provider error**:
 
-  - Verify `UXLINT_AI_PROVIDER` is one of: `anthropic`, `openai`, or `ollama`
+  - Verify `UXLINT_AI_PROVIDER` is one of: `anthropic`, `openai`, `ollama`, or `xai`
   - Check for typos in the provider name
 
 - **Ollama connection issues**:
@@ -312,6 +323,7 @@ The command exits after writing the report to the configured path.
   - For Anthropic: Check available models at https://docs.anthropic.com/en/docs/models-overview
   - For OpenAI: Check available models at https://platform.openai.com/docs/models
   - For Ollama: List available models with `ollama list` and pull if needed
+  - For xAI: Check available models at https://docs.x.ai/
 
 ### MCP/Browser Automation Issues
 

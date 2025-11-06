@@ -13,12 +13,14 @@
 import {createAnthropic} from '@ai-sdk/anthropic';
 import {createOpenAI} from '@ai-sdk/openai';
 import {createOllama} from 'ollama-ai-provider-v2';
+import {createXai} from '@ai-sdk/xai';
 import type {LanguageModelV2} from '@ai-sdk/provider';
 import type {
 	EnvConfig,
 	AnthropicConfig,
 	OpenAiConfig,
 	OllamaConfig,
+	XaiConfig,
 } from '../infrastructure/config/env-config.js';
 
 /**
@@ -130,6 +132,33 @@ export const createOllamaProvider: ProviderFactory<OllamaConfig> = config => {
 };
 
 /**
+ * Create xAI (Grok) provider instance
+ *
+ * @param config - xAI-specific configuration
+ * @returns AiProvider instance for xAI
+ *
+ * @example
+ * ```typescript
+ * const provider = createXaiProvider({
+ *   provider: 'xai',
+ *   model: 'grok-4',
+ *   apiKey: 'xai-...'
+ * });
+ * const model = provider.getModel();
+ * ```
+ */
+export const createXaiProvider: ProviderFactory<XaiConfig> = config => {
+	const xai = createXai({
+		apiKey: config.apiKey,
+	});
+
+	return {
+		name: 'xai',
+		getModel: () => xai(config.model),
+	};
+};
+
+/**
  * Provider factory registry
  * Maps provider types to their factory functions
  *
@@ -171,6 +200,7 @@ const providerFactories = {
 	anthropic: createAnthropicProvider,
 	openai: createOpenAiProvider,
 	ollama: createOllamaProvider,
+	xai: createXaiProvider,
 } as const;
 
 /**
