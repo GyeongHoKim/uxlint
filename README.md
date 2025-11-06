@@ -53,8 +53,11 @@ UXLINT_ANTHROPIC_API_KEY=your_api_key_here
 # Optional: Customize AI model (default: claude-3-5-sonnet-20241022)
 UXLINT_AI_MODEL=claude-3-5-sonnet-20241022
 
-# MCP Server Configuration (optional, defaults provided)
+# MCP Server Configuration
+# uxlint uses @ai-sdk/mcp for browser automation via Model Context Protocol
+# The LLM automatically calls browser tools to navigate pages and capture screenshots
 MCP_SERVER_COMMAND=npx
+MCP_SERVER_ARGS=-y,@modelcontextprotocol/server-playwright@0.12.6
 MCP_BROWSER=chrome
 MCP_HEADLESS=true
 MCP_TIMEOUT=30000
@@ -64,12 +67,27 @@ MCP_TIMEOUT=30000
 
 - `UXLINT_ANTHROPIC_API_KEY`: Your Anthropic API key from https://console.anthropic.com/
 
-**Optional:**
+**Optional MCP Configuration:**
 
-- `UXLINT_AI_MODEL`: AI model to use for analysis
-- `MCP_BROWSER`: Browser type for automation (chrome, firefox, webkit, msedge)
-- `MCP_HEADLESS`: Run browser in headless mode (true/false)
-- `MCP_TIMEOUT`: Operation timeout in milliseconds
+- `UXLINT_AI_MODEL`: AI model to use for analysis (default: claude-3-5-sonnet-20241022)
+- `MCP_SERVER_COMMAND`: Command to run MCP server (default: npx)
+- `MCP_SERVER_ARGS`: Arguments for MCP server (default: -y,@modelcontextprotocol/server-playwright@0.12.6)
+- `MCP_BROWSER`: Browser type for automation - chrome, firefox, webkit, msedge (default: chrome)
+- `MCP_HEADLESS`: Run browser in headless mode - true/false (default: true)
+- `MCP_TIMEOUT`: Operation timeout in milliseconds (default: 30000)
+
+### How MCP Integration Works
+
+uxlint uses the official [@ai-sdk/mcp](https://www.npmjs.com/package/@ai-sdk/mcp) integration from Vercel AI SDK. The LLM automatically:
+
+1. **Navigates** to your page URLs using `browser_navigate` tool
+2. **Captures screenshots** with `browser_take_screenshot` for visual analysis
+3. **Gets accessibility tree** via `browser_snapshot` for semantic structure
+4. **Analyzes** the combined visual and structural data against your personas
+
+This multi-turn tool calling happens automatically—you just provide the URLs and configuration.
+
+**⚠️ Security Note:** `MCP_SERVER_COMMAND` executes arbitrary commands. Only use trusted MCP servers. The default Playwright MCP server from `@modelcontextprotocol/server-playwright` is maintained by Anthropic and is safe to use.
 
 ## Quick start
 
@@ -233,14 +251,82 @@ The command exits after writing the report to the configured path.
 
 ## Troubleshooting
 
-- Config not found: Ensure the file name is exactly `.uxlintrc.yml` or `.uxlintrc.json` and that you run the command from the same directory.
-- Invalid config: Validate your YAML/JSON syntax and required fields.
-- Network reachability: Confirm the listed URLs are publicly accessible from your environment.
+### Configuration Issues
+
+- **Config not found**: Ensure the file name is exactly `.uxlintrc.yml` or `.uxlintrc.json` and that you run the command from the same directory.
+- **Invalid config**: Validate your YAML/JSON syntax and required fields.
+- **Network reachability**: Confirm the listed URLs are publicly accessible from your environment.
+
+### MCP/Browser Automation Issues
+
+- **MCP client initialization fails**:
+
+  - Check that npx is installed and available in your PATH
+  - Verify `MCP_SERVER_COMMAND` and `MCP_SERVER_ARGS` are correctly configured
+  - Try running the MCP server manually: `npx -y @modelcontextprotocol/server-playwright@0.12.6`
+
+- **Browser automation errors**:
+
+  - Ensure the target URLs are accessible from your network
+  - Try setting `MCP_HEADLESS=false` to see what the browser is doing
+  - Increase `MCP_TIMEOUT` if pages are slow to load (default: 30000ms)
+  - Check that the specified `MCP_BROWSER` is installed on your system
+
+- **Tool calling not working**:
+
+  - Verify you're using a supported AI model (claude-3-5-sonnet-20241022 recommended)
+  - Check that `UXLINT_ANTHROPIC_API_KEY` is valid and has sufficient credits
+  - Look for console logs showing tool calls: `[AI] Tool calls: browser_navigate, ...`
+
+- **Empty or incomplete analysis**:
+  - The LLM requires screenshots for visual analysis—if navigation fails, analysis will be limited
+  - Check browser console logs for navigation errors
+  - Verify the page doesn't require authentication or special cookies
 
 ## Security & privacy
 
 - Provide only URLs and descriptions you are comfortable sending for analysis.
 - Avoid including sensitive or personal data in persona and feature descriptions.
+
+## Migration Guide
+
+### Upgrading to v1.1.0+ (@ai-sdk/mcp Integration)
+
+If you're upgrading from an earlier version, note these improvements:
+
+**What Changed:**
+
+- Migrated from custom MCP client to official `@ai-sdk/mcp` integration
+- LLM now automatically uses browser tools via multi-turn conversation
+- Improved architecture with proper dependency injection
+
+**Action Required:**
+
+1. **Update environment variables** (if customized):
+
+   ```bash
+   # Old (still works, but deprecated)
+   MCP_SERVER_COMMAND=npx
+
+   # New (recommended)
+   MCP_SERVER_COMMAND=npx
+   MCP_SERVER_ARGS=-y,@modelcontextprotocol/server-playwright@0.12.6
+   ```
+
+2. **No code changes needed**: Your `.uxlintrc.yml` / `.uxlintrc.json` files work without modification
+
+**What You Get:**
+
+- ✅ Automatic tool calling - LLM directly uses browser automation
+- ✅ Better type safety with official AI SDK types
+- ✅ More reliable screenshot capture for visual analysis
+- ✅ Improved error handling and logging
+
+**Breaking Changes:**
+
+- None! This is a backward-compatible architectural improvement
+
+If you experience issues after upgrading, check the [Troubleshooting](#troubleshooting) section or [open an issue](https://github.com/GyeongHoKim/uxlint/issues).
 
 ## Roadmap
 
