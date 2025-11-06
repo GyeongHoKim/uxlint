@@ -86,7 +86,7 @@ describe('McpClientFactory', () => {
 
 			expect(mockStdioMCPTransport).toHaveBeenCalledWith({
 				command: 'npx',
-				args: ['-y', '@modelcontextprotocol/server-playwright'],
+				args: ['@playwright/mcp@latest'],
 			});
 		});
 
