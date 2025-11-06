@@ -76,9 +76,9 @@ export class AnalysisOrchestrator {
 				analyses.push(analysis);
 			}
 
-			// Generate report
+			// Generate report (keep currentPageIndex at last page)
 			onProgress?.({
-				currentPageIndex: config.pages.length,
+				currentPageIndex: config.pages.length - 1,
 				totalPages: config.pages.length,
 				stage: 'generating-report',
 			});
