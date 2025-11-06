@@ -15,12 +15,23 @@ jest.unstable_mockModule('../../../source/mcp/client/config.js', () => ({
 const mockTransport = {};
 const mockStdioMCPTransport = jest.fn().mockImplementation(() => mockTransport);
 
-const mockClient = {
-	close: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
-	tools: jest.fn<() => Promise<Record<string, any>>>().mockResolvedValue({}),
+// Create proper mock types for MCP client
+type MockMcpClient = {
+	close: jest.Mock<() => Promise<void>>;
+	tools: jest.Mock<() => Promise<Record<string, unknown>>>;
 };
-const mockExperimental_createMCPClient = jest
-	.fn<() => Promise<typeof mockClient>>()
+
+const mockClient: MockMcpClient = {
+	close: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+	tools: jest
+		.fn<() => Promise<Record<string, unknown>>>()
+		.mockResolvedValue({}),
+};
+
+type MockCreateMCPClient = jest.Mock<() => Promise<MockMcpClient>>;
+
+const mockExperimental_createMCPClient: MockCreateMCPClient = jest
+	.fn<() => Promise<MockMcpClient>>()
 	.mockResolvedValue(mockClient);
 
 jest.unstable_mockModule('ai', () => ({
@@ -95,8 +106,7 @@ describe('McpClientFactory', () => {
 
 		test('propagates errors from client creation', async () => {
 			const error = new Error('Client creation failed');
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-			(mockExperimental_createMCPClient as any).mockRejectedValueOnce(error);
+			mockExperimental_createMCPClient.mockRejectedValueOnce(error);
 
 			await expect(factory.createClient()).rejects.toThrow(
 				'Client creation failed',

@@ -4,24 +4,31 @@
  */
 
 import {jest} from '@jest/globals';
-import type {experimental_MCPClient} from 'ai';
 import type {UxLintConfig} from '../../source/models/config.js';
+import type {UxFinding} from '../../source/models/analysis.js';
+
+// Create proper mock types
+type MockMcpClient = {
+	close: jest.Mock<() => Promise<void>>;
+	tools: jest.Mock<() => Promise<Record<string, unknown>>>;
+};
 
 // Mock dependencies
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-const mockMcpClient: experimental_MCPClient = {
+const mockMcpClient: MockMcpClient = {
 	close: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
-	tools: jest.fn<() => Promise<Record<string, any>>>().mockResolvedValue({}),
-} as any;
+	tools: jest
+		.fn<() => Promise<Record<string, unknown>>>()
+		.mockResolvedValue({}),
+};
 
 const mockMcpClientFactory = {
 	createClient: jest
-		.fn<() => Promise<experimental_MCPClient>>()
+		.fn<() => Promise<MockMcpClient>>()
 		.mockResolvedValue(mockMcpClient),
 };
 
-const mockAnalyzePageWithAi =
-	jest.fn<() => Promise<{findings: any[]; summary: string}>>();
+type AnalysisResult = {findings: UxFinding[]; summary: string};
+const mockAnalyzePageWithAi = jest.fn<() => Promise<AnalysisResult>>();
 const mockReportBuilder = {
 	generateReport: jest.fn().mockReturnValue({
 		metadata: {
@@ -211,10 +218,7 @@ describe('AnalysisOrchestrator', () => {
 		});
 
 		test('closes MCP client even if analysis fails', async () => {
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-			(mockAnalyzePageWithAi as any).mockRejectedValue(
-				new Error('Analysis failed'),
-			);
+			mockAnalyzePageWithAi.mockRejectedValue(new Error('Analysis failed'));
 
 			const config: UxLintConfig = {
 				mainPageUrl: 'https://example.com',
@@ -230,10 +234,7 @@ describe('AnalysisOrchestrator', () => {
 		});
 
 		test('handles failed page analysis gracefully', async () => {
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-			(mockAnalyzePageWithAi as any).mockRejectedValue(
-				new Error('Network error'),
-			);
+			mockAnalyzePageWithAi.mockRejectedValue(new Error('Network error'));
 
 			const config: UxLintConfig = {
 				mainPageUrl: 'https://example.com',
