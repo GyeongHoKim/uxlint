@@ -12,6 +12,20 @@ import {loadEnvConfig} from '../infrastructure/config/env-config.js';
 import {aiConfig} from './ai-service-config.js';
 
 /**
+ * Type for MCP tools returned from experimental_MCPClient.tools()
+ * Uses 'ai' package export for full type compatibility with streamText
+ */
+type McpTools = Awaited<ReturnType<experimental_MCPClient['tools']>>;
+
+/**
+ * Extended StreamText parameters to include experimental maxSteps
+ * maxSteps is available in runtime but not yet in type definitions (AI SDK v5.0.68)
+ */
+type StreamTextWithMaxSteps = {
+	maxSteps?: number;
+};
+
+/**
  * Analysis prompt input
  */
 export type AnalysisPrompt = {
@@ -253,7 +267,7 @@ export async function analyzePageWithAi(
 	const config = loadEnvConfig();
 
 	// Get tools from MCP client (AI SDK automatically converts them)
-	let tools: Record<string, any> | undefined;
+	let tools: McpTools | undefined;
 	if (mcpClient) {
 		try {
 			tools = await mcpClient.tools();
@@ -283,6 +297,13 @@ export async function analyzePageWithAi(
 	return retryWithBackoff(async () => {
 		const chunks: string[] = [];
 
+		// StreamText with experimental maxSteps parameter
+		// MaxSteps enables multi-turn tool calling (required for MCP tools)
+		// Type definitions don't include maxSteps yet (AI SDK v5.0.68), but it's available at runtime
+		const experimentalParameters: StreamTextWithMaxSteps = {
+			maxSteps: aiConfig.maxToolSteps,
+		};
+
 		// eslint-disable-next-line @typescript-eslint/await-thenable
 		const result = await streamText({
 			model: anthropic(config.model),
@@ -290,10 +311,6 @@ export async function analyzePageWithAi(
 			prompt: userPrompt,
 			temperature: aiConfig.temperature,
 			tools: tools ?? undefined,
-			// @ts-expect-error - maxSteps is an experimental feature in AI SDK v5.0.68
-			// It enables multi-turn tool calling (required for MCP tools to work properly)
-			// Type definitions are not yet updated. See: https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling
-			maxSteps: aiConfig.maxToolSteps,
 			onStepFinish(event) {
 				// Log tool calls for debugging
 				if (event.toolCalls && event.toolCalls.length > 0) {
@@ -307,6 +324,7 @@ export async function analyzePageWithAi(
 					console.log('[AI] Tool results:', event.toolResults.length);
 				}
 			},
+			...experimentalParameters,
 		});
 
 		// Stream response chunks
