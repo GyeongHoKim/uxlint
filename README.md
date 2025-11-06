@@ -57,7 +57,7 @@ UXLINT_AI_MODEL=claude-3-5-sonnet-20241022
 # uxlint uses @ai-sdk/mcp for browser automation via Model Context Protocol
 # The LLM automatically calls browser tools to navigate pages and capture screenshots
 MCP_SERVER_COMMAND=npx
-MCP_SERVER_ARGS=-y,@modelcontextprotocol/server-playwright@0.12.6
+MCP_SERVER_ARGS=@playwright/mcp@latest
 MCP_BROWSER=chrome
 MCP_HEADLESS=true
 MCP_TIMEOUT=30000
@@ -71,7 +71,7 @@ MCP_TIMEOUT=30000
 
 - `UXLINT_AI_MODEL`: AI model to use for analysis (default: claude-3-5-sonnet-20241022)
 - `MCP_SERVER_COMMAND`: Command to run MCP server (default: npx)
-- `MCP_SERVER_ARGS`: Arguments for MCP server (default: -y,@modelcontextprotocol/server-playwright@0.12.6)
+- `MCP_SERVER_ARGS`: Arguments for MCP server (default: @playwright/mcp@latest)
 - `MCP_BROWSER`: Browser type for automation - chrome, firefox, webkit, msedge (default: chrome)
 - `MCP_HEADLESS`: Run browser in headless mode - true/false (default: true)
 - `MCP_TIMEOUT`: Operation timeout in milliseconds (default: 30000)
@@ -87,7 +87,7 @@ uxlint uses the official [@ai-sdk/mcp](https://www.npmjs.com/package/@ai-sdk/mcp
 
 This multi-turn tool calling happens automatically—you just provide the URLs and configuration.
 
-**⚠️ Security Note:** `MCP_SERVER_COMMAND` executes arbitrary commands. Only use trusted MCP servers. The default Playwright MCP server from `@modelcontextprotocol/server-playwright` is maintained by Anthropic and is safe to use.
+**⚠️ Security Note:** `MCP_SERVER_COMMAND` executes arbitrary commands. Only use trusted MCP servers. The default Playwright MCP server from `@playwright/mcp` is maintained by Anthropic and is safe to use.
 
 ## Quick start
 
@@ -263,7 +263,7 @@ The command exits after writing the report to the configured path.
 
   - Check that npx is installed and available in your PATH
   - Verify `MCP_SERVER_COMMAND` and `MCP_SERVER_ARGS` are correctly configured
-  - Try running the MCP server manually: `npx -y @modelcontextprotocol/server-playwright@0.12.6`
+  - Try running the MCP server manually: `npx @playwright/mcp@latest`
 
 - **Browser automation errors**:
 
@@ -310,7 +310,7 @@ If you're upgrading from an earlier version, note these improvements:
 
    # New (recommended)
    MCP_SERVER_COMMAND=npx
-   MCP_SERVER_ARGS=-y,@modelcontextprotocol/server-playwright@0.12.6
+   MCP_SERVER_ARGS=@playwright/mcp@latest
    ```
 
 2. **No code changes needed**: Your `.uxlintrc.yml` / `.uxlintrc.json` files work without modification

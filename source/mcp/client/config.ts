@@ -44,13 +44,13 @@ function validateServerCommand(command: string): void {
  * @example
  * ```typescript
  * const config = getDefaultMcpConfig();
- * // Returns: { serverCommand: 'npx', serverArgs: ['-y', '@modelcontextprotocol/server-playwright'], ... }
+ * // Returns: { serverCommand: 'npx', serverArgs: ['@playwright/mcp@latest'], ... }
  * ```
  */
 export function getDefaultMcpConfig(): McpConfig {
 	return {
 		serverCommand: 'npx',
-		serverArgs: ['-y', '@modelcontextprotocol/server-playwright'],
+		serverArgs: ['@playwright/mcp@latest'],
 		browser: 'chrome',
 		headless: true,
 		timeout: 30_000, // 30 seconds
@@ -62,7 +62,7 @@ export function getDefaultMcpConfig(): McpConfig {
  *
  * Reads configuration from the following environment variables:
  * - `MCP_SERVER_COMMAND`: Server command (default: 'npx') - must be in allowlist
- * - `MCP_SERVER_ARGS`: Server arguments (default: '-y,@modelcontextprotocol/server-playwright')
+ * - `MCP_SERVER_ARGS`: Server arguments (default: '@playwright/mcp@latest')
  * - `MCP_BROWSER`: Browser type ('chrome' | 'firefox' | 'webkit' | 'msedge')
  * - `MCP_HEADLESS`: Run headless (default: true, set to 'false' to disable)
  * - `MCP_TIMEOUT`: Operation timeout in milliseconds (default: 30000)
@@ -73,7 +73,7 @@ export function getDefaultMcpConfig(): McpConfig {
  * @example
  * ```typescript
  * // Set environment variables
- * process.env.MCP_SERVER_ARGS = '-y,@modelcontextprotocol/server-playwright@0.12.6';
+ * process.env.MCP_SERVER_ARGS = '@playwright/mcp@0.2.0';
  * process.env.MCP_BROWSER = 'firefox';
  * process.env.MCP_HEADLESS = 'false';
  *

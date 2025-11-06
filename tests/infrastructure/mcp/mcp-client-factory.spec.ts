@@ -57,7 +57,7 @@ describe('McpClientFactory', () => {
 		// Setup default mock config
 		mockGetMcpConfigFromEnv.mockReturnValue({
 			serverCommand: 'npx',
-			serverArgs: ['-y', '@modelcontextprotocol/server-playwright'],
+			serverArgs: ['@playwright/mcp@latest'],
 		});
 	});
 
