@@ -262,7 +262,7 @@ describe('ReportBuilder', () => {
 
 			const report = defaultBuilder.generateReport([], []);
 
-			expect(report.metadata.uxlintVersion).toBe('1.0.0');
+			expect(report.metadata.uxlintVersion).toBe('2.0.0');
 		});
 	});
 });

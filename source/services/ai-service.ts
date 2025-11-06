@@ -5,11 +5,11 @@
  * @packageDocumentation
  */
 
-import {createAnthropic} from '@ai-sdk/anthropic';
 import {streamText, type experimental_MCPClient} from 'ai';
 import type {UxFinding} from '../models/analysis.js';
 import {loadEnvConfig} from '../infrastructure/config/env-config.js';
 import {aiConfig} from './ai-service-config.js';
+import {createAiProvider} from './ai-provider-factory.js';
 
 /**
  * Type for MCP tools returned from experimental_MCPClient.tools()
@@ -335,10 +335,8 @@ export async function analyzePageWithAi(
 	// Validate context window size
 	validateContextWindow(systemPrompt, userPrompt);
 
-	// Create anthropic provider with custom API key
-	const anthropic = createAnthropic({
-		apiKey: config.apiKey,
-	});
+	// Create AI provider using factory (supports multiple providers)
+	const provider = createAiProvider(config);
 
 	// Call AI with retry logic
 	return retryWithBackoff(async () => {
@@ -359,7 +357,7 @@ export async function analyzePageWithAi(
 			};
 
 			const result = streamText({
-				model: anthropic(config.model),
+				model: provider.getModel(),
 				system: systemPrompt,
 				prompt: userPrompt,
 				temperature: aiConfig.temperature,

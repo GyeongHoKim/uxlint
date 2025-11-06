@@ -1,28 +1,25 @@
 # [2.0.0](https://github.com/GyeongHoKim/uxlint/compare/v1.0.0...v2.0.0) (2025-11-06)
 
-
 ### Bug Fixes
 
-* address PR review - implement MCP_SERVER_ARGS and eliminate type bypasses ([10bd134](https://github.com/GyeongHoKim/uxlint/commit/10bd134e87a883fb2f77a994e44de5b8413a358a))
-* eliminate code quality bypasses and address PR review feedback ([a52b110](https://github.com/GyeongHoKim/uxlint/commit/a52b11093e5ccb9241f837eded84b27a96ceb0be))
-* enable multi-turn tool calling with maxSteps ([df405d1](https://github.com/GyeongHoKim/uxlint/commit/df405d15fc019dc6fc87c51aa088787c0c6e8483))
-* mcp server args in the test code ([4135ec0](https://github.com/GyeongHoKim/uxlint/commit/4135ec0c3722debc23e1856a3fa9c5e2d868377e))
-* mcp server argument error ([8741d47](https://github.com/GyeongHoKim/uxlint/commit/8741d47baddeeb59b6b3d5e9dc78f20eb0e56bd2))
-
+- address PR review - implement MCP_SERVER_ARGS and eliminate type bypasses ([10bd134](https://github.com/GyeongHoKim/uxlint/commit/10bd134e87a883fb2f77a994e44de5b8413a358a))
+- eliminate code quality bypasses and address PR review feedback ([a52b110](https://github.com/GyeongHoKim/uxlint/commit/a52b11093e5ccb9241f837eded84b27a96ceb0be))
+- enable multi-turn tool calling with maxSteps ([df405d1](https://github.com/GyeongHoKim/uxlint/commit/df405d15fc019dc6fc87c51aa088787c0c6e8483))
+- mcp server args in the test code ([4135ec0](https://github.com/GyeongHoKim/uxlint/commit/4135ec0c3722debc23e1856a3fa9c5e2d868377e))
+- mcp server argument error ([8741d47](https://github.com/GyeongHoKim/uxlint/commit/8741d47baddeeb59b6b3d5e9dc78f20eb0e56bd2))
 
 ### Features
 
-* implement MCP tool calling for LLM analysis ([15f76e7](https://github.com/GyeongHoKim/uxlint/commit/15f76e7d3e62ea6a67e326400d33e37222d6b7ae))
-* mcp client retry logic added ([ed4c1db](https://github.com/GyeongHoKim/uxlint/commit/ed4c1dbf4ae9fff757cfd7b338b2e928668823f0))
-* migrate to @ai-sdk/mcp official integration ([05d4e35](https://github.com/GyeongHoKim/uxlint/commit/05d4e358727db421f3964d2c730b5881d34631e0))
-
+- implement MCP tool calling for LLM analysis ([15f76e7](https://github.com/GyeongHoKim/uxlint/commit/15f76e7d3e62ea6a67e326400d33e37222d6b7ae))
+- mcp client retry logic added ([ed4c1db](https://github.com/GyeongHoKim/uxlint/commit/ed4c1dbf4ae9fff757cfd7b338b2e928668823f0))
+- migrate to @ai-sdk/mcp official integration ([05d4e35](https://github.com/GyeongHoKim/uxlint/commit/05d4e358727db421f3964d2c730b5881d34631e0))
 
 ### BREAKING CHANGES
 
-* Tool calling now works in multi-turn mode
-instead of single-step mode, enabling proper MCP integration
-* LLM now performs page navigation and capture
-via tools instead of manual pre-capture
+- Tool calling now works in multi-turn mode
+  instead of single-step mode, enabling proper MCP integration
+- LLM now performs page navigation and capture
+  via tools instead of manual pre-capture
 
 # 1.0.0 (2025-10-14)
 

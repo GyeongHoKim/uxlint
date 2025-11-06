@@ -43,15 +43,28 @@ cp .env.example .env
 
 Or if you're using the tool via npx, create a `.env` file manually in your project root.
 
-2. Edit `.env` and add your API key:
+2. Edit `.env` and configure your AI provider:
 
 ```bash
 # AI Service Configuration
-# Required: Get your API key from https://console.anthropic.com/
-UXLINT_ANTHROPIC_API_KEY=your_api_key_here
+# Choose your AI provider (default: anthropic)
+UXLINT_AI_PROVIDER=anthropic  # Options: anthropic, openai, ollama
 
-# Optional: Customize AI model (default: claude-3-5-sonnet-20241022)
-UXLINT_AI_MODEL=claude-3-5-sonnet-20241022
+# Anthropic Configuration (required if using anthropic)
+# Get your API key from https://console.anthropic.com/
+UXLINT_ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# OpenAI Configuration (required if using openai)
+# Get your API key from https://platform.openai.com/api-keys
+# UXLINT_OPENAI_API_KEY=your_openai_api_key_here
+
+# Ollama Configuration (required if using ollama)
+# Base URL for your local Ollama server
+# UXLINT_OLLAMA_BASE_URL=http://localhost:11434
+
+# Optional: Customize AI model
+# Defaults: claude-sonnet-4-5-20250929 (anthropic), gpt-4o (openai), llama3.1 (ollama)
+UXLINT_AI_MODEL=claude-sonnet-4-5-20250929
 
 # MCP Server Configuration
 # uxlint uses @ai-sdk/mcp for browser automation via Model Context Protocol
@@ -63,13 +76,31 @@ MCP_HEADLESS=true
 MCP_TIMEOUT=30000
 ```
 
-**Required:**
+**AI Provider Configuration:**
 
-- `UXLINT_ANTHROPIC_API_KEY`: Your Anthropic API key from https://console.anthropic.com/
+Choose one of the following providers:
 
-**Optional MCP Configuration:**
+- **Anthropic** (default):
 
-- `UXLINT_AI_MODEL`: AI model to use for analysis (default: claude-3-5-sonnet-20241022)
+  - `UXLINT_AI_PROVIDER=anthropic`
+  - `UXLINT_ANTHROPIC_API_KEY`: Your Anthropic API key from https://console.anthropic.com/
+  - Default model: `claude-sonnet-4-5-20250929`
+
+- **OpenAI**:
+
+  - `UXLINT_AI_PROVIDER=openai`
+  - `UXLINT_OPENAI_API_KEY`: Your OpenAI API key from https://platform.openai.com/api-keys
+  - Default model: `gpt-4o`
+
+- **Ollama** (local):
+  - `UXLINT_AI_PROVIDER=ollama`
+  - `UXLINT_OLLAMA_BASE_URL`: Your Ollama server URL (default: http://localhost:11434)
+  - Default model: `llama3.1`
+  - Requires [Ollama](https://ollama.ai/) to be installed and running locally
+
+**Optional Configuration:**
+
+- `UXLINT_AI_MODEL`: AI model to use for analysis (defaults vary by provider)
 - `MCP_SERVER_COMMAND`: Command to run MCP server (default: npx)
 - `MCP_SERVER_ARGS`: Arguments for MCP server (default: @playwright/mcp@latest)
 - `MCP_BROWSER`: Browser type for automation - chrome, firefox, webkit, msedge (default: chrome)
@@ -256,6 +287,31 @@ The command exits after writing the report to the configured path.
 - **Config not found**: Ensure the file name is exactly `.uxlintrc.yml` or `.uxlintrc.json` and that you run the command from the same directory.
 - **Invalid config**: Validate your YAML/JSON syntax and required fields.
 - **Network reachability**: Confirm the listed URLs are publicly accessible from your environment.
+
+### AI Provider Issues
+
+- **Missing API key error**:
+
+  - For Anthropic: Set `UXLINT_ANTHROPIC_API_KEY` in your `.env` file
+  - For OpenAI: Set `UXLINT_OPENAI_API_KEY` in your `.env` file
+  - Make sure `UXLINT_AI_PROVIDER` matches your chosen provider
+
+- **Invalid provider error**:
+
+  - Verify `UXLINT_AI_PROVIDER` is one of: `anthropic`, `openai`, or `ollama`
+  - Check for typos in the provider name
+
+- **Ollama connection issues**:
+
+  - Ensure Ollama is installed and running: `ollama serve`
+  - Verify the base URL is correct (default: `http://localhost:11434`)
+  - Check that your chosen model is pulled: `ollama pull llama3.1`
+  - Try accessing the Ollama API directly: `curl http://localhost:11434/api/tags`
+
+- **Model not found**:
+  - For Anthropic: Check available models at https://docs.anthropic.com/en/docs/models-overview
+  - For OpenAI: Check available models at https://platform.openai.com/docs/models
+  - For Ollama: List available models with `ollama list` and pull if needed
 
 ### MCP/Browser Automation Issues
 
