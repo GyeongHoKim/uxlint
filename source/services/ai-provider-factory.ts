@@ -14,6 +14,7 @@ import {createAnthropic} from '@ai-sdk/anthropic';
 import {createOpenAI} from '@ai-sdk/openai';
 import {createOllama} from 'ollama-ai-provider-v2';
 import {createXai} from '@ai-sdk/xai';
+import {createGoogleGenerativeAI} from '@ai-sdk/google';
 import type {LanguageModelV2} from '@ai-sdk/provider';
 import type {
 	EnvConfig,
@@ -21,6 +22,7 @@ import type {
 	OpenAiConfig,
 	OllamaConfig,
 	XaiConfig,
+	GoogleConfig,
 } from '../infrastructure/config/env-config.js';
 
 /**
@@ -159,6 +161,33 @@ export const createXaiProvider: ProviderFactory<XaiConfig> = config => {
 };
 
 /**
+ * Create Google (Gemini) provider instance
+ *
+ * @param config - Google-specific configuration
+ * @returns AiProvider instance for Google
+ *
+ * @example
+ * ```typescript
+ * const provider = createGoogleProvider({
+ *   provider: 'google',
+ *   model: 'gemini-2.5-pro',
+ *   apiKey: 'AIza...'
+ * });
+ * const model = provider.getModel();
+ * ```
+ */
+export const createGoogleProvider: ProviderFactory<GoogleConfig> = config => {
+	const google = createGoogleGenerativeAI({
+		apiKey: config.apiKey,
+	});
+
+	return {
+		name: 'google',
+		getModel: () => google(config.model),
+	};
+};
+
+/**
  * Provider factory registry
  * Maps provider types to their factory functions
  *
@@ -201,6 +230,7 @@ const providerFactories = {
 	openai: createOpenAiProvider,
 	ollama: createOllamaProvider,
 	xai: createXaiProvider,
+	google: createGoogleProvider,
 } as const;
 
 /**
