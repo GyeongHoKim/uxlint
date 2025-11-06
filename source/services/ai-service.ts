@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 
-import {streamText, type experimental_MCPClient} from 'ai';
+import {streamText, type experimental_MCPClient, Output} from 'ai';
 import {z} from 'zod';
 import type {UxFinding} from '../models/analysis.js';
 import {loadEnvConfig} from '../infrastructure/config/env-config.js';
@@ -19,60 +19,42 @@ import {createAiProvider} from './ai-provider-factory.js';
 type McpTools = Awaited<ReturnType<experimental_MCPClient['tools']>>;
 
 /**
- * Extended StreamText parameters to include experimental maxSteps
- * maxSteps is available in runtime but not yet in type definitions (AI SDK v5.0.68)
+ * Extended StreamText parameters to include experimental features
+ * maxSteps and experimental_output available in runtime but not in type definitions yet
  */
-type StreamTextWithMaxSteps = {
+type StreamTextWithExperimentalFeatures = {
 	maxSteps?: number;
+	experimental_output?: ReturnType<typeof Output.object>;
+};
+
+/**
+ * Extended StreamTextResult to include experimental features
+ * These properties are available at runtime but not in type definitions yet
+ */
+type StreamTextResultWithExperimental<T> = {
+	experimental_partialOutputStream: AsyncIterable<T>;
+	experimental_output: Promise<T>;
 };
 
 /**
  * Zod schema for UX finding
- * Enforces structured output from AI model
+ * Used with experimental_output for structured generation
  */
 const uxFindingSchema = z.object({
-	severity: z
-		.enum(['critical', 'high', 'medium', 'low'])
-		.describe(
-			'Severity level: critical (blocks core functionality), high (major usability issue), medium (affects some users), low (minor improvement)',
-		),
-	category: z
-		.string()
-		.describe(
-			'Category of the issue: Accessibility, Usability, Performance, Visual Design, Content, Navigation, Forms, Mobile Responsiveness, Security, or other relevant category',
-		),
-	description: z
-		.string()
-		.describe(
-			'Clear, specific description of the UX issue. Include what is wrong and why it matters.',
-		),
-	personaRelevance: z
-		.array(z.string())
-		.describe(
-			'List of persona names affected by this issue. Use exact persona names from the analysis request.',
-		),
-	recommendation: z
-		.string()
-		.describe(
-			'Actionable recommendation to fix the issue. Be specific about what to change and how.',
-		),
+	severity: z.enum(['critical', 'high', 'medium', 'low']),
+	category: z.string(),
+	description: z.string(),
+	personaRelevance: z.array(z.string()),
+	recommendation: z.string(),
 });
 
 /**
  * Zod schema for complete analysis result
- * Defines the structure of AI response
+ * Used with experimental_output for structured generation
  */
 const analysisResultSchema = z.object({
-	summary: z
-		.string()
-		.describe(
-			'Brief summary (2-3 sentences) of the overall UX quality and key findings',
-		),
-	findings: z
-		.array(uxFindingSchema)
-		.describe(
-			'Array of UX findings. IMPORTANT: Always provide at least 2-3 findings even for well-designed pages. Look for opportunities for improvement in accessibility, usability, performance, and design.',
-		),
+	summary: z.string(),
+	findings: z.array(uxFindingSchema),
 });
 
 /**
@@ -449,11 +431,8 @@ export async function analyzePageWithAi(
 
 	const hasTools = tools !== undefined && Object.keys(tools).length > 0;
 
-	// Build prompts with JSON schema specification
-	const systemPrompt = buildSystemPromptWithJsonSchema(
-		prompt.personas,
-		hasTools,
-	);
+	// Build prompts
+	const systemPrompt = buildSystemPrompt(prompt.personas, hasTools);
 	const userPrompt = buildAnalysisPrompt(prompt, hasTools);
 
 	// Validate context window size
@@ -471,11 +450,15 @@ export async function analyzePageWithAi(
 		}, aiConfig.aiCallTimeoutMs);
 
 		try {
-			// StreamText with experimental maxSteps parameter for tool calling
-			// MaxSteps enables multi-turn tool calling (required for MCP tools)
-			// Type definitions don't include maxSteps yet (AI SDK v5.0.68), but it's available at runtime
-			const experimentalParameters: StreamTextWithMaxSteps = {
+			// StreamText with experimental features:
+			// - maxSteps: Enables multi-turn tool calling (required for MCP tools)
+			// - experimental_output: Enforces structured output with Zod schema
+			// Per AI SDK docs: use streamText + experimental_output for tool calling + structured output
+			const experimentalParameters: StreamTextWithExperimentalFeatures = {
 				maxSteps: aiConfig.maxToolSteps,
+				experimental_output: Output.object({
+					schema: analysisResultSchema,
+				}),
 			};
 
 			const result = streamText({
@@ -488,82 +471,39 @@ export async function analyzePageWithAi(
 				...experimentalParameters,
 			});
 
-			// Stream response chunks for progress feedback
-			const chunks: string[] = [];
-			for await (const chunk of result.textStream) {
-				chunks.push(chunk);
-				onChunk?.(chunk);
+			// Stream partial results for progress feedback
+			// Type assertion needed for experimental features not yet in official AI SDK types
+			type AnalysisOutput = z.infer<typeof analysisResultSchema>;
+			const experimentalResult =
+				result as unknown as StreamTextResultWithExperimental<AnalysisOutput>;
+
+			let lastSummary = '';
+			for await (const chunk of experimentalResult.experimental_partialOutputStream) {
+				if (chunk.summary && chunk.summary !== lastSummary) {
+					onChunk?.(chunk.summary);
+					lastSummary = chunk.summary;
+				}
 			}
 
-			// Parse complete response as JSON and validate with Zod
-			const fullResponse = chunks.join('');
-
-			// Extract JSON from response (handles cases where LLM includes explanatory text)
-			const jsonPattern = /{[\s\S]*}/;
-			const jsonMatch = jsonPattern.exec(fullResponse);
-			if (!jsonMatch) {
-				throw new Error('AI response does not contain valid JSON');
-			}
-
-			const jsonResponse = JSON.parse(jsonMatch[0]) as unknown;
-
-			// Validate with Zod schema
-			const validatedResponse = analysisResultSchema.parse(jsonResponse);
+			// Get final structured output
+			const output = await experimentalResult.experimental_output;
 
 			// Transform to AnalysisResult format
 			// Add pageUrl to each finding (required by UxFinding type)
-			const findings: UxFinding[] = validatedResponse.findings.map(finding => ({
-				...finding,
-				pageUrl: prompt.pageUrl,
-			}));
+			const findings: UxFinding[] = (output.findings ?? []).map(
+				(finding: z.infer<typeof uxFindingSchema>) => ({
+					...finding,
+					pageUrl: prompt.pageUrl,
+				}),
+			);
 
 			return {
 				findings,
-				summary: validatedResponse.summary,
+				summary: output.summary ?? 'Analysis completed.',
 			};
 		} finally {
 			// Clean up timeout
 			clearTimeout(timeout);
 		}
 	});
-}
-
-/**
- * Build system prompt with JSON schema specification
- * Includes explicit JSON schema to guide AI response format
- */
-function buildSystemPromptWithJsonSchema(
-	personas: string[],
-	hasTools: boolean,
-): string {
-	const basePrompt = buildSystemPrompt(personas, hasTools);
-
-	const jsonSchema = `
-
-## Response Format
-
-You MUST respond with a valid JSON object (and ONLY JSON, no additional text) following this exact schema:
-
-\`\`\`json
-{
-  "summary": "Brief 2-3 sentence summary of overall UX quality and key findings",
-  "findings": [
-    {
-      "severity": "critical" | "high" | "medium" | "low",
-      "category": "Category name (e.g., Accessibility, Usability, Performance, etc.)",
-      "description": "Clear, specific description of the UX issue",
-      "personaRelevance": ["Persona Name 1", "Persona Name 2"],
-      "recommendation": "Actionable recommendation to fix the issue"
-    }
-  ]
-}
-\`\`\`
-
-**CRITICAL**:
-- Respond with ONLY the JSON object, nothing else
-- Ensure the JSON is valid and parseable
-- Always include at least 2-3 findings in the findings array
-- Use exact persona names from the analysis request`;
-
-	return basePrompt + jsonSchema;
 }

@@ -278,31 +278,26 @@ describe('buildAnalysisPrompt', () => {
 	});
 });
 
-// Structured output integration tests
-describe('structured output approach', () => {
-	test('removed parseAnalysisResponse function (now using Zod schema)', async () => {
-		// This test verifies that we're no longer using regex parsing
-		// The Zod schema in ai-service.ts now handles structured output
-		const aiServiceModule = await import('../../source/services/ai-service.js');
-
-		// ParseAnalysisResponse should not exist in the exported functions
-		expect(aiServiceModule).not.toHaveProperty('parseAnalysisResponse');
-	});
-
-	test('removed extractSummary function (now part of Zod schema)', async () => {
-		// This test verifies that summary extraction is handled by Zod
-		const aiServiceModule = await import('../../source/services/ai-service.js');
-
-		// ExtractSummary should not exist in the exported functions
-		expect(aiServiceModule).not.toHaveProperty('extractSummary');
-	});
-
+// Structured output with experimental_output
+describe('structured output with experimental_output', () => {
 	test('system prompt encourages finding issues', () => {
 		const prompt = buildSystemPrompt(['Test user'], false);
 
 		// Verify the prompt explicitly asks for findings even on well-designed pages
 		expect(prompt.toLowerCase()).toMatch(/at least \d+-\d+ findings/);
 		expect(prompt.toLowerCase()).toContain('even for well-designed pages');
+	});
+
+	test('system prompt includes UX analysis framework', () => {
+		const prompt = buildSystemPrompt(['Test user'], true);
+
+		// Verify comprehensive UX framework is included
+		expect(prompt).toContain('Accessibility');
+		expect(prompt).toContain('Usability');
+		expect(prompt).toContain('Performance');
+		expect(prompt).toContain('Visual Design');
+		expect(prompt).toContain('Content');
+		expect(prompt).toContain('Mobile Responsiveness');
 	});
 
 	test('analysis prompt includes comprehensive checklist', () => {
@@ -323,5 +318,21 @@ describe('structured output approach', () => {
 		expect(lowerPrompt).toContain('visual design');
 		expect(lowerPrompt).toContain('content');
 		expect(lowerPrompt).toContain('mobile');
+	});
+
+	test('analysis prompt includes tool usage instructions', () => {
+		const prompt = buildAnalysisPrompt(
+			{
+				pageUrl: 'https://example.com',
+				features: 'Interactive dashboard',
+				personas: ['User'],
+			},
+			true,
+		);
+
+		// Verify tool usage instructions
+		expect(prompt).toContain('browser_resize');
+		expect(prompt).toContain('browser_click');
+		expect(prompt).toContain('browser_press_key');
 	});
 });
