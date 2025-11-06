@@ -48,7 +48,7 @@ Or if you're using the tool via npx, create a `.env` file manually in your proje
 ```bash
 # AI Service Configuration
 # Choose your AI provider (default: anthropic)
-UXLINT_AI_PROVIDER=anthropic  # Options: anthropic, openai, ollama, xai
+UXLINT_AI_PROVIDER=anthropic  # Options: anthropic, openai, ollama, xai, google
 
 # Anthropic Configuration (required if using anthropic)
 # Get your API key from https://console.anthropic.com/
@@ -66,8 +66,12 @@ UXLINT_ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # Get your API key from https://x.ai/
 # UXLINT_XAI_API_KEY=your_xai_api_key_here
 
+# Google (Gemini) Configuration (required if using google)
+# Get your API key from https://ai.google.dev/
+# UXLINT_GOOGLE_API_KEY=your_google_api_key_here
+
 # Optional: Customize AI model
-# Defaults: claude-sonnet-4-5-20250929 (anthropic), gpt-4o (openai), llama3.1 (ollama), grok-4 (xai)
+# Defaults: claude-sonnet-4-5-20250929 (anthropic), gpt-4o (openai), llama3.1 (ollama), grok-4 (xai), gemini-2.5-pro (google)
 UXLINT_AI_MODEL=claude-sonnet-4-5-20250929
 
 # MCP Server Configuration
@@ -104,9 +108,15 @@ Choose one of the following providers:
   - Requires [Ollama](https://ollama.ai/) to be installed and running locally
 
 - **xAI (Grok)**:
+
   - `UXLINT_AI_PROVIDER=xai`
   - `UXLINT_XAI_API_KEY`: Your xAI API key from https://x.ai/
   - Default model: `grok-4`
+
+- **Google (Gemini)**:
+  - `UXLINT_AI_PROVIDER=google`
+  - `UXLINT_GOOGLE_API_KEY`: Your Google API key from https://ai.google.dev/
+  - Default model: `gemini-2.5-pro`
 
 **Optional Configuration:**
 
@@ -305,11 +315,12 @@ The command exits after writing the report to the configured path.
   - For Anthropic: Set `UXLINT_ANTHROPIC_API_KEY` in your `.env` file
   - For OpenAI: Set `UXLINT_OPENAI_API_KEY` in your `.env` file
   - For xAI: Set `UXLINT_XAI_API_KEY` in your `.env` file
+  - For Google: Set `UXLINT_GOOGLE_API_KEY` in your `.env` file
   - Make sure `UXLINT_AI_PROVIDER` matches your chosen provider
 
 - **Invalid provider error**:
 
-  - Verify `UXLINT_AI_PROVIDER` is one of: `anthropic`, `openai`, `ollama`, or `xai`
+  - Verify `UXLINT_AI_PROVIDER` is one of: `anthropic`, `openai`, `ollama`, `xai`, or `google`
   - Check for typos in the provider name
 
 - **Ollama connection issues**:
@@ -324,6 +335,7 @@ The command exits after writing the report to the configured path.
   - For OpenAI: Check available models at https://platform.openai.com/docs/models
   - For Ollama: List available models with `ollama list` and pull if needed
   - For xAI: Check available models at https://docs.x.ai/
+  - For Google: Check available models at https://ai.google.dev/gemini-api/docs/models
 
 ### MCP/Browser Automation Issues
 

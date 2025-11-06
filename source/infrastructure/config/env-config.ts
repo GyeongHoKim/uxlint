@@ -14,7 +14,7 @@ import 'dotenv/config';
 /**
  * Supported AI provider types
  */
-export type ProviderType = 'anthropic' | 'openai' | 'ollama' | 'xai';
+export type ProviderType = 'anthropic' | 'openai' | 'ollama' | 'xai' | 'google';
 
 /**
  * Anthropic provider configuration
@@ -102,13 +102,35 @@ export type XaiConfig = {
 };
 
 /**
+ * Google (Gemini) provider configuration
+ */
+export type GoogleConfig = {
+	/**
+	 * Provider type
+	 */
+	provider: 'google';
+
+	/**
+	 * AI model name (from UXLINT_AI_MODEL env var)
+	 * Defaults to 'gemini-2.5-pro' if not specified
+	 */
+	model: string;
+
+	/**
+	 * Google API key (from UXLINT_GOOGLE_API_KEY env var)
+	 */
+	apiKey: string;
+};
+
+/**
  * Environment configuration for AI service (discriminated union)
  */
 export type EnvConfig =
 	| AnthropicConfig
 	| OpenAiConfig
 	| OllamaConfig
-	| XaiConfig;
+	| XaiConfig
+	| GoogleConfig;
 
 /**
  * Default AI models per provider
@@ -118,6 +140,7 @@ const defaultModels: Record<ProviderType, string> = {
 	openai: 'gpt-4o',
 	ollama: 'llama3.1',
 	xai: 'grok-4',
+	google: 'gemini-2.5-pro',
 };
 
 /**
@@ -144,9 +167,9 @@ export function loadEnvConfig(): EnvConfig {
 		(process.env['UXLINT_AI_PROVIDER'] as ProviderType) ?? 'anthropic';
 
 	// Validate provider type
-	if (!['anthropic', 'openai', 'ollama', 'xai'].includes(provider)) {
+	if (!['anthropic', 'openai', 'ollama', 'xai', 'google'].includes(provider)) {
 		throw new Error(
-			`Invalid UXLINT_AI_PROVIDER: "${provider}". Must be one of: anthropic, openai, ollama, xai`,
+			`Invalid UXLINT_AI_PROVIDER: "${provider}". Must be one of: anthropic, openai, ollama, xai, google`,
 		);
 	}
 
@@ -209,6 +232,22 @@ export function loadEnvConfig(): EnvConfig {
 
 			return {
 				provider: 'xai',
+				model,
+				apiKey,
+			};
+		}
+
+		case 'google': {
+			const apiKey = process.env['UXLINT_GOOGLE_API_KEY'];
+			if (!apiKey) {
+				throw new Error(
+					'UXLINT_GOOGLE_API_KEY environment variable is required for Google provider. ' +
+						'Please set it in your .env file or environment.',
+				);
+			}
+
+			return {
+				provider: 'google',
 				model,
 				apiKey,
 			};
