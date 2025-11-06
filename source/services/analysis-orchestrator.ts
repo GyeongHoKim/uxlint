@@ -8,7 +8,9 @@
 import type {UxLintConfig} from '../models/config.js';
 import type {PageAnalysis, UxReport} from '../models/analysis.js';
 import {writeReportToFile} from '../infrastructure/reports/report-generator.js';
-import {McpPageCapture} from './mcp-page-capture.js';
+import type {McpClient} from '../mcp/client/mcp-client.js';
+import {McpClientFactory} from '../infrastructure/mcp/mcp-client-factory.js';
+import {analyzePageWithAi} from './ai-service.js';
 import {ReportBuilder} from './report-builder.js';
 
 /**
@@ -24,17 +26,19 @@ export type AnalysisProgressCallback = (progress: {
 /**
  * Analysis Orchestrator
  * Manages the complete analysis workflow:
- * - Page capture via MCP
+ * - MCP client initialization
  * - AI-powered analysis
  * - Report generation
  * - File output
  */
 export class AnalysisOrchestrator {
-	private mcpPageCapture: McpPageCapture | undefined;
+	private mcpClient: McpClient | undefined;
 	private readonly reportBuilder: ReportBuilder;
+	private readonly mcpClientFactory: McpClientFactory;
 
 	constructor() {
 		this.reportBuilder = new ReportBuilder();
+		this.mcpClientFactory = new McpClientFactory();
 	}
 
 	/**
@@ -51,7 +55,7 @@ export class AnalysisOrchestrator {
 		const analyses: PageAnalysis[] = [];
 
 		// Initialize MCP client
-		this.mcpPageCapture = new McpPageCapture();
+		this.mcpClient = await this.mcpClientFactory.createClient();
 
 		try {
 			// Process each page sequentially
@@ -104,7 +108,7 @@ export class AnalysisOrchestrator {
 	}): Promise<PageAnalysis> {
 		const {pageUrl, features, personas, pageIndex, totalPages, onProgress} =
 			options;
-		if (!this.mcpPageCapture) {
+		if (!this.mcpClient) {
 			throw new Error('MCP client not initialized');
 		}
 
@@ -125,11 +129,16 @@ export class AnalysisOrchestrator {
 				currentPageUrl: pageUrl,
 			});
 
-			// Use high-level API - no abstraction leak
-			const analysisResult = await this.mcpPageCapture.analyzeWithAi(
-				pageUrl,
-				features,
-				personas,
+			// Analyze with AI (LLM will navigate and capture via tools)
+			const analysisResult = await analyzePageWithAi(
+				{
+					snapshot: '', // LLM will get it via tools
+					pageUrl,
+					features,
+					personas,
+				},
+				undefined, // No chunk callback
+				this.mcpClient,
 			);
 
 			// Return successful analysis
@@ -137,7 +146,7 @@ export class AnalysisOrchestrator {
 				pageUrl,
 				features,
 				snapshot: '', // Snapshot captured by LLM via tools
-				findings: analysisResult.findings as PageAnalysis['findings'],
+				findings: analysisResult.findings,
 				analysisTimestamp: Date.now(),
 				status: 'complete',
 			};
@@ -162,9 +171,14 @@ export class AnalysisOrchestrator {
 	 * Cleanup resources
 	 */
 	private async cleanup(): Promise<void> {
-		if (this.mcpPageCapture) {
-			await this.mcpPageCapture.close();
-			this.mcpPageCapture = undefined;
+		if (this.mcpClient) {
+			try {
+				await this.mcpClient.close();
+			} catch (error) {
+				console.error('Error closing MCP client:', error);
+			} finally {
+				this.mcpClient = undefined;
+			}
 		}
 	}
 }
