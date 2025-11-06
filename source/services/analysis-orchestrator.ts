@@ -5,10 +5,10 @@
  * @packageDocumentation
  */
 
+import type {experimental_MCPClient} from 'ai';
 import type {UxLintConfig} from '../models/config.js';
 import type {PageAnalysis, UxReport} from '../models/analysis.js';
 import {writeReportToFile} from '../infrastructure/reports/report-generator.js';
-import type {McpClient} from '../mcp/client/mcp-client.js';
 import {McpClientFactory} from '../infrastructure/mcp/mcp-client-factory.js';
 import {analyzePageWithAi} from './ai-service.js';
 import {ReportBuilder} from './report-builder.js';
@@ -32,7 +32,7 @@ export type AnalysisProgressCallback = (progress: {
  * - File output
  */
 export class AnalysisOrchestrator {
-	private mcpClient: McpClient | undefined;
+	private mcpClient: experimental_MCPClient | undefined;
 	private readonly reportBuilder: ReportBuilder;
 	private readonly mcpClientFactory: McpClientFactory;
 
