@@ -14,7 +14,7 @@ import {loadEnvConfig} from '../infrastructure/config/env-config.js';
  * Analysis prompt input
  */
 export type AnalysisPrompt = {
-	snapshot: string;
+	snapshot?: string; // Optional: LLM can capture via tools when MCP client is available
 	pageUrl: string;
 	features: string;
 	personas: string[];
@@ -107,6 +107,12 @@ Please analyze this page:
 	}
 
 	// Legacy mode: snapshot provided in prompt
+	if (!snapshot) {
+		throw new Error(
+			'Snapshot is required when MCP tools are not available. Please provide a snapshot or enable MCP client.',
+		);
+	}
+
 	return `# Page Analysis Request
 
 **Page URL**: ${pageUrl}
@@ -280,8 +286,10 @@ export async function analyzePageWithAi(
 			prompt: userPrompt,
 			temperature: 0.3,
 			tools: tools ?? undefined,
-			// @ts-expect-error - maxSteps exists in AI SDK but type definitions may not be up to date
-			maxSteps: 5, // Allow up to 5 sequential tool calls
+			// @ts-expect-error - maxSteps is an experimental feature in AI SDK v5.0.68
+			// It enables multi-turn tool calling (required for MCP tools to work properly)
+			// Type definitions are not yet updated. See: https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling
+			maxSteps: 5, // Allow up to 5 sequential tool calls for complete browser automation workflow
 			onStepFinish(event) {
 				// Log tool calls for debugging
 				if (event.toolCalls && event.toolCalls.length > 0) {

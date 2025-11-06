@@ -132,7 +132,7 @@ export class AnalysisOrchestrator {
 			// Analyze with AI (LLM will navigate and capture via tools)
 			const analysisResult = await analyzePageWithAi(
 				{
-					snapshot: '', // LLM will get it via tools
+					// Snapshot is omitted - LLM will capture it via MCP tools
 					pageUrl,
 					features,
 					personas,
