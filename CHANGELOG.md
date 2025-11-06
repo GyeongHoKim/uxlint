@@ -1,3 +1,18 @@
+# [2.1.0](https://github.com/GyeongHoKim/uxlint/compare/v2.0.0...v2.1.0) (2025-11-06)
+
+
+### Bug Fixes
+
+* ollama api url and default model fixed ([096fbb3](https://github.com/GyeongHoKim/uxlint/commit/096fbb33cbf7319929cd9438f34f2a9e4850e675))
+* update default models of each LLM providers ([cf50ec4](https://github.com/GyeongHoKim/uxlint/commit/cf50ec48ced98e103405f6d0ca05947189df2c03))
+
+
+### Features
+
+* add Google (Gemini) provider support ([cfc0bac](https://github.com/GyeongHoKim/uxlint/commit/cfc0bac8f97b559243cef1ee6cdc4119aeda389a))
+* add multi-provider support (OpenAI, Ollama) with dependency injection ([83db8da](https://github.com/GyeongHoKim/uxlint/commit/83db8da1e5389389161c35842fcb9026977cbfb2)), closes [#17](https://github.com/GyeongHoKim/uxlint/issues/17)
+* add xAI (Grok) provider support ([442cd6d](https://github.com/GyeongHoKim/uxlint/commit/442cd6d5087267e01cec9f25c76d6cac924cee2b))
+
 # [2.0.0](https://github.com/GyeongHoKim/uxlint/compare/v1.0.0...v2.0.0) (2025-11-06)
 
 ### Bug Fixes
