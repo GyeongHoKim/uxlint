@@ -3,7 +3,7 @@
  * React hook for loading and managing UxLint configuration
  */
 
-import {useState, useEffect} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import {loadConfig} from '../infrastructure/config/config-io.js';
 import type {UxLintConfig} from '../models/config.js';
 import {ConfigurationError} from '../models/errors.js';
@@ -50,62 +50,37 @@ export function useConfig(baseDirectory?: string): UseConfigResult {
 		error: undefined,
 	});
 
-	const [reloadTrigger, setReloadTrigger] = useState(0);
+	const load = useCallback(() => {
+		setState({
+			status: 'loading',
+			config: undefined,
+			error: undefined,
+		});
+		try {
+			const config = loadConfig(baseDirectory);
+			setState({
+				status: 'success',
+				config,
+				error: undefined,
+			});
+		} catch (error) {
+			setState({
+				status: 'error',
+				config: undefined,
+				error:
+					error instanceof Error
+						? error
+						: new ConfigurationError(String(error)),
+			});
+		}
+	}, [baseDirectory]);
 
 	useEffect(() => {
-		let isMounted = true;
-
-		async function load() {
-			// Set loading state
-			if (isMounted) {
-				setState({
-					status: 'loading',
-					config: undefined,
-					error: undefined,
-				});
-			}
-
-			try {
-				// Load config synchronously (wrapped in try-catch)
-				const config = loadConfig(baseDirectory);
-
-				if (isMounted) {
-					setState({
-						status: 'success',
-						config,
-						error: undefined,
-					});
-				}
-			} catch (error) {
-				if (isMounted) {
-					setState({
-						status: 'error',
-						config: undefined,
-						error:
-							error instanceof Error
-								? error
-								: new ConfigurationError(String(error)),
-					});
-				}
-			}
-		}
-
-		// Start loading
-		void load();
-
-		// Cleanup function
-		return () => {
-			isMounted = false;
-		};
-	}, [baseDirectory, reloadTrigger]);
-
-	// Reload function to trigger re-fetch
-	const reload = () => {
-		setReloadTrigger(previous => previous + 1);
-	};
+		load();
+	}, [load]);
 
 	return {
 		...state,
-		reload,
+		reload: load,
 	};
 }
