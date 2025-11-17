@@ -5,6 +5,7 @@ node_modules
 .kiro
 .claude
 .github
+.serena
 coverage
 CLAUDE.md
 AGENTS.md
@@ -13,3 +14,4 @@ package-lock.json
 coverage
 snapshots
 specs
+CHANGELOG.md
