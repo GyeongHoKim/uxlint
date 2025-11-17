@@ -22,7 +22,11 @@ export type SaveResult = {
 };
 
 // Configuration file names in order of precedence
-const configFiles = ['.uxlintrc.json', '.uxlintrc.yaml'] as const;
+const configFiles = [
+	'.uxlintrc.json',
+	'.uxlintrc.yaml',
+	'.uxlintrc.yml',
+] as const;
 
 // Maximum file size in bytes (10MB)
 const maxFileSize = 10 * 1024 * 1024;
@@ -87,7 +91,7 @@ export function readConfigFile(filePath: string): string {
  */
 export function parseConfigFile(
 	content: string,
-	format: 'json' | 'yaml',
+	format: 'json' | 'yaml' | 'yml',
 ): unknown {
 	try {
 		if (format === 'json') {
