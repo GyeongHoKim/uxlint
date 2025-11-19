@@ -5,7 +5,32 @@
 
 import process from 'node:process';
 import {ConfigurationError} from '../../models/errors.js';
-import type {McpConfig} from './types.js';
+
+/**
+ * Supported browser types
+ */
+const browserTypes = ['chrome', 'firefox', 'webkit', 'msedge'] as const;
+export type BrowserType = (typeof browserTypes)[number];
+
+/**
+ * Configuration for MCP client behavior
+ */
+export type McpConfig = {
+	/** Server executable command (e.g., 'npx') */
+	serverCommand: string;
+
+	/** Server launch arguments */
+	serverArgs: string[];
+
+	/** Browser type to use */
+	browser: BrowserType;
+
+	/** Run browser in headless mode */
+	headless: boolean;
+
+	/** Tool invocation timeout in milliseconds */
+	timeout: number;
+};
 
 /**
  * Allowed server commands to prevent command injection attacks
@@ -73,15 +98,15 @@ export function getDefaultMcpConfig(): McpConfig {
  * @example
  * ```typescript
  * // Set environment variables
- * process.env.MCP_SERVER_ARGS = '@playwright/mcp@0.2.0';
+ * process.env.MCP_SERVER_ARGS = '@playwright/mcp@latest';
  * process.env.MCP_BROWSER = 'firefox';
  * process.env.MCP_HEADLESS = 'false';
  *
- * const config = getMcpConfigFromEnv();
+ * const config = getPlaywrightMcpConfigFromEnv();
  * // Returns config with custom args, Firefox browser and headless: false
  * ```
  */
-export function getMcpConfigFromEnv(): McpConfig {
+export function getPlaywrightMcpConfigFromEnv(): McpConfig {
 	const defaultConfig = getDefaultMcpConfig();
 
 	// Validate and get server command
