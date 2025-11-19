@@ -6,12 +6,6 @@
 import {jest} from '@jest/globals';
 import type {McpConfig} from '@/infrastructure/mcp/config.js';
 
-// Mock getMcpConfigFromEnv
-const mockGetMcpConfigFromEnv = jest.fn();
-jest.unstable_mockModule('../../../source/mcp/client/config.js', () => ({
-	getMcpConfigFromEnv: mockGetMcpConfigFromEnv,
-}));
-
 // Mock AI SDK MCP modules
 const mockTransport = {};
 const mockStdioMCPTransport = jest.fn().mockImplementation(() => mockTransport);
@@ -62,12 +56,6 @@ describe('McpClientFactory', () => {
 	beforeEach(() => {
 		factory = new McpClientFactory();
 		jest.clearAllMocks();
-
-		// Setup default mock config
-		mockGetMcpConfigFromEnv.mockReturnValue({
-			serverCommand: 'npx',
-			serverArgs: ['@playwright/mcp@latest'],
-		});
 	});
 
 	describe('createClient', () => {
@@ -76,7 +64,7 @@ describe('McpClientFactory', () => {
 
 			expect(client).toBe(mockClient);
 			expect(mockExperimental_createMCPClient).toHaveBeenCalledWith({
-				name: 'uxlint',
+				name: 'playwright',
 				transport: mockTransport,
 			});
 		});
@@ -99,13 +87,16 @@ describe('McpClientFactory', () => {
 			});
 		});
 
-		test('uses MCP config from environment', async () => {
-			mockGetMcpConfigFromEnv.mockReturnValue({
+		test('uses provided MCP config', async () => {
+			const customConfig: McpConfig = {
 				serverCommand: 'custom-command',
 				serverArgs: ['arg1', 'arg2'],
-			});
+				browser: 'chrome',
+				headless: true,
+				timeout: 30_000,
+			};
 
-			await factory.createClient(mockMcpConfig);
+			await factory.createClient(customConfig);
 
 			expect(mockStdioMCPTransport).toHaveBeenCalledWith({
 				command: 'custom-command',

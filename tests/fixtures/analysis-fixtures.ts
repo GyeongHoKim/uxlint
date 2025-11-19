@@ -137,7 +137,6 @@ export const mockInProgressAnalysis: PageAnalysis = {
 export const mockUxReport: UxReport = {
 	metadata: {
 		timestamp: Date.now(),
-		uxlintVersion: '1.0.0',
 		analyzedPages: ['https://example.com', 'https://example.com/about'],
 		failedPages: [],
 		totalFindings: 1,
@@ -154,7 +153,6 @@ export const mockUxReport: UxReport = {
 export const mockMultiSeverityReport: UxReport = {
 	metadata: {
 		timestamp: Date.now(),
-		uxlintVersion: '1.0.0',
 		analyzedPages: [
 			'https://example.com',
 			'https://example.com/login',
@@ -189,7 +187,6 @@ export const mockMultiSeverityReport: UxReport = {
 export const mockReportWithFailures: UxReport = {
 	metadata: {
 		timestamp: Date.now(),
-		uxlintVersion: '1.0.0',
 		analyzedPages: ['https://example.com'],
 		failedPages: ['https://example.com/404 (Navigation timeout after 30s)'],
 		totalFindings: 1,

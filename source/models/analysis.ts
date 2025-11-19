@@ -111,11 +111,6 @@ export type ReportMetadata = {
 	timestamp: number;
 
 	/**
-	 * Version of uxlint that generated the report
-	 */
-	uxlintVersion: string;
-
-	/**
 	 * URLs successfully analyzed
 	 */
 	analyzedPages: string[];

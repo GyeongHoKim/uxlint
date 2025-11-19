@@ -10,7 +10,7 @@ describe('ReportBuilder', () => {
 	let builder: ReportBuilder;
 
 	beforeEach(() => {
-		builder = new ReportBuilder('1.0.0-test');
+		builder = new ReportBuilder();
 	});
 
 	describe('generateReport', () => {
@@ -41,7 +41,6 @@ describe('ReportBuilder', () => {
 			expect(report.metadata.analyzedPages).toEqual(['https://example.com']);
 			expect(report.metadata.totalFindings).toBe(1);
 			expect(report.metadata.personas).toEqual(personas);
-			expect(report.metadata.uxlintVersion).toBe('1.0.0-test');
 			expect(report.pages).toEqual(analyses);
 			expect(report.prioritizedFindings).toHaveLength(1);
 		});
@@ -247,22 +246,6 @@ describe('ReportBuilder', () => {
 
 			expect(report.metadata.timestamp).toBeGreaterThanOrEqual(before);
 			expect(report.metadata.timestamp).toBeLessThanOrEqual(after);
-		});
-
-		test('uses custom version in metadata', () => {
-			const customBuilder = new ReportBuilder('2.5.0');
-
-			const report = customBuilder.generateReport([], []);
-
-			expect(report.metadata.uxlintVersion).toBe('2.5.0');
-		});
-
-		test('uses default version when not specified', () => {
-			const defaultBuilder = new ReportBuilder();
-
-			const report = defaultBuilder.generateReport([], []);
-
-			expect(report.metadata.uxlintVersion).toBe('2.0.0');
 		});
 	});
 });
