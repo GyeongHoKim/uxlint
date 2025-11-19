@@ -7,7 +7,7 @@
 
 import {experimental_createMCPClient, type experimental_MCPClient} from 'ai';
 import {Experimental_StdioMCPTransport} from '@ai-sdk/mcp/mcp-stdio';
-import {getMcpConfigFromEnv} from '../../mcp/client/config.js';
+import {type McpConfig} from './config.js';
 
 /**
  * MCP Client Factory
@@ -20,10 +20,10 @@ export class McpClientFactory {
 	 * @param clientName - Client name identifier
 	 * @returns Connected MCP client with AI SDK integration
 	 */
-	async createClient(clientName = 'uxlint'): Promise<experimental_MCPClient> {
-		// Get MCP configuration from environment
-		const config = getMcpConfigFromEnv();
-
+	async createClient(
+		config: McpConfig,
+		clientName = 'playwright',
+	): Promise<experimental_MCPClient> {
 		// Create stdio transport for local MCP server
 		const transport = new Experimental_StdioMCPTransport({
 			command: config.serverCommand,

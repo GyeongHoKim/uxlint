@@ -4,6 +4,7 @@
  */
 
 import {jest} from '@jest/globals';
+import type {McpConfig} from '@/infrastructure/mcp/config.js';
 
 // Mock getMcpConfigFromEnv
 const mockGetMcpConfigFromEnv = jest.fn();
@@ -47,6 +48,14 @@ const {McpClientFactory} = await import(
 	'../../../source/infrastructure/mcp/mcp-client-factory.js'
 );
 
+const mockMcpConfig: McpConfig = {
+	serverCommand: 'npx',
+	serverArgs: ['@playwright/mcp@latest'],
+	browser: 'chrome',
+	headless: true,
+	timeout: 30_000,
+};
+
 describe('McpClientFactory', () => {
 	let factory: InstanceType<typeof McpClientFactory>;
 
@@ -63,7 +72,7 @@ describe('McpClientFactory', () => {
 
 	describe('createClient', () => {
 		test('creates MCP client with default client name', async () => {
-			const client = await factory.createClient();
+			const client = await factory.createClient(mockMcpConfig);
 
 			expect(client).toBe(mockClient);
 			expect(mockExperimental_createMCPClient).toHaveBeenCalledWith({
@@ -73,7 +82,7 @@ describe('McpClientFactory', () => {
 		});
 
 		test('creates MCP client with custom client name', async () => {
-			await factory.createClient('custom-client');
+			await factory.createClient(mockMcpConfig, 'custom-client');
 
 			expect(mockExperimental_createMCPClient).toHaveBeenCalledWith({
 				name: 'custom-client',
@@ -82,7 +91,7 @@ describe('McpClientFactory', () => {
 		});
 
 		test('creates stdio transport with correct config', async () => {
-			await factory.createClient();
+			await factory.createClient(mockMcpConfig);
 
 			expect(mockStdioMCPTransport).toHaveBeenCalledWith({
 				command: 'npx',
@@ -96,7 +105,7 @@ describe('McpClientFactory', () => {
 				serverArgs: ['arg1', 'arg2'],
 			});
 
-			await factory.createClient();
+			await factory.createClient(mockMcpConfig);
 
 			expect(mockStdioMCPTransport).toHaveBeenCalledWith({
 				command: 'custom-command',
@@ -108,7 +117,7 @@ describe('McpClientFactory', () => {
 			const error = new Error('Client creation failed');
 			mockExperimental_createMCPClient.mockRejectedValueOnce(error);
 
-			await expect(factory.createClient()).rejects.toThrow(
+			await expect(factory.createClient(mockMcpConfig)).rejects.toThrow(
 				'Client creation failed',
 			);
 		});
@@ -119,7 +128,7 @@ describe('McpClientFactory', () => {
 				throw error;
 			});
 
-			await expect(factory.createClient()).rejects.toThrow(
+			await expect(factory.createClient(mockMcpConfig)).rejects.toThrow(
 				'Transport creation failed',
 			);
 		});
