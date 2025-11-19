@@ -13,14 +13,14 @@ import {AnalysisOrchestrator} from '../services/analysis-orchestrator.js';
 /**
  * State change callback type
  */
-type StateChangeCallback = (state: AnalysisState) => void;
+type AnalysisStateChangeCallback = (analysisState: AnalysisState) => void;
 
 /**
  * UseAnalysis Hook Result
  */
 export type UseAnalysisResult = {
 	/** Current analysis state */
-	state: AnalysisState;
+	analysisState: AnalysisState;
 
 	/** Start the analysis workflow */
 	runAnalysis: () => Promise<void>;
@@ -29,7 +29,7 @@ export type UseAnalysisResult = {
 	getCurrentPageUrl: () => string | undefined;
 
 	/** Subscribe to state changes */
-	onStateChange: (callback: StateChangeCallback) => () => void;
+	onAnalysisStateChange: (callback: AnalysisStateChangeCallback) => () => void;
 };
 
 /**
@@ -41,7 +41,7 @@ export type UseAnalysisResult = {
  */
 export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 	// Initialize state
-	const [state, setState] = useState<AnalysisState>({
+	const [analysisState, setAnalysisState] = useState<AnalysisState>({
 		currentPageIndex: 0,
 		totalPages: config.pages.length,
 		currentStage: 'idle',
@@ -51,14 +51,14 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 	});
 
 	// Track state change subscribers
-	const subscribersRef = useRef<Set<StateChangeCallback>>(new Set());
+	const subscribersRef = useRef<Set<AnalysisStateChangeCallback>>(new Set());
 
 	/**
 	 * Update state and notify subscribers
 	 */
-	const updateState = useCallback(
+	const updateAnalysisState = useCallback(
 		(updater: (previous: AnalysisState) => AnalysisState) => {
-			setState(previous => {
+			setAnalysisState(previous => {
 				const newState = updater(previous);
 
 				// Notify all subscribers
@@ -76,14 +76,14 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 	 * Get current page URL
 	 */
 	const getCurrentPageUrl = useCallback((): string | undefined => {
-		const page = config.pages[state.currentPageIndex];
+		const page = config.pages[analysisState.currentPageIndex];
 		return page?.url;
-	}, [config.pages, state.currentPageIndex]);
+	}, [config.pages, analysisState.currentPageIndex]);
 
 	/**
 	 * Subscribe to state changes
 	 */
-	const onStateChange = useCallback((callback: StateChangeCallback) => {
+	const subscribe = useCallback((callback: AnalysisStateChangeCallback) => {
 		subscribersRef.current.add(callback);
 
 		// Return unsubscribe function
@@ -102,7 +102,7 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 		try {
 			// Update state based on progress
 			const report = await orchestrator.analyzePages(config, progress => {
-				updateState(previous => ({
+				updateAnalysisState(previous => ({
 					...previous,
 					currentPageIndex: progress.currentPageIndex,
 					currentStage: progress.stage,
@@ -110,7 +110,7 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 			});
 
 			// Complete
-			updateState(previous => ({
+			updateAnalysisState(previous => ({
 				...previous,
 				currentStage: 'complete',
 				report,
@@ -119,20 +119,19 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 			// Fatal error - log for debugging
 			const analysisError =
 				error instanceof Error ? error : new Error('Unknown error');
-			console.error('[useAnalysis] Analysis failed:', analysisError);
 
-			updateState(previous => ({
+			updateAnalysisState(previous => ({
 				...previous,
 				currentStage: 'error',
 				error: analysisError,
 			}));
 		}
-	}, [config, updateState]);
+	}, [config, updateAnalysisState]);
 
 	return {
-		state,
+		analysisState,
 		runAnalysis,
 		getCurrentPageUrl,
-		onStateChange,
+		onAnalysisStateChange: subscribe,
 	};
 }

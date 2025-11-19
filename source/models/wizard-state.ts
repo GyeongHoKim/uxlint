@@ -34,16 +34,18 @@ export type PartialConfigurationData = {
 /**
  * All possible wizard phases
  */
-export type WizardPhase =
-	| 'intro'
-	| 'main-url'
-	| 'sub-urls'
-	| 'pages'
-	| 'personas'
-	| 'report'
-	| 'summary'
-	| 'save'
-	| 'complete';
+export const wizardPhases = [
+	'intro',
+	'main-url',
+	'sub-urls',
+	'pages',
+	'personas',
+	'report',
+	'summary',
+	'save',
+	'complete',
+] as const;
+export type WizardPhase = (typeof wizardPhases)[number];
 
 /**
  * Wizard state discriminated union

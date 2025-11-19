@@ -166,14 +166,16 @@ export type UxReport = {
  * Analysis stage for progress tracking
  * Used by React components to display current operation
  */
-export type AnalysisStage =
-	| 'idle'
-	| 'navigating'
-	| 'capturing'
-	| 'analyzing'
-	| 'generating-report'
-	| 'complete'
-	| 'error';
+const analysisStages = [
+	'idle',
+	'navigating',
+	'capturing',
+	'analyzing',
+	'generating-report',
+	'complete',
+	'error',
+] as const;
+export type AnalysisStage = (typeof analysisStages)[number];
 
 /**
  * Analysis state for React hooks
