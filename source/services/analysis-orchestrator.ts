@@ -7,11 +7,16 @@
 
 import type {experimental_MCPClient} from 'ai';
 import type {UxLintConfig} from '../models/config.js';
-import type {PageAnalysis, UxReport} from '../models/analysis.js';
+import type {
+	AnalysisStage,
+	PageAnalysis,
+	UxReport,
+} from '../models/analysis.js';
 import {writeReportToFile} from '../infrastructure/reports/report-generator.js';
 import {McpClientFactory} from '../infrastructure/mcp/mcp-client-factory.js';
 import {analyzePageWithAi} from './ai-service.js';
 import {ReportBuilder} from './report-builder.js';
+import {getPlaywrightMcpConfigFromEnv} from '@/infrastructure/mcp/config.js';
 
 /**
  * Analysis progress callback
@@ -19,7 +24,7 @@ import {ReportBuilder} from './report-builder.js';
 export type AnalysisProgressCallback = (progress: {
 	currentPageIndex: number;
 	totalPages: number;
-	stage: 'navigating' | 'analyzing' | 'generating-report';
+	stage: AnalysisStage;
 	currentPageUrl?: string;
 }) => void;
 
@@ -52,18 +57,16 @@ export class AnalysisOrchestrator {
 		config: UxLintConfig,
 		onProgress?: AnalysisProgressCallback,
 	): Promise<UxReport> {
-		const analyses: PageAnalysis[] = [];
-
-		// Initialize MCP client
-		this.mcpClient = await this.mcpClientFactory.createClient();
-
+		const mcpConfig = getPlaywrightMcpConfigFromEnv();
+		this.mcpClient = await this.mcpClientFactory.createClient(mcpConfig);
 		try {
-			// Process each page sequentially
-			// Browser automation MUST be sequential - parallel execution would overwhelm the browser
-			// and cause resource conflicts (same browser instance, same viewport)
-			for (const [index, page] of config.pages.entries()) {
-				// Sequential page analysis required for browser automation stability
-				// eslint-disable-next-line no-await-in-loop -- Browser automation must be sequential, not parallel
+			const analyses: PageAnalysis[] = [];
+			const processPage = async (index: number): Promise<void> => {
+				const page = config.pages[index];
+				if (!page || index >= config.pages.length) {
+					return;
+				}
+
 				const analysis = await this.analyzeSinglePage({
 					pageUrl: page.url,
 					features: page.features,
@@ -74,11 +77,14 @@ export class AnalysisOrchestrator {
 				});
 
 				analyses.push(analysis);
-			}
+				await processPage(index + 1);
+			};
+
+			await processPage(0);
 
 			// Generate report
 			onProgress?.({
-				currentPageIndex: config.pages.length,
+				currentPageIndex: config.pages.length - 1,
 				totalPages: config.pages.length,
 				stage: 'generating-report',
 			});
@@ -93,7 +99,6 @@ export class AnalysisOrchestrator {
 
 			return report;
 		} finally {
-			// Cleanup
 			await this.cleanup();
 		}
 	}
