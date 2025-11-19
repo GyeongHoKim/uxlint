@@ -30,28 +30,27 @@ export type AnalysisRunnerProps = {
  */
 export function AnalysisRunner({theme, config}: AnalysisRunnerProps) {
 	// Use analysis orchestration hook
-	const {state, runAnalysis, getCurrentPageUrl} = useAnalysis(config);
+	const {analysisState, runAnalysis, getCurrentPageUrl} = useAnalysis(config);
 	const [showExitPrompt, setShowExitPrompt] = useState(false);
 
-	// Start analysis on mount ONCE only
-	// Adding runAnalysis to deps would cause re-runs whenever parent re-renders
-	// This effect should fire exactly once when component mounts to initiate the workflow
 	useEffect(() => {
 		void runAnalysis();
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- Effect must run exactly once on mount, not on every runAnalysis reference change
-	}, []);
+	}, [runAnalysis]);
 
 	// Show exit prompt when complete or error
 	useEffect(() => {
-		if (state.currentStage === 'complete' || state.currentStage === 'error') {
+		if (
+			analysisState.currentStage === 'complete' ||
+			analysisState.currentStage === 'error'
+		) {
 			setShowExitPrompt(true);
 		}
-	}, [state.currentStage]);
+	}, [analysisState.currentStage]);
 
 	// Handle any key press to exit
 	useInput((_input, key) => {
 		if (showExitPrompt && !key.ctrl) {
-			process.exit(state.currentStage === 'complete' ? 0 : 1);
+			process.exit(analysisState.currentStage === 'complete' ? 0 : 1);
 		}
 	});
 
@@ -59,15 +58,15 @@ export function AnalysisRunner({theme, config}: AnalysisRunnerProps) {
 		<Box flexDirection="column" gap={1}>
 			<AnalysisProgress
 				theme={theme}
-				stage={state.currentStage}
-				currentPage={state.currentPageIndex + 1} // Convert to 1-based
-				totalPages={state.totalPages}
+				stage={analysisState.currentStage}
+				currentPage={analysisState.currentPageIndex + 1}
+				totalPages={analysisState.totalPages}
 				pageUrl={getCurrentPageUrl()}
-				error={state.error?.message}
+				error={analysisState.error?.message}
 			/>
 
 			{/* Show completion message and exit prompt */}
-			{Boolean(showExitPrompt && state.currentStage === 'complete') && (
+			{Boolean(showExitPrompt && analysisState.currentStage === 'complete') && (
 				<Box flexDirection="column" gap={1} marginTop={1}>
 					<Text color="green">✓ Report saved to: {config.report.output}</Text>
 					<Text dimColor>Press any key to exit</Text>
@@ -75,7 +74,7 @@ export function AnalysisRunner({theme, config}: AnalysisRunnerProps) {
 			)}
 
 			{/* Show error message and exit prompt */}
-			{Boolean(showExitPrompt && state.currentStage === 'error') && (
+			{Boolean(showExitPrompt && analysisState.currentStage === 'error') && (
 				<Box flexDirection="column" gap={1} marginTop={1}>
 					<Text dimColor>Press any key to exit</Text>
 				</Box>
