@@ -49,7 +49,6 @@ describe('generateMarkdownReport', () => {
 		const markdown = generateMarkdownReport(mockUxReport);
 
 		expect(markdown).toContain('**Generated**:');
-		expect(markdown).toContain('**Version**:');
 		expect(markdown).toContain('**Pages Analyzed**:');
 	});
 
@@ -228,7 +227,6 @@ describe('report structure validation', () => {
 	test('metadata includes all required fields', () => {
 		const markdown = generateMarkdownReport(mockUxReport);
 
-		expect(markdown).toContain(mockUxReport.metadata.uxlintVersion);
 		expect(markdown).toContain(
 			String(mockUxReport.metadata.analyzedPages.length),
 		);

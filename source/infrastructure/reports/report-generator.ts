@@ -71,7 +71,6 @@ export function generateMarkdownReport(report: UxReport): string {
 	sections.push(
 		'# UX Analysis Report\n',
 		`**Generated**: ${formatTimestamp(metadata.timestamp)}`,
-		`**Version**: uxlint v${metadata.uxlintVersion}`,
 		`**Pages Analyzed**: ${metadata.analyzedPages.length} successful`,
 	);
 	if (metadata.failedPages.length > 0) {

@@ -71,6 +71,18 @@ jest.unstable_mockModule(
 	}),
 );
 
+// Mock @/infrastructure/mcp/config.js - use actual file path since jest.unstable_mockModule
+// doesn't respect moduleNameMapper
+jest.unstable_mockModule('../../source/infrastructure/mcp/config.js', () => ({
+	getPlaywrightMcpConfigFromEnv: jest.fn().mockReturnValue({
+		serverCommand: 'npx',
+		serverArgs: ['@playwright/mcp@latest'],
+		browser: 'chrome',
+		headless: true,
+		timeout: 30_000,
+	}),
+}));
+
 // Dynamic imports after mocks
 const {AnalysisOrchestrator} = await import(
 	'../../source/services/analysis-orchestrator.js'

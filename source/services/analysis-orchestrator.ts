@@ -12,11 +12,11 @@ import type {
 	PageAnalysis,
 	UxReport,
 } from '../models/analysis.js';
-import {writeReportToFile} from '../infrastructure/reports/report-generator.js';
+import {getPlaywrightMcpConfigFromEnv} from '../infrastructure/mcp/config.js';
 import {McpClientFactory} from '../infrastructure/mcp/mcp-client-factory.js';
+import {writeReportToFile} from '../infrastructure/reports/report-generator.js';
 import {analyzePageWithAi} from './ai-service.js';
 import {ReportBuilder} from './report-builder.js';
-import {getPlaywrightMcpConfigFromEnv} from '@/infrastructure/mcp/config.js';
 
 /**
  * Analysis progress callback

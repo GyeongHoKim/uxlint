@@ -11,7 +11,7 @@ import type {UxLintConfig} from '../../source/models/config.js';
 // Mock useAnalysis hook to prevent real MCP/AI operations
 jest.unstable_mockModule('../../source/hooks/use-analysis.js', () => ({
 	useAnalysis: jest.fn(() => ({
-		state: {
+		analysisState: {
 			currentPageIndex: 0,
 			totalPages: 1,
 			currentStage: 'idle' as const,
@@ -23,7 +23,7 @@ jest.unstable_mockModule('../../source/hooks/use-analysis.js', () => ({
 			// No-op in tests
 		}),
 		getCurrentPageUrl: jest.fn(() => 'https://example.com'),
-		onStateChange: jest.fn(() => () => {
+		onAnalysisStateChange: jest.fn(() => () => {
 			// No-op unsubscribe function
 		}),
 	})),
