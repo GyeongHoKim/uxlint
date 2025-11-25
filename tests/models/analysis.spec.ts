@@ -127,7 +127,6 @@ test('isAnalysisComplete returns true when stage is complete and report exists',
 		report: {
 			metadata: {
 				timestamp: Date.now(),
-				uxlintVersion: '1.0.0',
 				analyzedPages: ['https://example.com'],
 				failedPages: [],
 				totalFindings: 0,
@@ -162,7 +161,6 @@ test('isAnalysisComplete returns false when report exists but stage is not compl
 		report: {
 			metadata: {
 				timestamp: Date.now(),
-				uxlintVersion: '1.0.0',
 				analyzedPages: [],
 				failedPages: [],
 				totalFindings: 0,
