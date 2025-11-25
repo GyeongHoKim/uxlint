@@ -6,8 +6,12 @@
  */
 
 import {useCallback, useRef, useState} from 'react';
-import type {AnalysisState} from '../models/analysis.js';
+import {experimental_createMCPClient} from '@ai-sdk/mcp';
+import {Experimental_StdioMCPTransport} from '@ai-sdk/mcp/mcp-stdio';
+import type {AnalysisState, PageAnalysis} from '../models/analysis.js';
 import type {UxLintConfig} from '../models/config.js';
+import {AIService} from '../services/ai-service.js';
+import {ReportBuilder} from '../services/report-builder.js';
 
 /**
  * State change callback type
@@ -95,8 +99,94 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 	 * Delegates to AnalysisOrchestrator service
 	 */
 	const runAnalysis = useCallback(async () => {
-		throw new Error('Not implemented');
-	}, []);
+		let client;
+		try {
+			updateAnalysisState(previous => ({
+				...previous,
+				currentStage: 'navigating',
+			}));
+
+			// Initialize MCP Client for Playwright
+			const transport = new Experimental_StdioMCPTransport({
+				command: 'npx',
+				args: ['-y', '@modelcontextprotocol/server-playwright'],
+			});
+
+			client = await experimental_createMCPClient({
+				transport,
+			});
+
+			const reportBuilder = new ReportBuilder();
+			const aiService = new AIService(client);
+			const completedAnalyses: PageAnalysis[] = [];
+
+			for (let i = 0; i < config.pages.length; i++) {
+				const page = config.pages[i];
+				if (!page) continue;
+
+				updateAnalysisState(previous => ({
+					...previous,
+					currentPageIndex: i,
+					currentStage: 'analyzing',
+				}));
+
+				try {
+					// eslint-disable-next-line no-await-in-loop
+					const result = await aiService.analyzePage(page, config.personas);
+					completedAnalyses.push(result);
+
+					updateAnalysisState(previous => ({
+						...previous,
+						analyses: [...previous.analyses, result],
+					}));
+				} catch (error) {
+					const failedAnalysis: PageAnalysis = {
+						pageUrl: page.url,
+						features: page.features,
+						snapshot: '',
+						findings: [],
+						analysisTimestamp: Date.now(),
+						status: 'failed',
+						error: error instanceof Error ? error.message : String(error),
+					};
+
+					completedAnalyses.push(failedAnalysis);
+
+					updateAnalysisState(previous => ({
+						...previous,
+						analyses: [...previous.analyses, failedAnalysis],
+					}));
+				}
+			}
+
+			updateAnalysisState(previous => ({
+				...previous,
+				currentStage: 'generating-report',
+			}));
+
+			// Generate report
+			const report = reportBuilder.generateReport(
+				completedAnalyses,
+				config.personas,
+			);
+
+			updateAnalysisState(previous => ({
+				...previous,
+				currentStage: 'complete',
+				report,
+			}));
+		} catch (error) {
+			updateAnalysisState(previous => ({
+				...previous,
+				currentStage: 'error',
+				error: error instanceof Error ? error : new Error(String(error)),
+			}));
+		} finally {
+			if (client) {
+				await client.close();
+			}
+		}
+	}, [config, updateAnalysisState]);
 
 	return {
 		analysisState,
