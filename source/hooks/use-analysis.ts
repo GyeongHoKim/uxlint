@@ -5,10 +5,9 @@
  * @packageDocumentation
  */
 
-import {useState, useCallback, useRef} from 'react';
-import type {UxLintConfig} from '../models/config.js';
+import {useCallback, useRef, useState} from 'react';
 import type {AnalysisState} from '../models/analysis.js';
-import {AnalysisOrchestrator} from '../services/analysis-orchestrator.js';
+import type {UxLintConfig} from '../models/config.js';
 
 /**
  * State change callback type
@@ -40,7 +39,6 @@ export type UseAnalysisResult = {
  * @returns Analysis state and control functions
  */
 export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
-	// Initialize state
 	const [analysisState, setAnalysisState] = useState<AnalysisState>({
 		currentPageIndex: 0,
 		totalPages: config.pages.length,
@@ -97,36 +95,8 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 	 * Delegates to AnalysisOrchestrator service
 	 */
 	const runAnalysis = useCallback(async () => {
-		const orchestrator = new AnalysisOrchestrator();
-
-		try {
-			// Update state based on progress
-			const report = await orchestrator.analyzePages(config, progress => {
-				updateAnalysisState(previous => ({
-					...previous,
-					currentPageIndex: progress.currentPageIndex,
-					currentStage: progress.stage,
-				}));
-			});
-
-			// Complete
-			updateAnalysisState(previous => ({
-				...previous,
-				currentStage: 'complete',
-				report,
-			}));
-		} catch (error) {
-			// Fatal error - log for debugging
-			const analysisError =
-				error instanceof Error ? error : new Error('Unknown error');
-
-			updateAnalysisState(previous => ({
-				...previous,
-				currentStage: 'error',
-				error: analysisError,
-			}));
-		}
-	}, [config, updateAnalysisState]);
+		throw new Error('Not implemented');
+	}, []);
 
 	return {
 		analysisState,
