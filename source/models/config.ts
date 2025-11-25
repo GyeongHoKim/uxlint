@@ -59,7 +59,7 @@ export type UxLintConfig = {
 	 * One or more persona descriptions
 	 * Each persona describes user goals, motivations, constraints, devices, and accessibility needs
 	 */
-	personas: Persona[];
+	persona: Persona;
 
 	/**
 	 * Report output configuration
@@ -120,8 +120,9 @@ export function isUxLintConfig(value: unknown): value is UxLintConfig {
 		isStringArray(value.subPageUrls) &&
 		'pages' in value &&
 		isPageArray(value.pages) &&
-		'personas' in value &&
-		isStringArray(value.personas) &&
+		'persona' in value &&
+		typeof value.persona === 'string' &&
+		value.persona.length > 0 &&
 		'report' in value &&
 		isReportConfig(value.report)
 	);
