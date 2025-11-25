@@ -3,8 +3,8 @@
  * Transform wizard data to UxLintConfig format
  */
 
-import type {ConfigurationData} from './wizard-state.js';
 import type {UxLintConfig} from './config.js';
+import type {ConfigurationData} from './wizard-state.js';
 
 /**
  * Transform ConfigurationData to UxLintConfig
@@ -21,7 +21,7 @@ export function buildConfig(data: ConfigurationData): UxLintConfig {
 		mainPageUrl: data.mainPageUrl,
 		subPageUrls: [...data.subPageUrls],
 		pages: [...data.pages],
-		personas: [...data.personas],
+		persona: data.persona,
 		report: {
 			output: data.reportOutput,
 		},
@@ -44,8 +44,8 @@ export function canBuildConfig(
 		Array.isArray(data.subPageUrls) &&
 		Array.isArray(data.pages) &&
 		data.pages.length > 0 &&
-		Array.isArray(data.personas) &&
-		data.personas.length > 0 &&
+		typeof data.persona === 'string' &&
+		data.persona.length > 0 &&
 		typeof data.reportOutput === 'string' &&
 		data.reportOutput.length > 0
 	);

@@ -16,7 +16,7 @@ export type ConfigurationData = {
 	readonly mainPageUrl: string;
 	readonly subPageUrls: readonly string[];
 	readonly pages: readonly Page[];
-	readonly personas: readonly Persona[];
+	readonly persona: Persona;
 	readonly reportOutput: string;
 };
 
@@ -27,7 +27,7 @@ export type PartialConfigurationData = {
 	readonly mainPageUrl?: string;
 	readonly subPageUrls?: readonly string[];
 	readonly pages?: readonly Page[];
-	readonly personas?: readonly Persona[];
+	readonly persona?: Persona;
 	readonly reportOutput?: string;
 };
 
@@ -39,7 +39,7 @@ export const wizardPhases = [
 	'main-url',
 	'sub-urls',
 	'pages',
-	'personas',
+	'persona',
 	'report',
 	'summary',
 	'save',
@@ -67,12 +67,12 @@ export type WizardState =
 			};
 	  }
 	| {
-			phase: 'personas';
+			phase: 'persona';
 			data: {
 				mainPageUrl: string;
 				subPageUrls: readonly string[];
 				pages: readonly Page[];
-				personas: readonly Persona[];
+				persona: Persona;
 			};
 	  }
 	| {
@@ -81,7 +81,7 @@ export type WizardState =
 				mainPageUrl: string;
 				subPageUrls: readonly string[];
 				pages: readonly Page[];
-				personas: readonly Persona[];
+				persona: Persona;
 			};
 	  }
 	| {phase: 'summary'; data: ConfigurationData}
@@ -130,9 +130,7 @@ export type WizardAction =
 	| {type: 'DONE_SUB_URLS'}
 	| {type: 'ADD_PAGE'; payload: Page}
 	| {type: 'DONE_PAGES'}
-	| {type: 'ADD_PERSONA'; payload: Persona}
-	| {type: 'REMOVE_PERSONA'; payload: number}
-	| {type: 'DONE_PERSONAS'}
+	| {type: 'SET_PERSONA'; payload: string}
 	| {type: 'SET_REPORT_OUTPUT'; payload: string}
 	| {type: 'PROCEED_TO_SUMMARY'}
 	| {type: 'CONFIRM_SUMMARY'}
@@ -154,8 +152,8 @@ export function isCompleteConfigurationData(
 		Array.isArray(data.subPageUrls) &&
 		Array.isArray(data.pages) &&
 		data.pages.length > 0 &&
-		Array.isArray(data.personas) &&
-		data.personas.length > 0 &&
+		typeof data.persona === 'string' &&
+		data.persona.length > 0 &&
 		typeof data.reportOutput === 'string' &&
 		data.reportOutput.length > 0
 	);
@@ -198,12 +196,12 @@ export function isPagesPhase(
 }
 
 /**
- * Type guard to check if wizard is at personas phase
+ * Type guard to check if wizard is at persona phase
  */
-export function isPersonasPhase(
+export function isPersonaPhase(
 	state: WizardState,
-): state is Extract<WizardState, {phase: 'personas'}> {
-	return state.phase === 'personas';
+): state is Extract<WizardState, {phase: 'persona'}> {
+	return state.phase === 'persona';
 }
 
 /**

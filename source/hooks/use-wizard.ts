@@ -5,10 +5,10 @@
 
 import {useReducer, type Reducer} from 'react';
 import type {
-	WizardState,
-	WizardAction,
 	ConfigurationData,
 	SaveOptions,
+	WizardAction,
+	WizardState,
 } from '../models/wizard-state.js';
 
 /**
@@ -133,10 +133,10 @@ function handlePageActions(
 			}
 
 			return {
-				phase: 'personas',
+				phase: 'persona',
 				data: {
 					...state.data,
-					personas: [],
+					persona: '',
 				},
 			};
 		}
@@ -148,50 +148,20 @@ function handlePageActions(
  */
 function handlePersonaActions(
 	state: ExtendedWizardState,
-	action: Extract<
-		WizardAction,
-		{type: 'ADD_PERSONA'} | {type: 'REMOVE_PERSONA'} | {type: 'DONE_PERSONAS'}
-	>,
+	action: Extract<WizardAction, {type: 'SET_PERSONA'}>,
 ): ExtendedWizardState {
 	switch (action.type) {
-		case 'ADD_PERSONA': {
-			if (state.phase !== 'personas') {
-				return state;
-			}
-
-			return {
-				phase: 'personas',
-				data: {
-					...state.data,
-					personas: [...state.data.personas, action.payload],
-				},
-			};
-		}
-
-		case 'REMOVE_PERSONA': {
-			if (state.phase !== 'personas') {
-				return state;
-			}
-
-			return {
-				phase: 'personas',
-				data: {
-					...state.data,
-					personas: state.data.personas.filter(
-						(_, index) => index !== action.payload,
-					),
-				},
-			};
-		}
-
-		case 'DONE_PERSONAS': {
-			if (state.phase !== 'personas') {
+		case 'SET_PERSONA': {
+			if (state.phase !== 'persona') {
 				return state;
 			}
 
 			return {
 				phase: 'report',
-				data: state.data,
+				data: {
+					...state.data,
+					persona: action.payload,
+				},
 			};
 		}
 	}
@@ -236,7 +206,7 @@ function handleCompletionActions(
 				mainPageUrl: state.data.mainPageUrl,
 				subPageUrls: state.data.subPageUrls,
 				pages: state.data.pages,
-				personas: state.data.personas,
+				persona: state.data.persona,
 				reportOutput: state.pendingReportOutput ?? '',
 			};
 
@@ -313,7 +283,7 @@ export function wizardReducer(
 		'DONE_SUB_URLS',
 	];
 	const pageActions = ['ADD_PAGE', 'DONE_PAGES'];
-	const personaActions = ['ADD_PERSONA', 'REMOVE_PERSONA', 'DONE_PERSONAS'];
+	const personaActions = ['SET_PERSONA'];
 
 	if (urlActions.includes(action.type)) {
 		return handleUrlActions(

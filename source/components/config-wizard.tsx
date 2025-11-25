@@ -3,23 +3,23 @@
  * Orchestrates the interactive configuration flow through all wizard phases
  */
 
-import React, {useState, useEffect} from 'react';
-import {Box, Text} from 'ink';
 import {ConfirmInput, Select} from '@inkjs/ui';
-import type {ThemeConfig, UxLintConfig} from '../models/index.js';
-import type {Page} from '../models/config.js';
-import type {WizardAction, WizardState} from '../models/wizard-state.js';
+import {Box, Text} from 'ink';
+import React, {useEffect, useState} from 'react';
 import {useWizard} from '../hooks/use-wizard.js';
-import {buildConfig} from '../models/config-builder.js';
 import {
-	saveConfigToFile,
 	getDefaultReportPath,
+	saveConfigToFile,
 } from '../infrastructure/config/config-io.js';
+import {buildConfig} from '../models/config-builder.js';
+import type {Page} from '../models/config.js';
+import type {ThemeConfig, UxLintConfig} from '../models/index.js';
 import {validationEngine} from '../models/validation-engine.js';
-import {Header} from './header.js';
-import {UserInput} from './user-input.js';
-import {PromptStep} from './prompt-step.js';
+import type {WizardAction, WizardState} from '../models/wizard-state.js';
 import {ConfigSummary} from './config-summary.js';
+import {Header} from './header.js';
+import {PromptStep} from './prompt-step.js';
+import {UserInput} from './user-input.js';
 
 /**
  * Props for the ConfigWizard component
@@ -133,11 +133,11 @@ function SubUrlsPhase({
 }
 
 /**
- * Personas phase component
+ * Persona phase component
  */
-function PersonasPhase({
+function PersonaPhase({
 	theme,
-	state,
+	state: _state,
 	dispatch,
 	currentInput,
 	setCurrentInput,
@@ -145,7 +145,7 @@ function PersonasPhase({
 	setError,
 }: {
 	readonly theme: ThemeConfig;
-	readonly state: Extract<WizardState, {phase: 'personas'}>;
+	readonly state: Extract<WizardState, {phase: 'persona'}>;
 	readonly dispatch: React.Dispatch<WizardAction>;
 	readonly currentInput: string;
 	readonly setCurrentInput: (value: string) => void;
@@ -162,26 +162,13 @@ function PersonasPhase({
 		}
 	};
 
-	const handleAddPersona = (value: string) => {
-		// If empty value and we have at least one persona, user is done
-		if (!value.trim()) {
-			if (state.data.personas.length > 0) {
-				dispatch({type: 'DONE_PERSONAS'});
-			} else {
-				setError(new Error('At least one persona is required'));
-			}
-
-			return;
-		}
-
+	const handleSetPersona = (value: string) => {
 		const validated = handleValidation(() => validationEngine.persona(value));
 		if (validated) {
-			dispatch({type: 'ADD_PERSONA', payload: validated});
+			dispatch({type: 'SET_PERSONA', payload: validated});
 			setCurrentInput('');
 		}
 	};
-
-	const hasMinimumPersonas = state.data.personas.length > 0;
 
 	return (
 		<Box flexDirection="column">
@@ -189,25 +176,10 @@ function PersonasPhase({
 			<PromptStep
 				stepNumber={4}
 				totalSteps={7}
-				label="Add user personas (at least one required)"
+				label="Add user persona (required)"
 				theme={theme}
 			>
 				<Box flexDirection="column" gap={1}>
-					{/* Show current personas */}
-					{state.data.personas.length > 0 && (
-						<Box flexDirection="column" marginBottom={1}>
-							<Text color={theme.text.secondary}>
-								Added personas ({state.data.personas.length}):
-							</Text>
-							{state.data.personas.map((persona: string) => (
-								<Text key={persona} color={theme.text.primary}>
-									{state.data.personas.indexOf(persona) + 1}.{' '}
-									{persona.slice(0, 60)}...
-								</Text>
-							))}
-						</Box>
-					)}
-
 					<UserInput
 						error={error}
 						placeholder="e.g., Developer using CLI tools, needs quick setup, keyboard shortcuts"
@@ -215,7 +187,7 @@ function PersonasPhase({
 						value={currentInput}
 						variant={error ? 'error' : 'default'}
 						onChange={setCurrentInput}
-						onSubmit={handleAddPersona}
+						onSubmit={handleSetPersona}
 					/>
 
 					<Box marginTop={1}>
@@ -224,14 +196,6 @@ function PersonasPhase({
 							(min 20 chars)
 						</Text>
 					</Box>
-
-					{Boolean(hasMinimumPersonas) && (
-						<Box marginTop={1}>
-							<Text color={theme.text.muted}>
-								Press Enter with empty input when done
-							</Text>
-						</Box>
-					)}
 				</Box>
 			</PromptStep>
 		</Box>
@@ -422,7 +386,7 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 	const getAllUrls = (): string[] => {
 		if (
 			state.phase === 'pages' ||
-			state.phase === 'personas' ||
+			state.phase === 'persona' ||
 			state.phase === 'report'
 		) {
 			return [state.data.mainPageUrl, ...state.data.subPageUrls];
@@ -461,7 +425,7 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 					<Text color={theme.text.primary}>
 						• Feature descriptions for each page
 					</Text>
-					<Text color={theme.text.primary}>• User personas</Text>
+					<Text color={theme.text.primary}>• User persona</Text>
 					<Text color={theme.text.primary}>• Report output path</Text>
 				</Box>
 				<Box marginTop={2}>
@@ -587,12 +551,12 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 		);
 	};
 
-	// Render personas phase
-	const renderPersonas = () => {
-		if (state.phase !== 'personas') return null;
+	// Render persona phase
+	const renderPersona = () => {
+		if (state.phase !== 'persona') return null;
 
 		return (
-			<PersonasPhase
+			<PersonaPhase
 				currentInput={currentInput}
 				dispatch={dispatch}
 				error={error}
@@ -742,8 +706,8 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 			return renderPages();
 		}
 
-		case 'personas': {
-			return renderPersonas();
+		case 'persona': {
+			return renderPersona();
 		}
 
 		case 'report': {

@@ -148,9 +148,7 @@ export default function App({mode = 'normal'}: AppProps) {
 				<Box flexDirection="column" gap={0}>
 					<Text color="green">✓ Configuration loaded successfully</Text>
 					<Text dimColor>Main Page: {config.mainPageUrl}</Text>
-					<Text dimColor>
-						Pages: {config.pages.length} | Personas: {config.personas.length}
-					</Text>
+					<Text dimColor>Pages: {config.pages.length}</Text>
 				</Box>
 			)}
 
