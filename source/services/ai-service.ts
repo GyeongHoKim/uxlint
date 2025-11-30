@@ -14,6 +14,7 @@ import {z} from 'zod/v4';
 import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
+import {logger} from '../infrastructure/logger.js';
 import {languageModel} from './llm-provider.js';
 import {mcpClient} from './mcp-client.js';
 import {reportBuilder, type ReportBuilder} from './report-builder.js';
@@ -134,12 +135,29 @@ class AIService {
 
 				onProgress?.('analyzing', `Analysis iteration ${iterations}`);
 
+				// Log AI request if debug mode is enabled
+				logger.debug('AI Request', {
+					context: `Page Analysis - ${page.url} - Iteration ${iterations}`,
+					request: {systemPrompt, messages},
+				});
+
 				// eslint-disable-next-line no-await-in-loop
 				const result = await generateText({
 					model: this.model,
 					system: systemPrompt,
 					messages,
 					tools,
+				});
+
+				// Log AI response if debug mode is enabled
+				logger.debug('AI Response', {
+					context: `Page Analysis - ${page.url} - Iteration ${iterations}`,
+					response: {
+						text: result.text,
+						finishReason: result.finishReason,
+						toolCalls: result.toolCalls,
+						usage: result.usage,
+					},
 				});
 
 				// Add response messages to history

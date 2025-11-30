@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 uxlint is an AI-powered UX review CLI tool built with TypeScript and React (Ink). It analyzes web applications based on user-provided configuration files (personas, features, pages) and generates actionable UX reports.
 
+**CRITICAL: MCP Protocol and stdout/stderr**
+
+This application uses the MCP (Model Context Protocol) for communication. **NEVER use stdout or stderr for logging purposes** as these streams are reserved for MCP protocol messages. All logging must be done to files only. Use the Winston logger configured in `source/infrastructure/logger.ts` which writes exclusively to log files.
+
 **Key technologies:**
 
 - TypeScript with ES modules
@@ -15,6 +19,7 @@ uxlint is an AI-powered UX review CLI tool built with TypeScript and React (Ink)
 - Prettier for formatting
 - Husky for git hooks
 - Semantic release for versioning
+- Winston for file-only logging (MCP-safe)
 
 **Constitutional Principles** (see `.specify/memory/constitution.md` v1.1.0):
 1. Code Quality Gates (compile → format → lint sequence) — NON-NEGOTIABLE
