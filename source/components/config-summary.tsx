@@ -69,19 +69,15 @@ export function ConfigSummary({data, theme}: ConfigSummaryProps) {
 				))}
 			</Box>
 
-			{/* Personas */}
+			{/* Persona */}
 			<Box flexDirection="column">
-				<Text color={theme.text.secondary}>
-					Personas ({data.personas.length}):
-				</Text>
-				{data.personas.map(persona => (
-					<Box key={persona} flexDirection="column" marginLeft={2}>
-						<Text color={theme.text.primary}>
-							{data.personas.indexOf(persona) + 1}. {persona.slice(0, 80)}
-							{persona.length > 80 ? '...' : ''}
-						</Text>
-					</Box>
-				))}
+				<Text color={theme.text.secondary}>Persona:</Text>
+				<Box flexDirection="column" marginLeft={2}>
+					<Text color={theme.text.primary}>
+						{data.persona.slice(0, 80)}
+						{data.persona.length > 80 ? '...' : ''}
+					</Text>
+				</Box>
 			</Box>
 
 			{/* Report Output */}

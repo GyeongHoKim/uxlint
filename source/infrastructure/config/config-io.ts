@@ -224,12 +224,12 @@ export function validateConfig(data: unknown, filePath: string): UxLintConfig {
 		validatePage(page, index, filePath);
 	}
 
-	// Validate personas
-	if (!Array.isArray(config['personas']) || config['personas'].length === 0) {
+	// Validate persona
+	if (!config['persona'] || typeof config['persona'] !== 'string') {
 		throw new ConfigurationError(
-			'personas must be an array with at least one persona',
+			'persona is required and must be a string',
 			filePath,
-			'personas',
+			'persona',
 		);
 	}
 

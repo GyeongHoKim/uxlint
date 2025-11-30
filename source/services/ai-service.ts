@@ -1,383 +1,359 @@
 /**
  * AI Service
- * Business logic for AI-powered UX analysis
+ * Handles AI-powered UX analysis using MCP tools and Manual Agent Loop pattern
+ * Implements singleton pattern for global instance management
  *
  * @packageDocumentation
  */
 
-import {streamText, type experimental_MCPClient} from 'ai';
-import type {UxFinding} from '../models/analysis.js';
-import {loadEnvConfig} from '../infrastructure/config/env-config.js';
-import {aiConfig} from './ai-service-config.js';
-import {createAiProvider} from './ai-provider-factory.js';
+import {writeFile} from 'node:fs/promises';
+import {type experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
+import {type LanguageModelV2} from '@ai-sdk/provider';
+import {generateText, tool, type ModelMessage} from 'ai';
+import {z} from 'zod/v4';
+import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
+import type {Page, UxLintConfig} from '../models/config.js';
+import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
+import {languageModel} from './llm-provider.js';
+import {mcpClient} from './mcp-client.js';
+import {reportBuilder, type ReportBuilder} from './report-builder.js';
 
 /**
- * Type for MCP tools returned from experimental_MCPClient.tools()
- * Uses 'ai' package export for full type compatibility with streamText
+ * Maximum iterations for the agent loop to prevent infinite loops
  */
-type McpTools = Awaited<ReturnType<experimental_MCPClient['tools']>>;
+const MAX_AGENT_ITERATIONS = 20;
 
 /**
- * Extended StreamText parameters to include experimental maxSteps
- * maxSteps is available in runtime but not yet in type definitions (AI SDK v5.0.68)
+ * Analysis progress callback type
  */
-type StreamTextWithMaxSteps = {
-	maxSteps?: number;
-};
+export type AnalysisProgressCallback = (
+	stage: AnalysisStage,
+	message?: string,
+) => void;
 
 /**
- * Analysis prompt input
+ * UX Finding schema for structured output
  */
-export type AnalysisPrompt = {
-	snapshot?: string; // Optional: LLM can capture via tools when MCP client is available
-	pageUrl: string;
-	features: string;
-	personas: string[];
-};
+const UxFindingSchema = z.object({
+	severity: z.enum(['critical', 'high', 'medium', 'low']),
+	category: z.string(),
+	description: z.string(),
+	personaRelevance: z.array(z.string()),
+	recommendation: z.string(),
+	pageUrl: z.string(),
+});
 
 /**
- * Analysis result from AI
+ * AI Service
+ * Orchestrates AI-powered UX analysis using MCP tools
  */
-export type AnalysisResult = {
-	findings: UxFinding[];
-	summary: string;
-};
+class AIService {
+	private readonly model: LanguageModelV2;
+	private readonly mcpClient: MCPClient;
+	private readonly reportBuilder: ReportBuilder;
 
-/**
- * Build system prompt for AI model
- * Formats persona context into analysis guidelines
- */
-export function buildSystemPrompt(
-	personas: string[],
-	hasTools: boolean,
-): string {
-	const personaSection =
-		personas.length > 0
-			? `\n\nFocus your analysis on these specific personas:\n${personas
-					.map(p => `- ${p}`)
-					.join('\n')}`
-			: '';
-
-	const toolSection = hasTools
-		? `\n\nYou have access to browser automation tools. Follow these steps:
-
-1. First, call browser_navigate with the provided page URL
-2. Then, call browser_take_screenshot to capture the visual design
-3. Call browser_snapshot to get the accessibility tree
-4. Analyze the results and provide your findings
-
-Available tools:
-- browser_navigate: Navigate to a URL
-- browser_take_screenshot: Capture visual screenshot (REQUIRED for visual UX analysis)
-- browser_snapshot: Get accessibility tree snapshot
-- browser_click, browser_fill_form, browser_evaluate: For interaction if needed
-
-IMPORTANT: You MUST take a screenshot to see the actual visual design. Text-only accessibility trees are not sufficient for complete UX analysis.`
-		: '';
-
-	return `You are an expert UX analyst specialized in web accessibility and usability evaluation.
-
-Your task is to analyze web pages and identify UX issues that affect user experience.
-${toolSection}
-
-For each finding, provide:
-- **Severity**: critical | high | medium | low
-- **Category**: The type of issue (e.g., Accessibility, Usability, Performance, Security)
-- **Description**: Clear description of the issue
-- **Personas Affected**: Which personas are impacted (comma-separated)
-- **Recommendation**: Actionable steps to fix the issue
-${personaSection}
-
-Format your response as markdown with ## Finding N headings for each issue.
-Start with a ## Summary section describing the overall UX quality.`;
-}
-
-/**
- * Build analysis prompt combining context
- * Combines snapshot, features, and personas into structured prompt
- */
-export function buildAnalysisPrompt(
-	prompt: AnalysisPrompt,
-	hasTools: boolean,
-): string {
-	const {snapshot, pageUrl, features, personas} = prompt;
-
-	if (hasTools) {
-		// When tools are available, LLM can navigate and capture page itself
-		return `# Page Analysis Request
-
-**Page URL**: ${pageUrl}
-
-**Features to Evaluate**: ${features}
-
-**Target Personas**:
-${personas.map(p => `- ${p}`).join('\n')}
-
-Please analyze this page:
-1. Navigate to the page URL
-2. Take a screenshot to see the visual design
-3. Get the accessibility tree snapshot
-4. Analyze the page for UX issues considering the features and personas
-5. Provide your findings in the specified format`;
+	constructor(
+		model: LanguageModelV2,
+		mcpClient: MCPClient,
+		reportBuilder: ReportBuilder,
+	) {
+		this.model = model;
+		this.mcpClient = mcpClient;
+		this.reportBuilder = reportBuilder;
 	}
 
-	// Legacy mode: snapshot provided in prompt
-	if (!snapshot) {
-		throw new Error(
-			'Snapshot is required when MCP tools are not available. Please provide a snapshot or enable MCP client.',
-		);
-	}
-
-	return `# Page Analysis Request
-
-**Page URL**: ${pageUrl}
-
-**Features to Evaluate**: ${features}
-
-**Target Personas**:
-${personas.map(p => `- ${p}`).join('\n')}
-
-**Accessibility Tree Snapshot**:
-\`\`\`json
-${snapshot}
-\`\`\`
-
-Please analyze this page and identify any UX issues or recommendations.`;
-}
-
-/**
- * Parse AI response to extract findings
- * Uses regex to extract structured finding data from markdown
- */
-export function parseAnalysisResponse(
-	response: string,
-	pageUrl: string,
-): AnalysisResult {
-	const findings: UxFinding[] = [];
-
-	// Extract findings using regex
-	const findingPattern =
-		/## Finding \d+\s+\*\*Severity\*\*:\s*(\w+)\s+\*\*Category\*\*:\s*([^\n]+)\s+\*\*Description\*\*:\s*([^\n]+)\s+\*\*Personas Affected\*\*:\s*([^\n]*)\s+\*\*Recommendation\*\*:\s*([^\n]+)/g;
-
-	let match;
-	while ((match = findingPattern.exec(response)) !== null) {
-		const [, severity, category, description, personasText, recommendation] =
-			match;
-
-		// Parse severity
-		const validSeverity = severity?.toLowerCase() as
-			| UxFinding['severity']
-			| undefined;
-		if (
-			!validSeverity ||
-			!['critical', 'high', 'medium', 'low'].includes(validSeverity)
-		) {
-			continue;
+	/**
+	 * Close the MCP client connection and reset state
+	 */
+	async close(): Promise<void> {
+		if (this.mcpClient) {
+			await this.mcpClient.close();
 		}
 
-		// Parse personas (comma-separated)
-		const personaRelevance = personasText
-			? personasText
-					.split(',')
-					.map(p => p.trim())
-					.filter(p => p.length > 0)
-			: [];
-
-		findings.push({
-			severity: validSeverity,
-			category: category?.trim() ?? '',
-			description: description?.trim() ?? '',
-			personaRelevance,
-			recommendation: recommendation?.trim() ?? '',
-			pageUrl,
-		});
+		this.reportBuilder.reset();
 	}
 
-	const summary = extractSummary(response);
-
-	return {
-		findings,
-		summary,
-	};
-}
-
-/**
- * Extract summary from AI response
- * Finds and returns the Summary section content
- */
-export function extractSummary(response: string): string {
-	const summaryPattern = /## Summary\s+([^#]+)/;
-	const match = summaryPattern.exec(response);
-
-	if (match?.[1]) {
-		return match[1].trim();
+	/**
+	 * Get the report builder instance
+	 */
+	getReportBuilder(): ReportBuilder {
+		return this.reportBuilder;
 	}
 
-	return 'Analysis completed. Review findings for details.';
-}
-
-/**
- * Retry a function with exponential backoff
- * Retries up to maxRetries times with increasing delay
- */
-export async function retryWithBackoff<T>(
-	fn: () => Promise<T>,
-	maxRetries = aiConfig.maxRetries,
-	initialDelay = aiConfig.initialRetryDelayMs,
-): Promise<T> {
-	let lastError: Error | undefined;
-
-	for (let attempt = 0; attempt < maxRetries; attempt++) {
-		try {
-			// Sequential retry logic requires await in loop
-			// Each attempt must complete before deciding whether to retry
-			// eslint-disable-next-line no-await-in-loop -- Required for sequential retry with exponential backoff
-			return await fn();
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-
-			// Don't retry on last attempt
-			if (attempt === maxRetries - 1) {
-				break;
-			}
-
-			// Calculate delay with exponential backoff: 1s, 2s, 4s
-			const delay = initialDelay * 2 ** attempt;
-			// Sequential backoff delay must complete before next retry attempt
-			// eslint-disable-next-line no-await-in-loop -- Required for exponential backoff between retries
-			await new Promise(resolve => {
-				setTimeout(resolve, delay);
-			});
+	/**
+	 * Analyze a single page using Manual Agent Loop pattern
+	 */
+	async analyzePage(
+		config: UxLintConfig,
+		page: Page,
+		onProgress?: AnalysisProgressCallback,
+	): Promise<PageAnalysis> {
+		if (!this.model || !this.mcpClient) {
+			throw new Error('AIService not initialized');
 		}
-	}
 
-	throw lastError ?? new Error('Retry failed with unknown error');
-}
-
-/**
- * Estimate token count from text
- * Uses rough approximation: 1 token ≈ 4 characters
- *
- * @param text - Text to estimate
- * @returns Estimated token count
- */
-function estimateTokenCount(text: string): number {
-	return Math.ceil(text.length / aiConfig.contextWindow.charsPerToken);
-}
-
-/**
- * Check if prompt size is within context window limits
- * Warns if approaching limits to prevent failures
- *
- * @param systemPrompt - System prompt text
- * @param userPrompt - User prompt text
- */
-function validateContextWindow(systemPrompt: string, userPrompt: string): void {
-	const systemTokens = estimateTokenCount(systemPrompt);
-	const userTokens = estimateTokenCount(userPrompt);
-	const totalTokens = systemTokens + userTokens;
-
-	const {maxInputTokens, warningThreshold} = aiConfig.contextWindow;
-
-	if (totalTokens > maxInputTokens) {
-		throw new Error(
-			`Prompt exceeds context window: ${totalTokens} tokens (max: ${maxInputTokens}). ` +
-				'Consider reducing accessibility tree size or page complexity.',
-		);
-	}
-
-	if (totalTokens > warningThreshold) {
-		console.warn(
-			`[AI] Large prompt detected: ${totalTokens} tokens (${Math.round(
-				(totalTokens / maxInputTokens) * 100,
-			)}% of context window). This may impact performance and cost.`,
-		);
-	}
-}
-
-/**
- * Analyze page with AI using Vercel AI SDK
- * Streams response from Claude and parses findings
- *
- * @param prompt - Analysis prompt with page context
- * @param onChunk - Optional callback for streaming response chunks
- * @param mcpClient - Optional MCP client for tool calling (AI SDK integration)
- */
-export async function analyzePageWithAi(
-	prompt: AnalysisPrompt,
-	onChunk?: (chunk: string) => void,
-	mcpClient?: experimental_MCPClient,
-): Promise<AnalysisResult> {
-	const config = loadEnvConfig();
-
-	// Get tools from MCP client (AI SDK automatically converts them)
-	let tools: McpTools | undefined;
-	if (mcpClient) {
-		try {
-			tools = await mcpClient.tools();
-		} catch (error) {
-			// MCP client provided but tools unavailable - this is a critical error
-			// Without tools, LLM cannot navigate or capture screenshots
-			const errorMessage =
-				error instanceof Error ? error.message : 'Unknown error';
-			throw new Error(
-				`MCP client provided but tools unavailable: ${errorMessage}. Analysis requires browser automation tools for screenshot capture and navigation.`,
-			);
-		}
-	}
-
-	const hasTools = tools !== undefined && Object.keys(tools).length > 0;
-
-	// Build prompts
-	const systemPrompt = buildSystemPrompt(prompt.personas, hasTools);
-	const userPrompt = buildAnalysisPrompt(prompt, hasTools);
-
-	// Validate context window size
-	validateContextWindow(systemPrompt, userPrompt);
-
-	// Create AI provider using factory (supports multiple providers)
-	const provider = createAiProvider(config);
-
-	// Call AI with retry logic
-	return retryWithBackoff(async () => {
-		const chunks: string[] = [];
-
-		// Setup timeout with AbortController
-		const abortController = new AbortController();
-		const timeout = setTimeout(() => {
-			abortController.abort();
-		}, aiConfig.aiCallTimeoutMs);
+		const startTime = Date.now();
 
 		try {
-			// StreamText with experimental maxSteps parameter
-			// MaxSteps enables multi-turn tool calling (required for MCP tools)
-			// Type definitions don't include maxSteps yet (AI SDK v5.0.68), but it's available at runtime
-			const experimentalParameters: StreamTextWithMaxSteps = {
-				maxSteps: aiConfig.maxToolSteps,
+			// Initialize page analysis in report builder
+			this.reportBuilder.initializePageAnalysis(page.url, page.features);
+
+			// Get MCP tools from Playwright
+			onProgress?.('navigating', `Navigating to ${page.url}`);
+			const mcpTools = await this.mcpClient.tools();
+
+			// Build system prompt
+			const systemPrompt = this.buildSystemPrompt(config);
+
+			// Build user prompt for this page
+			const userPrompt = this.buildUserPrompt(page);
+
+			// Create report building tools
+			const reportTools = this.createReportTools(config.report.output);
+
+			// Combine MCP tools with report tools
+			const tools = {
+				...mcpTools,
+				...reportTools,
 			};
 
-			const result = streamText({
-				model: provider.getModel(),
-				system: systemPrompt,
-				prompt: userPrompt,
-				temperature: aiConfig.temperature,
-				tools: tools ?? undefined,
-				abortSignal: abortController.signal,
-				...experimentalParameters,
-			});
+			// Initialize messages
+			const messages: ModelMessage[] = [
+				{
+					role: 'user',
+					content: userPrompt,
+				},
+			];
 
-			// Stream response chunks
-			for await (const chunk of result.textStream) {
-				chunks.push(chunk);
-				onChunk?.(chunk);
+			let iterations = 0;
+			let analysisCompleted = false;
+
+			// Manual Agent Loop - await in loop is intentional for sequential LLM calls
+			while (iterations < MAX_AGENT_ITERATIONS && !analysisCompleted) {
+				iterations++;
+
+				onProgress?.('analyzing', `Analysis iteration ${iterations}`);
+
+				// eslint-disable-next-line no-await-in-loop
+				const result = await generateText({
+					model: this.model,
+					system: systemPrompt,
+					messages,
+					tools,
+				});
+
+				// Add response messages to history
+				const responseMessages = result.response.messages;
+				messages.push(...responseMessages);
+
+				// Check if page analysis is complete
+				if (result.finishReason === 'tool-calls') {
+					const {toolCalls} = result;
+
+					// Check if completePageAnalysis was called
+					const completeCall = toolCalls.find(
+						tc => tc.toolName === 'completePageAnalysis',
+					);
+
+					if (completeCall) {
+						analysisCompleted = true;
+					}
+				} else {
+					// Model finished without tool calls
+					break;
+				}
 			}
 
-			// Parse complete response
-			const fullResponse = chunks.join('');
-			return parseAnalysisResponse(fullResponse, prompt.pageUrl);
-		} finally {
-			// Clean up timeout
-			clearTimeout(timeout);
+			// If analysis was not completed properly, complete it now
+			if (!analysisCompleted) {
+				const state = this.reportBuilder.getCurrentState();
+				if (state.currentPageAnalysis) {
+					this.reportBuilder.completePageAnalysis();
+				}
+			}
+
+			// Get the completed analysis from report builder
+			const state = this.reportBuilder.getCurrentState();
+			const completedAnalysis =
+				// eslint-disable-next-line unicorn/prefer-at
+				state.completedAnalyses[state.completedAnalyses.length - 1];
+
+			if (!completedAnalysis) {
+				throw new Error('Failed to complete page analysis');
+			}
+
+			onProgress?.('complete');
+
+			return completedAnalysis;
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : 'Unknown error';
+
+			// Reset current page analysis on error
+			this.reportBuilder.reset();
+			this.reportBuilder.setPersona(config.persona);
+
+			return {
+				pageUrl: page.url,
+				features: page.features,
+				snapshot: '',
+				findings: [],
+				analysisTimestamp: startTime,
+				status: 'failed',
+				error: errorMessage,
+			};
 		}
-	});
+	}
+
+	/**
+	 * Create report building tools for LLM
+	 */
+	private createReportTools(outputPath: string) {
+		const {reportBuilder} = this;
+
+		return {
+			addFinding: tool({
+				description:
+					'Add a UX finding to the current page analysis. Call this for each issue you identify.',
+				inputSchema: UxFindingSchema,
+				async execute(input) {
+					reportBuilder.addFinding(input);
+					return {
+						success: true,
+						message: 'Finding added successfully',
+						currentFindingsCount:
+							reportBuilder.getCurrentState().currentPageAnalysis?.findings
+								?.length ?? 0,
+					};
+				},
+			}),
+
+			setPageSnapshot: tool({
+				description:
+					'Set the accessibility tree snapshot for the current page. Call this after using browser_snapshot.',
+				inputSchema: z.object({
+					snapshot: z.string(),
+				}),
+				async execute({snapshot}) {
+					reportBuilder.setPageSnapshot(snapshot);
+					return {
+						success: true,
+						message: 'Snapshot saved successfully',
+					};
+				},
+			}),
+
+			completePageAnalysis: tool({
+				description:
+					'Complete the analysis for the current page. Call this when you have finished analyzing all UX aspects.',
+				inputSchema: z.object({}),
+				async execute() {
+					const completedAnalysis = reportBuilder.completePageAnalysis();
+					return {
+						success: true,
+						message: 'Page analysis completed',
+						pageUrl: completedAnalysis.pageUrl,
+						findingsCount: completedAnalysis.findings.length,
+					};
+				},
+			}),
+
+			writeReportToFile: tool({
+				description:
+					'Write the final UX analysis report to a file. Call this after completing all page analyses to save the report.',
+				inputSchema: z.object({
+					filepath: z
+						.string()
+						.optional()
+						.describe(
+							'Optional custom output path. Uses config default if not provided.',
+						),
+				}),
+				async execute({filepath}) {
+					const report = reportBuilder.generateFinalReport();
+					const markdown = generateMarkdownReport(report);
+					const finalPath = filepath ?? outputPath;
+
+					await writeFile(finalPath, markdown, 'utf8');
+
+					return {
+						success: true,
+						message: 'Report written successfully',
+						path: finalPath,
+						totalFindings: report.metadata.totalFindings,
+						analyzedPages: report.metadata.analyzedPages.length,
+					};
+				},
+			}),
+		};
+	}
+
+	/**
+	 * Build system prompt for UX analysis
+	 */
+	private buildSystemPrompt(config: UxLintConfig): string {
+		const personaText = config.persona;
+
+		return `You are an expert UX analyst. Your task is to analyze web pages for usability issues and provide actionable recommendations.
+
+## Target Persona
+${personaText}
+
+## Analysis Workflow
+1. Navigate to the target URL using the browser_navigate tool
+2. Take a snapshot of the page using browser_snapshot tool to understand the page structure
+3. Save the snapshot using setPageSnapshot tool
+4. Analyze the page from the persona's perspective
+5. For each UX issue you identify, call addFinding tool with details
+6. When you have completed your analysis, call completePageAnalysis tool
+7. After analyzing all pages, call writeReportToFile to save the final report
+
+## UX Categories to Evaluate
+- Accessibility (WCAG compliance, screen reader support)
+- Navigation (clarity, consistency, ease of use)
+- Visual Design (contrast, typography, spacing)
+- Content (clarity, readability, information architecture)
+- Interaction (form usability, feedback, error handling)
+- Performance (perceived speed, loading states)
+- Mobile Responsiveness (if applicable)
+
+## Tool Usage
+- Use addFinding for EACH issue you discover (call multiple times)
+- Use setPageSnapshot ONCE after browser_snapshot
+- Use completePageAnalysis ONCE when analysis is finished
+- Use writeReportToFile ONCE after all pages are analyzed to save the report
+
+Each finding should include:
+- severity: 'critical' | 'high' | 'medium' | 'low'
+- category: The issue category
+- description: Clear description of the issue
+- personaRelevance: Which personas are affected
+- recommendation: Specific actionable fix
+- pageUrl: The URL where the issue was found`;
+	}
+
+	/**
+	 * Build user prompt for a specific page
+	 */
+	private buildUserPrompt(page: Page): string {
+		return `Please analyze the following page for UX issues:
+
+URL: ${page.url}
+
+Page Features/Context:
+${page.features}
+
+Instructions:
+1. First, navigate to the URL using browser_navigate
+2. Use browser_snapshot to capture the page structure
+3. Save the snapshot using setPageSnapshot
+4. Analyze the page thoroughly from the persona's perspective
+5. Call addFinding for each UX issue you identify
+6. When complete, call completePageAnalysis`;
+	}
 }
+
+/**
+ * Singleton instance of AIService
+ */
+export const aiService = new AIService(languageModel, mcpClient, reportBuilder);
