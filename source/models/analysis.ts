@@ -126,9 +126,9 @@ export type ReportMetadata = {
 	totalFindings: number;
 
 	/**
-	 * Persona descriptions from config
+	 * Persona description from config
 	 */
-	personas: string[];
+	persona: string;
 };
 
 /**

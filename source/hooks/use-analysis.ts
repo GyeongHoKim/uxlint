@@ -1,14 +1,14 @@
 /**
  * UseAnalysis Hook
- * Thin wrapper around AnalysisOrchestrator for React state management
+ * Thin wrapper around AIService singleton for React state management
  *
  * @packageDocumentation
  */
 
-import {useState, useCallback, useRef} from 'react';
+import {useCallback, useRef, useState} from 'react';
+import type {AnalysisStage, AnalysisState} from '../models/analysis.js';
 import type {UxLintConfig} from '../models/config.js';
-import type {AnalysisState} from '../models/analysis.js';
-import {AnalysisOrchestrator} from '../services/analysis-orchestrator.js';
+import {aiService} from '../services/ai-service.js';
 
 /**
  * State change callback type
@@ -34,13 +34,12 @@ export type UseAnalysisResult = {
 
 /**
  * UseAnalysis Hook
- * Manages analysis state and delegates to AnalysisOrchestrator
+ * Manages analysis state and delegates to AIService
  *
  * @param config - UxLint configuration
  * @returns Analysis state and control functions
  */
 export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
-	// Initialize state
 	const [analysisState, setAnalysisState] = useState<AnalysisState>({
 		currentPageIndex: 0,
 		totalPages: config.pages.length,
@@ -94,29 +93,60 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 
 	/**
 	 * Run analysis workflow
-	 * Delegates to AnalysisOrchestrator service
+	 * Uses AIService singleton with Manual Agent Loop pattern
 	 */
 	const runAnalysis = useCallback(async () => {
-		const orchestrator = new AnalysisOrchestrator();
-
 		try {
-			// Update state based on progress
-			const report = await orchestrator.analyzePages(config, progress => {
+			// Process each page sequentially - await in loop is intentional
+			for (let i = 0; i < config.pages.length; i++) {
+				const page = config.pages[i];
+
+				if (!page) continue;
+
+				// Update state - navigating
 				updateAnalysisState(previous => ({
 					...previous,
-					currentPageIndex: progress.currentPageIndex,
-					currentStage: progress.stage,
+					currentPageIndex: i,
+					currentStage: 'navigating',
 				}));
-			});
 
-			// Complete
+				// Analyze page with progress callback
+				// eslint-disable-next-line no-await-in-loop
+				const pageAnalysis = await aiService.analyzePage(
+					config,
+					page,
+					(stage: AnalysisStage, _message?: string) => {
+						updateAnalysisState(previous => ({
+							...previous,
+							currentStage: stage,
+						}));
+					},
+				);
+
+				// Update state with analysis result
+				updateAnalysisState(previous => ({
+					...previous,
+					analyses: [...previous.analyses, pageAnalysis],
+				}));
+			}
+
+			// Generate report
+			updateAnalysisState(previous => ({
+				...previous,
+				currentStage: 'generating-report',
+			}));
+
+			// Get report builder and generate final report
+			const reportBuilder = aiService.getReportBuilder();
+			const report = reportBuilder.generateFinalReport();
+
+			// Update state with report
 			updateAnalysisState(previous => ({
 				...previous,
 				currentStage: 'complete',
 				report,
 			}));
 		} catch (error) {
-			// Fatal error - log for debugging
 			const analysisError =
 				error instanceof Error ? error : new Error('Unknown error');
 
@@ -125,6 +155,9 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 				currentStage: 'error',
 				error: analysisError,
 			}));
+		} finally {
+			// Cleanup AI Service
+			await aiService.close();
 		}
 	}, [config, updateAnalysisState]);
 

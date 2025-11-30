@@ -5,17 +5,7 @@
  * @packageDocumentation
  */
 
-import {writeFile} from 'node:fs/promises';
 import type {FindingSeverity, UxReport} from '../../models/analysis.js';
-
-/**
- * Report generation options
- */
-export type ReportOptions = {
-	outputPath: string;
-	includeDetailedFindings?: boolean;
-	includePersonaBreakdown?: boolean;
-};
 
 /**
  * Severity emoji mapping
@@ -92,8 +82,8 @@ export function generateMarkdownReport(report: UxReport): string {
 		`| ${severityEmoji.medium} Medium | ${severityCounts.medium} |`,
 		`| ${severityEmoji.low} Low | ${severityCounts.low} |`,
 		'',
-		'**Target Personas**:',
-		...metadata.personas.map((p: string) => `- ${p}`),
+		'**Target Persona**:',
+		`- ${metadata.persona}`,
 		'',
 		'## Page Analyses\n',
 	);
@@ -162,16 +152,4 @@ export function generateMarkdownReport(report: UxReport): string {
 	sections.push('---\n', `Generated on ${formatTimestamp(metadata.timestamp)}`);
 
 	return sections.join('\n');
-}
-
-/**
- * Write report directly to file system
- * Saves markdown report to specified path
- */
-export async function writeReportToFile(
-	report: UxReport,
-	options: ReportOptions,
-): Promise<void> {
-	const markdown = generateMarkdownReport(report);
-	await writeFile(options.outputPath, markdown, 'utf8');
 }
