@@ -5,6 +5,7 @@ import meow from 'meow';
 import App from './app.js';
 import {findConfigFile} from './infrastructure/config/config-io.js';
 import {loadEnvConfig} from './infrastructure/config/env-config.js';
+import {logger} from './infrastructure/logger.js';
 
 const cli = meow(
 	`
@@ -58,5 +59,36 @@ if (configExists && !cli.flags.interactive) {
 	// Normal mode: fallback
 	mode = 'normal';
 }
+
+// Log application startup
+logger.info('UXLint started', {
+	mode,
+	cwd: process.cwd(),
+	configExists,
+});
+
+// Register exit handlers for logging shutdown
+process.on('exit', code => {
+	logger.info('UXLint exiting', {
+		exitCode: code,
+		mode,
+	});
+});
+
+// Handle uncaught errors
+process.on('uncaughtException', error => {
+	logger.error('Uncaught exception', {
+		error: error.message,
+		stack: error.stack,
+	});
+	process.exit(1);
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+	logger.error('Unhandled rejection', {
+		reason: reason instanceof Error ? reason.message : String(reason),
+	});
+	process.exit(1);
+});
 
 render(<App mode={mode} />);
