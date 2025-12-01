@@ -6,14 +6,12 @@
  * @packageDocumentation
  */
 
-import {writeFile} from 'node:fs/promises';
 import {type experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {type LanguageModelV2} from '@ai-sdk/provider';
 import {generateText, tool, type ModelMessage} from 'ai';
 import {z} from 'zod/v4';
 import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
 import type {Page, UxLintConfig} from '../models/config.js';
-import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
 import {logger} from '../infrastructure/logger.js';
 import {languageModel} from './llm-provider.js';
 import {mcpClient} from './mcp-client.js';
@@ -110,7 +108,7 @@ class AIService {
 			const userPrompt = this.buildUserPrompt(page);
 
 			// Create report building tools
-			const reportTools = this.createReportTools(config.report.output);
+			const reportTools = this.createReportTools();
 
 			// Combine MCP tools with report tools
 			const tools = {
@@ -135,8 +133,8 @@ class AIService {
 
 				onProgress?.('analyzing', `Analysis iteration ${iterations}`);
 
-				// Log AI request if debug mode is enabled
-				logger.debug('AI Request', {
+				// Log AI request
+				logger.info('AI Request', {
 					context: `Page Analysis - ${page.url} - Iteration ${iterations}`,
 					request: {systemPrompt, messages},
 				});
@@ -149,8 +147,8 @@ class AIService {
 					tools,
 				});
 
-				// Log AI response if debug mode is enabled
-				logger.debug('AI Response', {
+				// Log AI response
+				logger.info('AI Response', {
 					context: `Page Analysis - ${page.url} - Iteration ${iterations}`,
 					response: {
 						text: result.text,
@@ -176,10 +174,32 @@ class AIService {
 					if (completeCall) {
 						analysisCompleted = true;
 					}
-				} else {
-					// Model finished without tool calls
-					break;
+
+					// Continue loop to process tool results
+					continue;
 				}
+
+				// Handle stop or other finish reasons
+				if (result.finishReason === 'stop') {
+					const state = this.reportBuilder.getCurrentState();
+					const shouldRemind =
+						state.currentPageAnalysis &&
+						!analysisCompleted &&
+						iterations < MAX_AGENT_ITERATIONS;
+
+					if (shouldRemind) {
+						// Add a reminder message to prompt completion
+						messages.push({
+							role: 'user',
+							content:
+								'Please complete your analysis by calling addFinding for any UX issues you identified, then call completePageAnalysis to finish.',
+						});
+						continue;
+					}
+				}
+
+				// Break loop for stop or other finish reasons
+				break;
 			}
 
 			// If analysis was not completed properly, complete it now
@@ -226,13 +246,14 @@ class AIService {
 	/**
 	 * Create report building tools for LLM
 	 */
-	private createReportTools(outputPath: string) {
+	private createReportTools() {
 		const {reportBuilder} = this;
 
 		return {
 			addFinding: tool({
-				description:
-					'Add a UX finding to the current page analysis. Call this for each issue you identify.',
+				description: `Add a UX finding to the current page analysis. Call this once for each UX issue you identify (typically 3-10 issues per page).
+
+Usage: Call this tool multiple times, once per issue. Do not batch findings together.`,
 				inputSchema: UxFindingSchema,
 				async execute(input) {
 					reportBuilder.addFinding(input);
@@ -248,7 +269,7 @@ class AIService {
 
 			setPageSnapshot: tool({
 				description:
-					'Set the accessibility tree snapshot for the current page. Call this after using browser_snapshot.',
+					'Save the page snapshot data. Call this once per page after using browser_snapshot to capture the page structure.',
 				inputSchema: z.object({
 					snapshot: z.string(),
 				}),
@@ -263,7 +284,7 @@ class AIService {
 
 			completePageAnalysis: tool({
 				description:
-					'Complete the analysis for the current page. Call this when you have finished analyzing all UX aspects.',
+					'Mark the current page analysis as complete. REQUIRED: You MUST call this tool when you have finished analyzing all UX aspects and reporting findings. The analysis is not complete until you call this.',
 				inputSchema: z.object({}),
 				async execute() {
 					const completedAnalysis = reportBuilder.completePageAnalysis();
@@ -275,34 +296,6 @@ class AIService {
 					};
 				},
 			}),
-
-			writeReportToFile: tool({
-				description:
-					'Write the final UX analysis report to a file. Call this after completing all page analyses to save the report.',
-				inputSchema: z.object({
-					filepath: z
-						.string()
-						.optional()
-						.describe(
-							'Optional custom output path. Uses config default if not provided.',
-						),
-				}),
-				async execute({filepath}) {
-					const report = reportBuilder.generateFinalReport();
-					const markdown = generateMarkdownReport(report);
-					const finalPath = filepath ?? outputPath;
-
-					await writeFile(finalPath, markdown, 'utf8');
-
-					return {
-						success: true,
-						message: 'Report written successfully',
-						path: finalPath,
-						totalFindings: report.metadata.totalFindings,
-						analyzedPages: report.metadata.analyzedPages.length,
-					};
-				},
-			}),
 		};
 	}
 
@@ -310,64 +303,45 @@ class AIService {
 	 * Build system prompt for UX analysis
 	 */
 	private buildSystemPrompt(config: UxLintConfig): string {
-		const personaText = config.persona;
-
-		return `You are an expert UX analyst. Your task is to analyze web pages for usability issues and provide actionable recommendations.
+		return `You are an expert UX analyst specializing in comprehensive web usability analysis.
 
 ## Target Persona
-${personaText}
+${config.persona}
 
-## Analysis Workflow
-1. Navigate to the target URL using the browser_navigate tool
-2. Take a snapshot of the page using browser_snapshot tool to understand the page structure
-3. Save the snapshot using setPageSnapshot tool
-4. Analyze the page from the persona's perspective
-5. For each UX issue you identify, call addFinding tool with details
-6. When you have completed your analysis, call completePageAnalysis tool
-7. After analyzing all pages, call writeReportToFile to save the final report
-
-## UX Categories to Evaluate
-- Accessibility (WCAG compliance, screen reader support)
-- Navigation (clarity, consistency, ease of use)
-- Visual Design (contrast, typography, spacing)
-- Content (clarity, readability, information architecture)
-- Interaction (form usability, feedback, error handling)
-- Performance (perceived speed, loading states)
-- Mobile Responsiveness (if applicable)
-
-## Tool Usage
-- Use addFinding for EACH issue you discover (call multiple times)
-- Use setPageSnapshot ONCE after browser_snapshot
-- Use completePageAnalysis ONCE when analysis is finished
-- Use writeReportToFile ONCE after all pages are analyzed to save the report
-
-Each finding should include:
-- severity: 'critical' | 'high' | 'medium' | 'low'
-- category: The issue category
-- description: Clear description of the issue
-- personaRelevance: Which personas are affected
-- recommendation: Specific actionable fix
-- pageUrl: The URL where the issue was found`;
+Analyze pages from this persona's perspective, identifying usability issues across: Accessibility, Navigation, Visual Design, Content, Interaction, Performance, and Mobile Responsiveness.`;
 	}
 
 	/**
 	 * Build user prompt for a specific page
 	 */
 	private buildUserPrompt(page: Page): string {
-		return `Please analyze the following page for UX issues:
+		return `Analyze this page for UX issues:
 
 URL: ${page.url}
 
 Page Features/Context:
 ${page.features}
 
-Instructions:
-1. First, navigate to the URL using browser_navigate
-2. Use browser_snapshot to capture the page structure
-3. Save the snapshot using setPageSnapshot
-4. Analyze the page thoroughly from the persona's perspective
-5. Call addFinding for each UX issue you identify
-6. When complete, call completePageAnalysis`;
+## Workflow - Complete ALL Steps
+
+**Step 1: Navigate and Capture**
+1. Call browser_navigate to load the page
+2. Call browser_snapshot to capture the page structure
+3. Call setPageSnapshot with the snapshot data
+
+**Step 2: Analyze and Document**
+4. Thoroughly analyze the page from the persona's perspective
+5. For EACH UX issue found, immediately call addFinding
+   - Report 3-10 issues per page typically
+   - Call addFinding once per issue (do not batch)
+   - Cover multiple UX categories
+
+**Step 3: Complete**
+6. Call completePageAnalysis when finished
+   - This is REQUIRED to complete the analysis
+   - Do not stop until you call this tool
+
+IMPORTANT: You MUST call completePageAnalysis before finishing. The analysis is not complete until this tool is called.`;
 	}
 }
 
