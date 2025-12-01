@@ -13,8 +13,8 @@ import {z} from 'zod/v4';
 import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import {logger} from '../infrastructure/logger.js';
-import {languageModel} from './llm-provider.js';
-import {mcpClient} from './mcp-client.js';
+import {getLanguageModel} from './llm-provider.js';
+import {getMCPClient} from './mcp-client.js';
 import {reportBuilder, type ReportBuilder} from './report-builder.js';
 
 /**
@@ -348,4 +348,24 @@ IMPORTANT: You MUST call completePageAnalysis before finishing. The analysis is 
 /**
  * Singleton instance of AIService
  */
-export const aiService = new AIService(languageModel, mcpClient, reportBuilder);
+let aiServiceInstance: AIService | undefined;
+
+/**
+ * Get or create AIService instance (lazy initialization)
+ */
+export async function getAIService(): Promise<AIService> {
+	if (!aiServiceInstance) {
+		const model = await getLanguageModel();
+		const client = await getMCPClient();
+		aiServiceInstance = new AIService(model, client, reportBuilder);
+	}
+
+	return aiServiceInstance;
+}
+
+/**
+ * Reset AIService instance (useful for testing)
+ */
+export function resetAIService(): void {
+	aiServiceInstance = undefined;
+}
