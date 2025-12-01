@@ -1,7 +1,0 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
-
-exports[`AnalysisRunner visual snapshots single page config snapshot: analysis-runner-single-page 1`] = `
-"Idle
-
-https://example.com"
-`;
