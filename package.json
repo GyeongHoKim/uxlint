@@ -38,8 +38,8 @@
 		"build": "tsc --project tsconfig.build.json",
 		"dev": "tsc --watch",
 		"compile": "tsc --noEmit",
-		"test": "prettier --check . && xo && cross-env NODE_OPTIONS=--experimental-vm-modules jest --forceExit",
-		"test:coverage": "prettier --check . && xo && cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage --forceExit",
+		"test": "prettier --check . && xo && ava",
+		"test:coverage": "prettier --check . && xo && c8 --reporter=html --reporter=text ava",
 		"lint": "xo",
 		"format": "prettier --write .",
 		"prepare": "husky",
@@ -74,9 +74,9 @@
 		"zod": "^4.1.12"
 	},
 	"devDependencies": {
+		"@ava/typescript": "^6.0.0",
 		"@commitlint/cli": "^20.1.0",
 		"@commitlint/config-conventional": "^20.0.0",
-		"@jest/globals": "^30.2.0",
 		"@semantic-release/changelog": "^6.0.3",
 		"@semantic-release/commit-analyzer": "^13.0.1",
 		"@semantic-release/git": "^10.0.1",
@@ -84,10 +84,11 @@
 		"@semantic-release/npm": "^12.0.2",
 		"@semantic-release/release-notes-generator": "^14.1.0",
 		"@sindresorhus/tsconfig": "^3.0.1",
-		"@types/jest": "^29.5.12",
 		"@types/js-yaml": "^4.0.9",
 		"@types/react": "^18.0.32",
 		"@vdemedes/prettier-config": "^2.0.1",
+		"ava": "^6.4.1",
+		"c8": "^10.1.3",
 		"chalk": "^5.2.0",
 		"cross-env": "^10.1.0",
 		"eslint-config-xo-react": "^0.27.0",
@@ -95,14 +96,26 @@
 		"eslint-plugin-react-hooks": "^4.6.0",
 		"husky": "^9.1.7",
 		"ink-testing-library": "^3.0.0",
-		"jest": "^30.2.0",
 		"prettier": "^2.8.8",
 		"rimraf": "^6.0.1",
 		"semantic-release": "^24.2.9",
-		"ts-jest": "^29.4.5",
 		"ts-node": "^10.9.1",
 		"tsimp": "2.0.12",
 		"typescript": "5.5.4",
 		"xo": "^1.2.2"
+	},
+	"c8": {
+		"include": [
+			"source/**/*.{ts,tsx}"
+		],
+		"exclude": [
+			"tests/**",
+			"dist/**",
+			"node_modules/**"
+		],
+		"lines": 80,
+		"functions": 80,
+		"branches": 80,
+		"statements": 80
 	}
 }
