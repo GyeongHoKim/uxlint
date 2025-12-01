@@ -21,9 +21,9 @@ This application uses the MCP (Model Context Protocol) for communication. **NEVE
 - Semantic release for versioning
 - Winston for file-only logging (MCP-safe)
 
-**Constitutional Principles** (see `.specify/memory/constitution.md` v1.1.0):
+**Constitutional Principles** (see `.specify/memory/constitution.md` v1.2.0):
 1. Code Quality Gates (compile → format → lint sequence) — NON-NEGOTIABLE
-2. Test-First Development (Unit tests for models, visual regression for components) — NON-NEGOTIABLE
+2. Test-First Development (Unit tests for models, visual regression for components, mock-based tests for LLM integrations) — NON-NEGOTIABLE
 3. UX Consistency via Persona-First Design (with Ink ecosystem library discovery via GitHub MCP)
 4. Performance Accountability (measurable goals)
 5. Simplicity & Minimalism (justify complexity)
@@ -68,7 +68,7 @@ npm run lint          # Check linting rules (zero violations required)
 
 **Execution Order**: compile → format → lint. Running format before lint prevents formatting-related linting violations.
 
-These quality gates are enforced by the project constitution (v1.1.0) and prevent commits with type errors, linting violations, or formatting inconsistencies. Do not bypass linting by using `// eslint-disable-next-line` or modifying the linting rules.
+These quality gates are enforced by the project constitution (v1.2.0) and prevent commits with type errors, linting violations, or formatting inconsistencies. Do not bypass linting by using `// eslint-disable-next-line` or modifying the linting rules.
 
 ### Local Testing
 
@@ -95,6 +95,7 @@ node dist/cli.js
 **Testing Strategy** (Constitution II: Test-First Development):
 - **Models** (pure TypeScript classes/functions): Unit tests using Ava
 - **Components** (React/Ink UI): Visual regression tests using ink-testing-library
+- **Language Model Integrations**: Mock-based tests using AI SDK test helpers (`MockLanguageModelV3` from `ai/test`)
 - Tests MUST be written and approved BEFORE implementation
 - Tests MUST fail initially (red phase) before implementation begins
 - Coverage threshold: 80% via c8
