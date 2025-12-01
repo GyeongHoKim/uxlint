@@ -1,3 +1,20 @@
+# [2.2.0](https://github.com/GyeongHoKim/uxlint/compare/v2.1.0...v2.2.0) (2025-12-01)
+
+
+### Bug Fixes
+
+* add yml format handling ([0e61c9e](https://github.com/GyeongHoKim/uxlint/commit/0e61c9e1fa3af89f5c9cec5697c3368eee389085))
+* improve system prompt, file generation ([9248595](https://github.com/GyeongHoKim/uxlint/commit/92485957e20d992acc398bc59965fc5b59687644))
+* remove hardcoded version information ([c49182d](https://github.com/GyeongHoKim/uxlint/commit/c49182d9db8660f41aa2aa472829140b60150e6a))
+* top-level await ([a6258d0](https://github.com/GyeongHoKim/uxlint/commit/a6258d0b8faf30774cd1d29d1c075053467f42f4))
+
+
+### Features
+
+* add winston log module ([f77ed65](https://github.com/GyeongHoKim/uxlint/commit/f77ed650809952742083d76cc697b9d66d5b4108))
+* make persona field single ([3e7cfd9](https://github.com/GyeongHoKim/uxlint/commit/3e7cfd9db135f83a7a7796c2ecbe0ee9c9d05f6e))
+* migration to ava & ava/typescript ([3403c88](https://github.com/GyeongHoKim/uxlint/commit/3403c885e349d9f3baa99cb73d81148acca6512d))
+
 # [2.1.0](https://github.com/GyeongHoKim/uxlint/compare/v2.0.0...v2.1.0) (2025-11-06)
 
 
