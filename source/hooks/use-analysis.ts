@@ -5,9 +5,11 @@
  * @packageDocumentation
  */
 
+import {writeFile} from 'node:fs/promises';
 import {useCallback, useRef, useState} from 'react';
 import type {AnalysisStage, AnalysisState} from '../models/analysis.js';
 import type {UxLintConfig} from '../models/config.js';
+import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
 import {aiService} from '../services/ai-service.js';
 
 /**
@@ -45,7 +47,6 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 		totalPages: config.pages.length,
 		currentStage: 'idle',
 		analyses: [],
-		report: undefined,
 		error: undefined,
 	});
 
@@ -140,11 +141,14 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 			const reportBuilder = aiService.getReportBuilder();
 			const report = reportBuilder.generateFinalReport();
 
-			// Update state with report
+			// Write report to file
+			const markdown = generateMarkdownReport(report);
+			await writeFile(config.report.output, markdown, 'utf8');
+
+			// Update state to complete
 			updateAnalysisState(previous => ({
 				...previous,
 				currentStage: 'complete',
-				report,
 			}));
 		} catch (error) {
 			const analysisError =

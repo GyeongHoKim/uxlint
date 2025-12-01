@@ -198,11 +198,6 @@ export type AnalysisState = {
 	analyses: PageAnalysis[];
 
 	/**
-	 * Final report (undefined until complete)
-	 */
-	report?: UxReport;
-
-	/**
 	 * Fatal error that aborts entire analysis
 	 */
 	error?: Error;
@@ -246,17 +241,10 @@ export function isPageAnalysisFailed(analysis: PageAnalysis): boolean {
  * Check if entire analysis workflow is complete
  *
  * @param state - Analysis state to check
- * @returns true if analysis is complete with report generated
- *
- * @example
- * ```typescript
- * if (isAnalysisComplete(state)) {
- *   await writeReportToFile(state.report!);
- * }
- * ```
+ * @returns true if analysis is complete
  */
 export function isAnalysisComplete(state: AnalysisState): boolean {
-	return state.currentStage === 'complete' && state.report !== undefined;
+	return state.currentStage === 'complete';
 }
 
 /**
