@@ -33,58 +33,14 @@ npx @gyeonghokim/uxlint
 
 ## Environment Setup
 
-uxlint requires configuration for AI analysis and browser automation. Set up your environment:
-
-1. Copy the example environment file:
+Copy and edit the example environment file
 
 ```bash
 cp .env.example .env
+vim .env
 ```
 
-Or if you're using the tool via npx, create a `.env` file manually in your project root.
-
-2. Edit `.env` and configure your AI provider:
-
-```bash
-# AI Service Configuration
-# Choose your AI provider (default: anthropic)
-UXLINT_AI_PROVIDER=anthropic  # Options: anthropic, openai, ollama, xai, google
-
-# Anthropic Configuration (required if using anthropic)
-# Get your API key from https://console.anthropic.com/
-UXLINT_ANTHROPIC_API_KEY=your_anthropic_api_key_here
-
-# OpenAI Configuration (required if using openai)
-# Get your API key from https://platform.openai.com/api-keys
-# UXLINT_OPENAI_API_KEY=your_openai_api_key_here
-
-# Ollama Configuration (required if using ollama)
-# Base URL for your local Ollama server
-# UXLINT_OLLAMA_BASE_URL=http://localhost:11434/api
-
-# xAI (Grok) Configuration (required if using xai)
-# Get your API key from https://x.ai/
-# UXLINT_XAI_API_KEY=your_xai_api_key_here
-
-# Google (Gemini) Configuration (required if using google)
-# Get your API key from https://ai.google.dev/
-# UXLINT_GOOGLE_API_KEY=your_google_api_key_here
-
-# Optional: Customize AI model
-# Defaults: claude-sonnet-4-5-20250929 (anthropic), gpt-5 (openai), qwen3-vl (ollama), grok-4 (xai), gemini-2.5-pro (google)
-UXLINT_AI_MODEL=claude-sonnet-4-5-20250929
-
-# MCP Server Configuration
-# uxlint uses @ai-sdk/mcp for browser automation via Model Context Protocol
-# The LLM automatically calls browser tools to navigate pages and capture screenshots
-MCP_SERVER_COMMAND=npx
-MCP_SERVER_ARGS=@playwright/mcp@latest
-MCP_BROWSER=chrome
-MCP_HEADLESS=true
-MCP_TIMEOUT=30000
-```
-
-**AI Provider Configuration:**
+### AI Provider Configuration
 
 Choose one of the following providers:
 
@@ -129,19 +85,6 @@ Choose one of the following providers:
 - `MCP_BROWSER`: Browser type for automation - chrome, firefox, webkit, msedge (default: chrome)
 - `MCP_HEADLESS`: Run browser in headless mode - true/false (default: true)
 - `MCP_TIMEOUT`: Operation timeout in milliseconds (default: 30000)
-
-### How MCP Integration Works
-
-uxlint uses the official [@ai-sdk/mcp](https://www.npmjs.com/package/@ai-sdk/mcp) integration from Vercel AI SDK. The LLM automatically:
-
-1. **Navigates** to your page URLs using `browser_navigate` tool
-2. **Captures screenshots** with `browser_take_screenshot` for visual analysis
-3. **Gets accessibility tree** via `browser_snapshot` for semantic structure
-4. **Analyzes** the combined visual and structural data against your personas
-
-This multi-turn tool calling happens automatically—you just provide the URLs and configuration.
-
-**⚠️ Security Note:** `MCP_SERVER_COMMAND` executes arbitrary commands. Only use trusted MCP servers. The default Playwright MCP server from `@playwright/mcp` is maintained by Anthropic and is safe to use.
 
 ## Quick start
 
@@ -204,32 +147,87 @@ Required fields are marked as required. All text fields accept natural language.
 - `pages` (array, required): Per-page descriptions to guide analysis.
   - `url` (string, required): Page URL, must match one of the listed URLs.
   - `features` (string, required): Freeform description of key tasks/flows/components on the page.
-- `personas` (string[], required): One or more persona descriptions. Each string can be a short paragraph describing goals, motives, accessibility needs, devices, constraints, etc.
+- `persona` (string, required): Can be a short paragraph describing goals, motives, accessibility needs, devices, constraints, etc.
 - `report` (object, required): Report output configuration.
   - `output` (string, required): File path where the report will be written (e.g., `./ux-report.md`).
 
 ### Example: YAML
 
 ```yaml
-mainPageUrl: 'https://example.com'
+mainPageUrl: 'https://github.com'
 subPageUrls:
-  - 'https://example.com/pricing'
-  - 'https://example.com/signup'
+  - 'https://github.com/login'
+  - 'https://github.com/explore'
+  - 'https://github.com/pricing'
+  - 'https://github.com/signup'
 pages:
-  - url: 'https://example.com'
+  - url: 'https://github.com'
     features: >-
-      Landing page communicates the core value proposition with a hero CTA "Start free".
-      Secondary navigation to docs and pricing. Social proof logos. Responsive layout on mobile.
-  - url: 'https://example.com/signup'
+      GitHub landing page. User interactions: 1. Scroll down to view features
+      section showcasing code hosting, collaboration tools, and integrations. 2.
+      Click "Sign up" button located in the top right corner to navigate to
+      signup page. 3. Use top navigation menu to access "Product", "Solutions",
+      "Pricing", and "Enterprise" pages. 4. View trending repositories section
+      showing popular open source projects. 5. Use search bar at the top to
+      search for repositories, users, or topics.
+  - url: 'https://github.com/login'
     features: >-
-      Email sign-up form with password strength meter. Google OAuth option.
-      Error messages for invalid email and weak password. Terms checkbox.
-personas:
-  - >-
-    "Startup founder Alice" — Time-constrained, evaluates tools quickly on mobile.
-    Values clear pricing, short signup, and credibility signals.
-  - >-
-    "Enterprise admin Bob" — Desktop-first, cares about security, SSO, and auditability.
+      GitHub login page. User interaction steps: 1. Locate the username or email
+      input field and type your GitHub username or email address. 2. Locate the
+      password input field and type your password. 3. Optionally check the
+      "Remember me" checkbox to stay logged in. 4. Click the "Sign in" button to
+      submit the form. If two-factor authentication is enabled, enter the 2FA
+      code when prompted. After successful login, user will be redirected to
+      their dashboard.
+  - url: 'https://github.com/explore'
+    features: >-
+      GitHub Explore page showing trending repositories and topics. User
+      interactions: 1. Browse trending repositories: Scroll through the list of
+      trending repositories showing repository name, description, language, and
+      star count. Click on any repository to view its details. 2. Explore topics:
+      Click on topic tags to see repositories related to that topic. Topics are
+      displayed as clickable badges. 3. Filter by language: Use the language
+      filter dropdown to filter repositories by programming language (e.g.,
+      JavaScript, Python, Java). 4. View collections: Scroll to see curated
+      collections of repositories organized by theme or purpose. Click on a
+      collection to view its contents. 5. Search: Use the search bar at the top
+      to search for specific repositories, users, or topics.
+  - url: 'https://github.com/pricing'
+    features: >-
+      GitHub pricing page displaying subscription plans. User interactions: 1.
+      View pricing tiers: The page displays pricing cards for Free, Team, and
+      Enterprise plans with feature comparisons. Each plan shows monthly and
+      annual pricing. 2. Toggle billing period: Click the toggle switch or
+      buttons to switch between monthly and annual billing. Prices update
+      automatically to show discounts for annual plans. 3. Compare features: Scroll
+      down to view detailed feature comparison table showing what's included in
+      each plan. 4. Select a plan: Click "Get started with Team" or "Contact
+      Sales" button on a pricing card to proceed with that plan. 5. View FAQ:
+      Scroll down to view FAQ section about billing, plan features, and
+      migration. Click on FAQ items to expand and view answers.
+  - url: 'https://github.com/signup'
+    features: >-
+      GitHub signup page for new user registration. User interaction steps: 1.
+      Enter username: Locate the username input field and type a desired
+      username. The system will check availability in real-time and show
+      feedback. 2. Enter email address: Locate the email input field and type an
+      email address. 3. Enter password: Locate the password field and type a
+      password. Observe the password strength indicator showing requirements
+      (e.g., at least 8 characters, one lowercase letter, one number). 4. Email
+      preferences: Optionally check/uncheck boxes for receiving product updates
+      and announcements. 5. Verify account: Check the "Verify your account"
+      puzzle or CAPTCHA if presented. 6. Submit form: Click "Create account"
+      button to submit the registration. A verification email will be sent to
+      the provided email address. Click the link in the email to verify and
+      complete registration.
+persona: >-
+  You are a developer looking to host your open source project on GitHub. You
+  want to understand how easy it is to get started, explore existing projects,
+  and set up your repository. Your approach: First, visit the pricing page to
+  understand what features are available in the free plan. Next, explore the
+  Explore page to see what kinds of projects are popular and get inspiration.
+  Then, sign up for a free account to start hosting your own projects. Finally,
+  log in to access your dashboard and create your first repository.
 report:
   output: './ux-report.md'
 ```
@@ -238,182 +236,41 @@ report:
 
 ```json
 {
-	"mainPageUrl": "https://example.com",
-	"subPageUrls": ["https://example.com/pricing", "https://example.com/signup"],
+	"mainPageUrl": "https://github.com",
+	"subPageUrls": [
+		"https://github.com/login",
+		"https://github.com/explore",
+		"https://github.com/pricing",
+		"https://github.com/signup"
+	],
 	"pages": [
 		{
-			"url": "https://example.com",
-			"features": "Landing page communicates the core value proposition with a hero CTA \"Start free\". Secondary navigation to docs and pricing. Social proof logos. Responsive layout on mobile."
+			"url": "https://github.com",
+			"features": "GitHub landing page. User interactions: 1. Scroll down to view features section showcasing code hosting, collaboration tools, and integrations. 2. Click \"Sign up\" button located in the top right corner to navigate to signup page. 3. Use top navigation menu to access \"Product\", \"Solutions\", \"Pricing\", and \"Enterprise\" pages. 4. View trending repositories section showing popular open source projects. 5. Use search bar at the top to search for repositories, users, or topics."
 		},
 		{
-			"url": "https://example.com/signup",
-			"features": "Email sign-up form with password strength meter. Google OAuth option. Error messages for invalid email and weak password. Terms checkbox."
+			"url": "https://github.com/login",
+			"features": "GitHub login page. User interaction steps: 1. Locate the username or email input field and type your GitHub username or email address. 2. Locate the password input field and type your password. 3. Optionally check the \"Remember me\" checkbox to stay logged in. 4. Click the \"Sign in\" button to submit the form. If two-factor authentication is enabled, enter the 2FA code when prompted. After successful login, user will be redirected to their dashboard."
+		},
+		{
+			"url": "https://github.com/explore",
+			"features": "GitHub Explore page showing trending repositories and topics. User interactions: 1. Browse trending repositories: Scroll through the list of trending repositories showing repository name, description, language, and star count. Click on any repository to view its details. 2. Explore topics: Click on topic tags to see repositories related to that topic. Topics are displayed as clickable badges. 3. Filter by language: Use the language filter dropdown to filter repositories by programming language (e.g., JavaScript, Python, Java). 4. View collections: Scroll to see curated collections of repositories organized by theme or purpose. Click on a collection to view its contents. 5. Search: Use the search bar at the top to search for specific repositories, users, or topics."
+		},
+		{
+			"url": "https://github.com/pricing",
+			"features": "GitHub pricing page displaying subscription plans. User interactions: 1. View pricing tiers: The page displays pricing cards for Free, Team, and Enterprise plans with feature comparisons. Each plan shows monthly and annual pricing. 2. Toggle billing period: Click the toggle switch or buttons to switch between monthly and annual billing. Prices update automatically to show discounts for annual plans. 3. Compare features: Scroll down to view detailed feature comparison table showing what's included in each plan. 4. Select a plan: Click \"Get started with Team\" or \"Contact Sales\" button on a pricing card to proceed with that plan. 5. View FAQ: Scroll down to view FAQ section about billing, plan features, and migration. Click on FAQ items to expand and view answers."
+		},
+		{
+			"url": "https://github.com/signup",
+			"features": "GitHub signup page for new user registration. User interaction steps: 1. Enter username: Locate the username input field and type a desired username. The system will check availability in real-time and show feedback. 2. Enter email address: Locate the email input field and type an email address. 3. Enter password: Locate the password field and type a password. Observe the password strength indicator showing requirements (e.g., at least 8 characters, one lowercase letter, one number). 4. Email preferences: Optionally check/uncheck boxes for receiving product updates and announcements. 5. Verify account: Check the \"Verify your account\" puzzle or CAPTCHA if presented. 6. Submit form: Click \"Create account\" button to submit the registration. A verification email will be sent to the provided email address. Click the link in the email to verify and complete registration."
 		}
 	],
-	"personas": [
-		"\"Startup founder Alice\" — Time-constrained, evaluates tools quickly on mobile. Values clear pricing, short signup, and credibility signals.",
-		"\"Enterprise admin Bob\" — Desktop-first, cares about security, SSO, and auditability."
-	],
+	"persona": "You are a developer looking to host your open source project on GitHub. You want to understand how easy it is to get started, explore existing projects, and set up your repository. Your approach: First, visit the pricing page to understand what features are available in the free plan. Next, explore the Explore page to see what kinds of projects are popular and get inspiration. Then, sign up for a free account to start hosting your own projects. Finally, log in to access your dashboard and create your first repository.",
 	"report": {
 		"output": "./ux-report.md"
 	}
 }
 ```
-
-## Writing effective inputs
-
-- Personas: Describe goals, motivations, constraints, devices, and accessibility needs. Example: “Mobile-first founder who scans pricing before trying the product.”
-- Features: Describe intended outcomes and key tasks, not just UI widgets. Add important states (empty states, errors, loading) and constraints.
-- Coverage: Include every page you want evaluated and keep `features` crisp and outcome-oriented.
-
-## Usage
-
-### Interactive mode
-
-```bash
-uxlint --interactive
-```
-
-If you haven't installed globally, use npx:
-
-```bash
-npx @gyeonghokim/uxlint --interactive
-```
-
-The wizard validates your input at each step and provides helpful error messages if validation fails. You can save your configuration to a YAML or JSON file at the end of the wizard for future use.
-
-### With configuration file
-
-Run from the directory that contains `.uxlintrc.yml` or `.uxlintrc.json`:
-
-```bash
-uxlint
-```
-
-Or with npx:
-
-```bash
-npx @gyeonghokim/uxlint
-```
-
-The command exits after writing the report to the configured path.
-
-## Output
-
-- The report is written to the `report.output` path you provide.
-- You can use a `.md` path to keep results versioned in your repo.
-
-## Troubleshooting
-
-### Configuration Issues
-
-- **Config not found**: Ensure the file name is exactly `.uxlintrc.yml` or `.uxlintrc.json` and that you run the command from the same directory.
-- **Invalid config**: Validate your YAML/JSON syntax and required fields.
-- **Network reachability**: Confirm the listed URLs are publicly accessible from your environment.
-
-### AI Provider Issues
-
-- **Missing API key error**:
-
-  - For Anthropic: Set `UXLINT_ANTHROPIC_API_KEY` in your `.env` file
-  - For OpenAI: Set `UXLINT_OPENAI_API_KEY` in your `.env` file
-  - For xAI: Set `UXLINT_XAI_API_KEY` in your `.env` file
-  - For Google: Set `UXLINT_GOOGLE_API_KEY` in your `.env` file
-  - Make sure `UXLINT_AI_PROVIDER` matches your chosen provider
-
-- **Invalid provider error**:
-
-  - Verify `UXLINT_AI_PROVIDER` is one of: `anthropic`, `openai`, `ollama`, `xai`, or `google`
-  - Check for typos in the provider name
-
-- **Ollama connection issues**:
-
-  - Ensure Ollama is installed and running: `ollama serve`
-  - Verify the base URL is correct (default: `http://localhost:11434/api`)
-  - Check that your chosen model is pulled: `ollama pull qwen3-vl`
-  - Try accessing the Ollama API directly: `curl http://localhost:11434/api/tags`
-  - **Model compatibility**: Ensure your model supports both vision and tool calling
-    - Use `qwen3-vl`, `qwen2-vl:7b` or `qwen2-vl:2b` for best compatibility
-    - Models like `llama3.2-vision` lack tool calling support and will fail
-    - Models like `llama3.1` lack vision support and cannot analyze screenshots
-
-- **Model not found**:
-  - For Anthropic: Check available models at https://docs.anthropic.com/en/docs/models-overview
-  - For OpenAI: Check available models at https://platform.openai.com/docs/models
-  - For Ollama: List available models with `ollama list` and pull if needed
-  - For xAI: Check available models at https://docs.x.ai/
-  - For Google: Check available models at https://ai.google.dev/gemini-api/docs/models
-
-### MCP/Browser Automation Issues
-
-- **MCP client initialization fails**:
-
-  - Check that npx is installed and available in your PATH
-  - Verify `MCP_SERVER_COMMAND` and `MCP_SERVER_ARGS` are correctly configured
-  - Try running the MCP server manually: `npx @playwright/mcp@latest`
-
-- **Browser automation errors**:
-
-  - Ensure the target URLs are accessible from your network
-  - Try setting `MCP_HEADLESS=false` to see what the browser is doing
-  - Increase `MCP_TIMEOUT` if pages are slow to load (default: 30000ms)
-  - Check that the specified `MCP_BROWSER` is installed on your system
-
-- **Tool calling not working**:
-
-  - Verify you're using a supported AI model (claude-3-5-sonnet-20241022 recommended)
-  - Check that `UXLINT_ANTHROPIC_API_KEY` is valid and has sufficient credits
-  - Look for console logs showing tool calls: `[AI] Tool calls: browser_navigate, ...`
-
-- **Empty or incomplete analysis**:
-  - The LLM requires screenshots for visual analysis—if navigation fails, analysis will be limited
-  - Check browser console logs for navigation errors
-  - Verify the page doesn't require authentication or special cookies
-
-## Security & privacy
-
-- Provide only URLs and descriptions you are comfortable sending for analysis.
-- Avoid including sensitive or personal data in persona and feature descriptions.
-
-## Migration Guide
-
-### Upgrading to v1.1.0+ (@ai-sdk/mcp Integration)
-
-If you're upgrading from an earlier version, note these improvements:
-
-**What Changed:**
-
-- Migrated from custom MCP client to official `@ai-sdk/mcp` integration
-- LLM now automatically uses browser tools via multi-turn conversation
-- Improved architecture with proper dependency injection
-
-**Action Required:**
-
-1. **Update environment variables** (if customized):
-
-   ```bash
-   # Old (still works, but deprecated)
-   MCP_SERVER_COMMAND=npx
-
-   # New (recommended)
-   MCP_SERVER_COMMAND=npx
-   MCP_SERVER_ARGS=@playwright/mcp@latest
-   ```
-
-2. **No code changes needed**: Your `.uxlintrc.yml` / `.uxlintrc.json` files work without modification
-
-**What You Get:**
-
-- ✅ Automatic tool calling - LLM directly uses browser automation
-- ✅ Better type safety with official AI SDK types
-- ✅ More reliable screenshot capture for visual analysis
-- ✅ Improved error handling and logging
-
-**Breaking Changes:**
-
-- None! This is a backward-compatible architectural improvement
-
-If you experience issues after upgrading, check the [Troubleshooting](#troubleshooting) section or [open an issue](https://github.com/GyeongHoKim/uxlint/issues).
 
 ## Roadmap
 
