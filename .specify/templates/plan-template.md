@@ -31,7 +31,7 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Verify compliance with uxlint Constitution v1.1.0:
+Verify compliance with uxlint Constitution v1.2.0:
 
 **I. Code Quality Gates** (NON-NEGOTIABLE):
 - [ ] `npm run compile && npm run format && npm run lint` sequence will be run after all code changes
@@ -39,7 +39,8 @@ Verify compliance with uxlint Constitution v1.1.0:
 
 **II. Test-First Development** (NON-NEGOTIABLE):
 - [ ] Tests will be written BEFORE implementation
-- [ ] Testing strategy defined: Unit tests (Ava) for models, visual regression (ink-testing-library) for components
+- [ ] Testing strategy defined: Unit tests (Ava) for models, visual regression (ink-testing-library) for components, mock-based tests for language model integrations
+- [ ] Language model tests use MockLanguageModelV3 from `ai/test`
 - [ ] 80% coverage target via c8
 
 **III. UX Consistency**:

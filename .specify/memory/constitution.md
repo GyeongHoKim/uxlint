@@ -1,20 +1,20 @@
 <!--
 Sync Impact Report:
-Version: 1.0.0 → 1.1.0 (MINOR - Enhanced testing standards and UX library discovery guidance)
+Version: 1.1.0 → 1.2.0 (MINOR - Added language model testing standards using AI SDK mock providers)
 
 Modified principles:
-  - II. Test-First Development → Enhanced with specific testing strategies (unit for models, visual regression for components)
-  - III. UX Consistency via Persona-First Design → Enhanced with GitHub MCP tool requirement for Ink library discovery
+  - II. Test-First Development → Enhanced with language model testing guidance using MockLanguageModelV3
 
-Added sections: None
+Added sections:
+  - Testing Language Models (subsection under Code Quality Standards)
 
 Removed sections: None
 
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md - Constitution Check section updated with v1.1.0 gates and testing strategies
-  ✅ .specify/templates/spec-template.md - Testing strategies guidance added to User Scenarios section
-  ✅ .specify/templates/tasks-template.md - Test requirements updated from OPTIONAL to MANDATORY with strategy details
-  ✅ CLAUDE.md - Updated to reference v1.1.0, corrected quality gate sequence (compile→format→lint), added testing strategies
+  ✅ .specify/templates/plan-template.md - Constitution Check section updated with v1.2.0
+  ✅ .specify/templates/spec-template.md - Testing strategies include language model testing
+  ✅ .specify/templates/tasks-template.md - Test requirements include language model testing approach
+  ✅ CLAUDE.md - Updated to reference v1.2.0 with language model testing standards
 
 Follow-up TODOs: None - All templates synchronized
 -->
@@ -41,13 +41,14 @@ Test-Driven Development is mandatory for all features with specific strategies:
 **Testing Strategies**:
 - **Models** (pure TypeScript classes/functions): Unit tests using Ava
 - **Components** (React/Ink UI): Visual regression tests using ink-testing-library
+- **Language Model Integrations**: Mock-based tests using AI SDK test helpers (see Testing Language Models section)
 - Tests written and user-approved BEFORE implementation begins
 - Tests MUST fail initially (red phase)
 - Implementation proceeds to make tests pass (green phase)
 - Refactoring follows with tests ensuring stability
 - Coverage threshold: minimum 80% via c8
 
-**Rationale**: TDD ensures requirements are testable, reduces defects, and creates living documentation. Pre-approved failing tests validate understanding before effort is invested in implementation. Separating unit and visual regression tests ensures appropriate testing approaches for business logic vs UI behavior.
+**Rationale**: TDD ensures requirements are testable, reduces defects, and creates living documentation. Pre-approved failing tests validate understanding before effort is invested in implementation. Separating unit, visual regression, and language model mock tests ensures appropriate testing approaches for business logic, UI behavior, and AI integrations.
 
 ### III. UX Consistency via Persona-First Design
 
@@ -100,6 +101,88 @@ Complexity MUST be justified before introduction:
 - Ava for unit and visual regression tests with tsimp for TypeScript support
 - c8 for coverage reporting (80% minimum)
 - ink-testing-library for component testing
+- AI SDK test helpers for language model testing
+
+### Testing Language Models
+
+Language model integrations MUST use mock-based testing to ensure deterministic, fast, and cost-effective tests:
+
+**Required Approach**:
+- Import test helpers from `ai/test`: `MockLanguageModelV3`, `simulateReadableStream`, `mockId`, `mockValues`
+- Use `MockLanguageModelV3` to mock language model responses in unit tests
+- Control output with `doGenerate` for synchronous calls or `doStream` for streaming responses
+- Test both success and failure scenarios without calling actual LLM providers
+
+**Rationale**: Language models are non-deterministic, slow, and expensive to call. Mock providers enable repeatable, deterministic testing of AI-powered features without API costs or network dependencies. This ensures tests run quickly in CI/CD and remain stable across environments.
+
+**Examples**:
+
+Testing `generateText`:
+```typescript
+import { generateText } from 'ai';
+import { MockLanguageModelV3 } from 'ai/test';
+
+const result = await generateText({
+  model: new MockLanguageModelV3({
+    doGenerate: async () => ({
+      finishReason: 'stop',
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      content: [{ type: 'text', text: 'Hello, world!' }],
+      warnings: [],
+    }),
+  }),
+  prompt: 'Hello, test!',
+});
+```
+
+Testing `streamText`:
+```typescript
+import { streamText, simulateReadableStream } from 'ai';
+import { MockLanguageModelV3 } from 'ai/test';
+
+const result = streamText({
+  model: new MockLanguageModelV3({
+    doStream: async () => ({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: 'text-start', id: 'text-1' },
+          { type: 'text-delta', id: 'text-1', delta: 'Hello' },
+          { type: 'text-delta', id: 'text-1', delta: ', ' },
+          { type: 'text-delta', id: 'text-1', delta: 'world!' },
+          { type: 'text-end', id: 'text-1' },
+          {
+            type: 'finish',
+            finishReason: 'stop',
+            logprobs: undefined,
+            usage: { inputTokens: 3, outputTokens: 10, totalTokens: 13 },
+          },
+        ],
+      }),
+    }),
+  }),
+  prompt: 'Hello, test!',
+});
+```
+
+Testing `generateObject`:
+```typescript
+import { generateObject } from 'ai';
+import { MockLanguageModelV3 } from 'ai/test';
+import { z } from 'zod';
+
+const result = await generateObject({
+  model: new MockLanguageModelV3({
+    doGenerate: async () => ({
+      finishReason: 'stop',
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      content: [{ type: 'text', text: '{"content":"Hello, world!"}' }],
+      warnings: [],
+    }),
+  }),
+  schema: z.object({ content: z.string() }),
+  prompt: 'Hello, test!',
+});
+```
 
 **Commit Standards**:
 - Conventional Commits enforced via commitlint
@@ -116,7 +199,7 @@ Complexity MUST be justified before introduction:
 
 **Feature Development Cycle**:
 1. Write specification with persona mapping and performance goals
-2. Write tests (unit for models, visual regression for components) and get approval
+2. Write tests (unit for models, visual regression for components, mocks for LLM integrations) and get approval
 3. Verify tests fail (red phase)
 4. Implement to pass tests (green phase)
 5. Refactor with test safety net
@@ -129,6 +212,7 @@ Complexity MUST be justified before introduction:
 - Complexity justifications validated
 - Performance goals met or explicitly deferred with rationale
 - Test coverage meets threshold
+- Language model integrations tested with mocks
 
 **Dependency Management**:
 - Node >=18.18.0 required
@@ -157,4 +241,4 @@ Complexity MUST be justified before introduction:
 - `CLAUDE.md` MUST reference constitutional principles
 - Constitutional updates propagate to `CLAUDE.md` within 24 hours
 
-**Version**: 1.1.0 | **Ratified**: 2025-10-08 | **Last Amended**: 2025-10-08
+**Version**: 1.2.0 | **Ratified**: 2025-10-08 | **Last Amended**: 2025-12-01
