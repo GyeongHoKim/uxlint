@@ -10,7 +10,7 @@ import {useCallback, useRef, useState} from 'react';
 import type {AnalysisStage, AnalysisState} from '../models/analysis.js';
 import type {UxLintConfig} from '../models/config.js';
 import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
-import {aiService} from '../services/ai-service.js';
+import {getAIService} from '../services/ai-service.js';
 
 /**
  * State change callback type
@@ -98,6 +98,9 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 	 */
 	const runAnalysis = useCallback(async () => {
 		try {
+			// Get AI Service instance (lazy initialization)
+			const aiService = await getAIService();
+
 			// Process each page sequentially - await in loop is intentional
 			for (let i = 0; i < config.pages.length; i++) {
 				const page = config.pages[i];
@@ -161,6 +164,7 @@ export function useAnalysis(config: UxLintConfig): UseAnalysisResult {
 			}));
 		} finally {
 			// Cleanup AI Service
+			const aiService = await getAIService();
 			await aiService.close();
 		}
 	}, [config, updateAnalysisState]);

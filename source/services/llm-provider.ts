@@ -2,6 +2,11 @@ import {type LanguageModelV2} from '@ai-sdk/provider';
 import {loadEnvConfig} from '../infrastructure/config/env-config.js';
 
 /**
+ * Singleton instance of language model
+ */
+let languageModelInstance: LanguageModelV2 | undefined;
+
+/**
  * Create language model based on environment configuration
  */
 async function createLanguageModel(): Promise<LanguageModelV2> {
@@ -39,4 +44,17 @@ async function createLanguageModel(): Promise<LanguageModelV2> {
 	}
 }
 
-export const languageModel = await createLanguageModel();
+/**
+ * Get or create language model instance (lazy initialization)
+ */
+export async function getLanguageModel(): Promise<LanguageModelV2> {
+	languageModelInstance ??= await createLanguageModel();
+	return languageModelInstance;
+}
+
+/**
+ * Reset language model instance (useful for testing)
+ */
+export function resetLanguageModel(): void {
+	languageModelInstance = undefined;
+}
