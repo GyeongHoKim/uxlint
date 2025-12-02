@@ -145,6 +145,23 @@ export class InputProcessingError extends UxlintError {
 }
 
 /**
+ * Error thrown when configuration file is not found in CI mode
+ */
+export class MissingConfigError extends UxlintError {
+	get code() {
+		return 'MISSING_CONFIG_ERROR';
+	}
+
+	constructor() {
+		super(
+			'Configuration file not found. Use --interactive flag to create one, ' +
+				'or create .uxlintrc.yml or .uxlintrc.json in the current directory.',
+		);
+		this.name = 'MissingConfigError';
+	}
+}
+
+/**
  * Error thrown when configuration is invalid
  */
 export class ConfigurationError extends UxlintError {

@@ -3,9 +3,15 @@ import process from 'node:process';
 import {render, Text} from 'ink';
 import meow from 'meow';
 import App from './app.js';
-import {findConfigFile} from './infrastructure/config/config-io.js';
+import {UxlintMachineContext} from './contexts/uxlint-context.js';
+import {
+	findConfigFile,
+	readConfigFile,
+	parseConfigFile,
+} from './infrastructure/config/config-io.js';
 import {loadEnvConfig} from './infrastructure/config/env-config.js';
 import {logger} from './infrastructure/logger.js';
+import {isUxLintConfig, type UxLintConfig} from './models/config.js';
 
 const cli = meow(
 	`
@@ -33,36 +39,55 @@ const cli = meow(
 	},
 );
 
+/**
+ * Detect config file format from path
+ */
+function getConfigFormat(path: string): 'json' | 'yaml' | 'yml' {
+	if (path.endsWith('.json')) {
+		return 'json';
+	}
+
+	if (path.endsWith('.yaml')) {
+		return 'yaml';
+	}
+
+	return 'yml';
+}
+
 // Check for existing config file
-const configExists = findConfigFile(process.cwd()) !== undefined;
+const configPath = findConfigFile(process.cwd());
+const configExists = configPath !== undefined;
 
-// Determine mode: analysis (config + not interactive) | interactive | normal
-let mode: 'analysis' | 'interactive' | 'normal';
-
-if (configExists && !cli.flags.interactive) {
-	// Analysis mode: config exists and interactive not requested
-	mode = 'analysis';
-
-	// Validate environment for analysis mode
+// Load config if it exists
+let preloadedConfig: UxLintConfig | undefined;
+if (configExists && configPath) {
 	try {
-		loadEnvConfig();
+		// Validate environment for analysis mode (only in non-interactive mode)
+		if (!cli.flags.interactive) {
+			loadEnvConfig();
+		}
+
+		const configContent = readConfigFile(configPath);
+		const format = getConfigFormat(configPath);
+		const parsed = parseConfigFile(configContent, format);
+
+		if (isUxLintConfig(parsed)) {
+			preloadedConfig = parsed;
+		} else {
+			render(<Text color="red">Error: Invalid configuration file format</Text>);
+			process.exit(1);
+		}
 	} catch (error) {
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error';
 		render(<Text color="red">Error: {errorMessage}</Text>);
 		process.exit(1);
 	}
-} else if (cli.flags.interactive || !configExists) {
-	// Interactive mode: explicitly requested OR no config
-	mode = 'interactive';
-} else {
-	// Normal mode: fallback
-	mode = 'normal';
 }
 
 // Log application startup
 logger.info('UXLint started', {
-	mode,
+	interactive: cli.flags.interactive,
 	cwd: process.cwd(),
 	configExists,
 });
@@ -71,7 +96,7 @@ logger.info('UXLint started', {
 process.on('exit', code => {
 	logger.info('UXLint exiting', {
 		exitCode: code,
-		mode,
+		interactive: cli.flags.interactive,
 	});
 });
 
@@ -91,4 +116,17 @@ process.on('unhandledRejection', (reason: unknown) => {
 	process.exit(1);
 });
 
-render(<App mode={mode} />);
+// Render App with XState machine context
+render(
+	<UxlintMachineContext.Provider
+		options={{
+			input: {
+				interactive: cli.flags.interactive,
+				configExists,
+				config: preloadedConfig,
+			},
+		}}
+	>
+		<App />
+	</UxlintMachineContext.Provider>,
+);
