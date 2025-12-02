@@ -1,12 +1,19 @@
 import process from 'node:process';
 import {config as dotenvConfig} from 'dotenv';
 import {Box, Text} from 'ink';
-import {AnalysisRunner, ConfigWizard, Header} from './components/index.js';
+import {useEffect} from 'react';
+import {
+	AnalysisRunner,
+	ConfigWizard,
+	Header,
+	ReportBuilder,
+} from './components/index.js';
 import {
 	UxlintMachineContext,
 	matchesStatePath,
 	useUxlintContext,
 } from './contexts/uxlint-context.js';
+import type {UxReport} from './machines/uxlint-machine.js';
 import type {UxLintConfig} from './models/config.js';
 import {defaultTheme} from './models/theme.js';
 
@@ -14,8 +21,9 @@ import {defaultTheme} from './models/theme.js';
 dotenvConfig();
 
 /**
- * Main App component
+ * Main App component (Interactive mode only)
  * Uses XState machine context to determine what to render
+ * CI mode is handled by ci-runner.ts without using Ink
  */
 export default function App() {
 	const stateValue = UxlintMachineContext.useSelector(state => state.value);
@@ -31,6 +39,22 @@ export default function App() {
 	const handleWizardCancel = () => {
 		actorRef.send({type: 'WIZARD_CANCEL'});
 	};
+
+	// Handle process exit when done state is reached
+	// Using useEffect to avoid triggering updates during render
+	useEffect(() => {
+		if (stateValue === 'done') {
+			// Small delay to ensure UI updates are complete
+			const timer = setTimeout(() => {
+				process.exit(context.exitCode === 0 ? 0 : 1);
+			}, 100);
+			return () => {
+				clearTimeout(timer);
+			};
+		}
+
+		return undefined;
+	}, [stateValue, context.exitCode]);
 
 	// Render based on current state
 
@@ -60,41 +84,16 @@ export default function App() {
 		return (
 			<Box flexDirection="column" gap={1}>
 				<Header theme={defaultTheme} />
-				<AnalysisRunner theme={defaultTheme} config={config} />
-			</Box>
-		);
-	}
-
-	// CI: AnalyzeWithoutUI state
-	if (matchesStatePath(stateValue, 'ci.analyzeWithoutUI')) {
-		const {config} = context;
-		if (!config) {
-			return (
-				<Box flexDirection="column" gap={1}>
-					<Text color="red">Error: No configuration available</Text>
-				</Box>
-			);
-		}
-
-		// Minimal UI for CI mode - just show that analysis is running
-		return (
-			<Box flexDirection="column" gap={1}>
-				<Text>Running UX analysis...</Text>
-				<AnalysisRunner theme={defaultTheme} config={config} />
-			</Box>
-		);
-	}
-
-	// CI: Error state
-	if (matchesStatePath(stateValue, 'ci.error')) {
-		const errorMessage =
-			context.error?.message ?? 'Configuration file not found';
-		return (
-			<Box flexDirection="column" gap={1}>
-				<Text color="red">Error: {errorMessage}</Text>
-				<Text dimColor>
-					Use --interactive flag to create a configuration file.
-				</Text>
+				<AnalysisRunner
+					theme={defaultTheme}
+					config={config}
+					onComplete={(result: UxReport) => {
+						actorRef.send({type: 'ANALYSIS_COMPLETE', result});
+					}}
+					onError={(error: Error) => {
+						actorRef.send({type: 'ANALYSIS_ERROR', error});
+					}}
+				/>
 			</Box>
 		);
 	}
@@ -102,22 +101,27 @@ export default function App() {
 	// ReportBuilder state
 	if (stateValue === 'reportBuilder') {
 		return (
-			<Box flexDirection="column" gap={1}>
-				<Text color="green">Analysis complete!</Text>
-				<Text>Generating report...</Text>
-			</Box>
+			<ReportBuilder
+				theme={defaultTheme}
+				onComplete={() => {
+					actorRef.send({type: 'REPORT_COMPLETE'});
+				}}
+				onError={error => {
+					actorRef.send({type: 'REPORT_ERROR', error});
+				}}
+			/>
 		);
 	}
 
-	// Done state
+	// Done state - show completion message while waiting for exit
 	if (stateValue === 'done') {
-		if (context.exitCode === 0) {
-			process.exit(0);
-		} else {
-			process.exit(1);
-		}
-
-		return null;
+		return (
+			<Box flexDirection="column" gap={1}>
+				<Text color={context.exitCode === 0 ? 'green' : 'red'}>
+					{context.exitCode === 0 ? '✓ Done!' : '✗ Completed with errors'}
+				</Text>
+			</Box>
+		);
 	}
 
 	// Loading/Checking states
