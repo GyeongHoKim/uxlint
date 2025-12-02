@@ -6,9 +6,6 @@
 // Error classes
 export * from './errors.js';
 
-// Validation engine
-export * from './validation-engine.js';
-
 // Theme system
 export * from './theme.js';
 
@@ -22,7 +19,4 @@ export * from './wizard-state.js';
 export * from './config-builder.js';
 
 // Commonly used types for convenience
-export type {Validator} from './validation-engine.js';
-export {validationEngine} from './validation-engine.js';
-
 export type {Page, Persona, ReportConfig, UxLintConfig} from './config.js';
