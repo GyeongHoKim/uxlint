@@ -5,17 +5,15 @@
 
 import {ConfirmInput, Select} from '@inkjs/ui';
 import {Box, Text} from 'ink';
-import React, {useEffect, useState} from 'react';
-import {useWizard} from '../hooks/use-wizard.js';
+import {useEffect, useState} from 'react';
+import {useConfigWizard} from '../hooks/use-config-wizard.js';
 import {
 	getDefaultReportPath,
 	saveConfigToFile,
 } from '../infrastructure/config/config-io.js';
 import {buildConfig} from '../models/config-builder.js';
-import type {Page} from '../models/config.js';
 import type {ThemeConfig, UxLintConfig} from '../models/index.js';
-import {validationEngine} from '../models/validation-engine.js';
-import type {WizardAction, WizardState} from '../models/wizard-state.js';
+import type {WizardState} from '../models/wizard-state.js';
 import {ConfigSummary} from './config-summary.js';
 import {Header} from './header.js';
 import {PromptStep} from './prompt-step.js';
@@ -36,51 +34,23 @@ export type ConfigWizardProps = {
 function SubUrlsPhase({
 	theme,
 	state,
-	dispatch,
 	currentInput,
 	setCurrentInput,
 	error,
-	setError,
+	validateAndAddSubUrl,
 	setCurrentUrlIndex,
 }: {
 	readonly theme: ThemeConfig;
 	readonly state: Extract<WizardState, {phase: 'sub-urls'}>;
-	readonly dispatch: React.Dispatch<WizardAction>;
 	readonly currentInput: string;
 	readonly setCurrentInput: (value: string) => void;
 	readonly error: Error | undefined;
-	readonly setError: (error: Error | undefined) => void;
+	readonly validateAndAddSubUrl: (value: string) => boolean;
 	readonly setCurrentUrlIndex: (index: number) => void;
 }) {
-	const handleValidation = (validator: () => string): string | undefined => {
-		try {
-			setError(undefined);
-			return validator();
-		} catch (error_) {
-			setError(error_ instanceof Error ? error_ : new Error(String(error_)));
-			return undefined;
-		}
-	};
-
 	const handleAddUrl = (value: string) => {
-		// If empty value, user is done adding URLs
-		if (!value.trim()) {
-			dispatch({type: 'DONE_SUB_URLS'});
+		if (validateAndAddSubUrl(value)) {
 			setCurrentUrlIndex(0);
-			return;
-		}
-
-		const validated = handleValidation(() => validationEngine.url(value));
-		if (validated) {
-			// Check for duplicates
-			const allUrls = [state.data.mainPageUrl, ...state.data.subPageUrls];
-			if (allUrls.includes(validated)) {
-				setError(new Error('This URL has already been added'));
-				return;
-			}
-
-			dispatch({type: 'ADD_SUB_URL', payload: validated});
-			setCurrentInput('');
 		}
 	};
 
@@ -138,36 +108,20 @@ function SubUrlsPhase({
 function PersonaPhase({
 	theme,
 	state: _state,
-	dispatch,
 	currentInput,
 	setCurrentInput,
 	error,
-	setError,
+	validateAndSetPersona,
 }: {
 	readonly theme: ThemeConfig;
 	readonly state: Extract<WizardState, {phase: 'persona'}>;
-	readonly dispatch: React.Dispatch<WizardAction>;
 	readonly currentInput: string;
 	readonly setCurrentInput: (value: string) => void;
 	readonly error: Error | undefined;
-	readonly setError: (error: Error | undefined) => void;
+	readonly validateAndSetPersona: (value: string) => boolean;
 }) {
-	const handleValidation = (validator: () => string): string | undefined => {
-		try {
-			setError(undefined);
-			return validator();
-		} catch (error_) {
-			setError(error_ instanceof Error ? error_ : new Error(String(error_)));
-			return undefined;
-		}
-	};
-
 	const handleSetPersona = (value: string) => {
-		const validated = handleValidation(() => validationEngine.persona(value));
-		if (validated) {
-			dispatch({type: 'SET_PERSONA', payload: validated});
-			setCurrentInput('');
-		}
+		validateAndSetPersona(value);
 	};
 
 	return (
@@ -217,7 +171,7 @@ function SavePhase({
 }: {
 	readonly theme: ThemeConfig;
 	readonly state: Extract<WizardState, {phase: 'save'}>;
-	readonly dispatch: React.Dispatch<WizardAction>;
+	readonly dispatch: ReturnType<typeof useConfigWizard>['dispatch'];
 	readonly onComplete: (config: UxLintConfig) => void;
 	readonly setError: (error: Error | undefined) => void;
 	readonly setIsLoading: (loading: boolean) => void;
@@ -376,9 +330,19 @@ function SavePhase({
  * ```
  */
 export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
-	const {state, dispatch} = useWizard();
-	const [currentInput, setCurrentInput] = useState('');
-	const [error, setError] = useState<Error | undefined>();
+	const {
+		state,
+		currentInput,
+		error,
+		setCurrentInput,
+		validateAndSetMainUrl,
+		validateAndAddSubUrl,
+		validateAndAddPage,
+		validateAndSetPersona,
+		validateAndSetReportPath,
+		dispatch,
+		setError,
+	} = useConfigWizard();
 	const [isLoading, setIsLoading] = useState(false);
 	const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
 
@@ -393,17 +357,6 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 		}
 
 		return [];
-	};
-
-	// Handle validation errors
-	const handleValidation = (validator: () => string): string | undefined => {
-		try {
-			setError(undefined);
-			return validator();
-		} catch (error_) {
-			setError(error_ instanceof Error ? error_ : new Error(String(error_)));
-			return undefined;
-		}
 	};
 
 	// Render intro phase
@@ -447,11 +400,7 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 	// Render main URL phase
 	const renderMainUrl = () => {
 		const handleSubmit = (value: string) => {
-			const validated = handleValidation(() => validationEngine.url(value));
-			if (validated) {
-				dispatch({type: 'SET_MAIN_URL', payload: validated});
-				setCurrentInput('');
-			}
+			validateAndSetMainUrl(value);
 		};
 
 		return (
@@ -484,13 +433,12 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 		return (
 			<SubUrlsPhase
 				currentInput={currentInput}
-				dispatch={dispatch}
 				error={error}
 				setCurrentInput={setCurrentInput}
 				setCurrentUrlIndex={setCurrentUrlIndex}
-				setError={setError}
 				state={state}
 				theme={theme}
+				validateAndAddSubUrl={validateAndAddSubUrl}
 			/>
 		);
 	};
@@ -509,16 +457,7 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 		}
 
 		const handleSubmit = (value: string) => {
-			const validated = handleValidation(() =>
-				validationEngine.featureDescription(value),
-			);
-			if (validated) {
-				const page: Page = {
-					url: currentUrl,
-					features: validated,
-				};
-				dispatch({type: 'ADD_PAGE', payload: page});
-				setCurrentInput('');
+			if (validateAndAddPage(currentUrl, value)) {
 				setCurrentUrlIndex(currentUrlIndex + 1);
 			}
 		};
@@ -558,12 +497,11 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 		return (
 			<PersonaPhase
 				currentInput={currentInput}
-				dispatch={dispatch}
 				error={error}
 				setCurrentInput={setCurrentInput}
-				setError={setError}
 				state={state}
 				theme={theme}
+				validateAndSetPersona={validateAndSetPersona}
 			/>
 		);
 	};
@@ -575,15 +513,7 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 		const defaultPath = getDefaultReportPath();
 
 		const handleSubmit = (value: string) => {
-			const pathToValidate = value.trim() || defaultPath;
-			const validated = handleValidation(() =>
-				validationEngine.reportPath(pathToValidate),
-			);
-			if (validated) {
-				dispatch({type: 'SET_REPORT_OUTPUT', payload: validated});
-				dispatch({type: 'PROCEED_TO_SUMMARY'});
-				setCurrentInput('');
-			}
+			validateAndSetReportPath(value, defaultPath);
 		};
 
 		return (
