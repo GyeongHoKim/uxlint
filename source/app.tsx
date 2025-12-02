@@ -1,63 +1,62 @@
 import process from 'node:process';
 import {config as dotenvConfig} from 'dotenv';
 import {Box, Text} from 'ink';
-import {useState} from 'react';
+import {AnalysisRunner, ConfigWizard, Header} from './components/index.js';
 import {
-	AnalysisRunner,
-	ConfigWizard,
-	Header,
-	UserInput,
-	UserInputLabel,
-} from './components/index.js';
-import {useConfig} from './hooks/index.js';
+	UxlintMachineContext,
+	matchesStatePath,
+	useUxlintContext,
+} from './contexts/uxlint-context.js';
 import type {UxLintConfig} from './models/config.js';
 import {defaultTheme} from './models/theme.js';
-
-/**
- * App props
- */
-export type AppProps = {
-	readonly mode?: 'normal' | 'interactive' | 'analysis';
-};
 
 // Load environment variables from .env file
 dotenvConfig();
 
 /**
  * Main App component
+ * Uses XState machine context to determine what to render
  */
-export default function App({mode = 'normal'}: AppProps) {
-	const [inputValue, setInputValue] = useState('');
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState<string | undefined>(undefined);
+export default function App() {
+	const stateValue = UxlintMachineContext.useSelector(state => state.value);
+	const context = useUxlintContext();
+	const actorRef = UxlintMachineContext.useActorRef();
 
-	const {status: configStatus, config, error: configError} = useConfig();
+	// Handle wizard completion
+	const handleWizardComplete = (config: UxLintConfig) => {
+		actorRef.send({type: 'WIZARD_COMPLETE', config});
+	};
 
-	// Render analysis mode
-	if (mode === 'analysis') {
-		// Show loading state while config is being loaded
-		if (configStatus === 'loading') {
+	// Handle wizard cancellation
+	const handleWizardCancel = () => {
+		actorRef.send({type: 'WIZARD_CANCEL'});
+	};
+
+	// Render based on current state
+
+	// TTY: Wizard state
+	if (matchesStatePath(stateValue, 'tty.wizard')) {
+		return (
+			<ConfigWizard
+				theme={defaultTheme}
+				onComplete={handleWizardComplete}
+				onCancel={handleWizardCancel}
+			/>
+		);
+	}
+
+	// TTY: AnalyzeWithUI state
+	if (matchesStatePath(stateValue, 'tty.analyzeWithUI')) {
+		const config = context.config ?? context.wizardConfig;
+		if (!config) {
 			return (
 				<Box flexDirection="column" gap={1}>
 					<Header theme={defaultTheme} />
-					<Text color="yellow">Loading configuration...</Text>
+					<Text color="red">Error: No configuration available</Text>
 				</Box>
 			);
 		}
 
-		// Show error if config failed to load
-		if (configStatus === 'error' || !config) {
-			return (
-				<Box flexDirection="column" gap={1}>
-					<Header theme={defaultTheme} />
-					<Text color="red">
-						Configuration Error: {configError?.message ?? 'Config not found'}
-					</Text>
-				</Box>
-			);
-		}
-
-		// Run analysis with loaded config
 		return (
 			<Box flexDirection="column" gap={1}>
 				<Header theme={defaultTheme} />
@@ -66,103 +65,66 @@ export default function App({mode = 'normal'}: AppProps) {
 		);
 	}
 
-	// Render interactive wizard mode
-	if (mode === 'interactive') {
+	// CI: AnalyzeWithoutUI state
+	if (matchesStatePath(stateValue, 'ci.analyzeWithoutUI')) {
+		const {config} = context;
+		if (!config) {
+			return (
+				<Box flexDirection="column" gap={1}>
+					<Text color="red">Error: No configuration available</Text>
+				</Box>
+			);
+		}
+
+		// Minimal UI for CI mode - just show that analysis is running
 		return (
-			<ConfigWizard
-				theme={defaultTheme}
-				onComplete={(_config: UxLintConfig) => {
-					process.exit(0);
-				}}
-				onCancel={() => {
-					process.exit(0);
-				}}
-			/>
+			<Box flexDirection="column" gap={1}>
+				<Text>Running UX analysis...</Text>
+				<AnalysisRunner theme={defaultTheme} config={config} />
+			</Box>
 		);
 	}
 
-	// Normal mode - existing functionality
-	const handleSubmit = (value: string) => {
-		if (!value.trim()) {
-			setError('URL is required');
-			return;
+	// CI: Error state
+	if (matchesStatePath(stateValue, 'ci.error')) {
+		const errorMessage =
+			context.error?.message ?? 'Configuration file not found';
+		return (
+			<Box flexDirection="column" gap={1}>
+				<Text color="red">Error: {errorMessage}</Text>
+				<Text dimColor>
+					Use --interactive flag to create a configuration file.
+				</Text>
+			</Box>
+		);
+	}
+
+	// ReportBuilder state
+	if (stateValue === 'reportBuilder') {
+		return (
+			<Box flexDirection="column" gap={1}>
+				<Text color="green">Analysis complete!</Text>
+				<Text>Generating report...</Text>
+			</Box>
+		);
+	}
+
+	// Done state
+	if (stateValue === 'done') {
+		if (context.exitCode === 0) {
+			process.exit(0);
+		} else {
+			process.exit(1);
 		}
 
-		setError(undefined);
-		setIsLoading(true);
+		return null;
+	}
 
-		// Simulate async validation
-		setTimeout(() => {
-			setIsLoading(false);
-			if (!value.startsWith('http')) {
-				setError('Please enter a valid URL starting with http');
-			}
-		}, 2000);
-	};
-
-	const getInputVariant = () => {
-		if (isLoading) {
-			return {
-				variant: 'loading' as const,
-				loadingText: 'Validating URL...',
-				value: inputValue,
-			};
-		}
-
-		if (error) {
-			return {
-				variant: 'error' as const,
-				error: new Error(error),
-				value: inputValue,
-				placeholder: 'Enter a URL',
-			};
-		}
-
-		return {
-			variant: 'default' as const,
-			value: inputValue,
-			placeholder: 'Enter a URL',
-		};
-	};
-
+	// Loading/Checking states
 	return (
 		<Box flexDirection="column" gap={1}>
 			<Header theme={defaultTheme} />
-
-			{/* Configuration Status */}
-			{configStatus === 'loading' && (
-				<Box>
-					<Text color="yellow">Loading configuration...</Text>
-				</Box>
-			)}
-
-			{configStatus === 'error' && Boolean(configError) && (
-				<Box>
-					<Text color="red">Configuration Error: {configError.message}</Text>
-				</Box>
-			)}
-
-			{configStatus === 'success' && Boolean(config) && (
-				<Box flexDirection="column" gap={0}>
-					<Text color="green">✓ Configuration loaded successfully</Text>
-					<Text dimColor>Main Page: {config.mainPageUrl}</Text>
-					<Text dimColor>Pages: {config.pages.length}</Text>
-				</Box>
-			)}
-
-			{/* URL Input */}
-			<UserInputLabel
-				text="Website URL"
-				variant="required"
-				theme={defaultTheme}
-			/>
-			<UserInput
-				{...getInputVariant()}
-				theme={defaultTheme}
-				onChange={setInputValue}
-				onSubmit={handleSubmit}
-			/>
-			{/** 옵션 목록들 보여줘야 함 */}
+			<Text color="yellow">Initializing...</Text>
 		</Box>
 	);
 }
