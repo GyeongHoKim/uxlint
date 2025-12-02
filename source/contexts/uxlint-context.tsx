@@ -3,7 +3,7 @@
  * Provides global state management using XState actor context
  */
 import {createActorContext} from '@xstate/react';
-import {uxlintMachine} from '../machines/uxlint-machine.js';
+import {uxlintMachine} from '../models/uxlint-machine.js';
 
 /**
  * Context for the uxlint state machine

@@ -2,7 +2,7 @@
  * XState machine for uxlint CLI state management
  * Implements the state machine defined in README.md
  */
-import {setup, assign} from 'xstate';
+import {assign, setup} from 'xstate';
 import type {UxLintConfig} from '../models/config.js';
 import {MissingConfigError} from '../models/errors.js';
 
@@ -220,6 +220,7 @@ export const uxlintMachine = setup({
 				},
 				error: {
 					entry: ['createMissingConfigError'],
+					always: {target: '#uxlint.done'},
 				},
 			},
 		},
