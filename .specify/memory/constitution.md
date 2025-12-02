@@ -98,9 +98,10 @@ Complexity MUST be justified before introduction:
 - EditorConfig enforces consistent editor settings
 
 **Testing Requirements**:
-- Ava for unit and visual regression tests with tsimp for TypeScript support
+- Ava for unit and snapshot tests
+- @testing-library/react-hooks for custom hooks testing
 - c8 for coverage reporting (80% minimum)
-- ink-testing-library for component testing
+- ink-testing-library for component snapshot testing
 - AI SDK test helpers for language model testing
 
 ### Testing Language Models

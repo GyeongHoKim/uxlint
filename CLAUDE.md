@@ -79,6 +79,31 @@ node dist/cli.js
 
 ## Architecture
 
+### uxlint CLI State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+
+    IDLE --> TTY: --interactive flag is present
+    IDLE --> CI: --interactive flag is not present
+
+    %% TTY branch
+    TTY --> Wizard: uxlintrc file is not present
+    TTY --> AnalyzeWithUI: uxlintrc file is present
+    Wizard --> AnalyzeWithUI: uxlintrc file is created
+
+    %% CI branch
+    CI --> AnalyzeWithoutUI: uxlintrc file is present
+    CI --> Error: uxlintrc file is not present
+
+    %% After analysis, report is created
+    AnalyzeWithUI --> ReportBuilder: UxReport is created
+    AnalyzeWithoutUI --> ReportBuilder: UxReport is created
+
+    ReportBuilder --> [*]
+```
+
 ### Source Structure
 
 - `source/cli.tsx` - CLI entry point using meow for argument parsing; renders the Ink App component
