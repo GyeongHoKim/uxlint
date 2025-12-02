@@ -9,7 +9,7 @@ import {Box, Text} from 'ink';
 import {useEffect, useState} from 'react';
 import type {ThemeConfig} from '../models/theme.js';
 import type {UxLintConfig} from '../models/config.js';
-import type {UxReport} from '../machines/uxlint-machine.js';
+import type {UxReport} from '../models/uxlint-machine.js';
 import {useAnalysis} from '../hooks/use-analysis.js';
 import {AnalysisProgress} from './analysis-progress.js';
 

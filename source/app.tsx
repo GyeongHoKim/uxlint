@@ -13,12 +13,25 @@ import {
 	matchesStatePath,
 	useUxlintContext,
 } from './contexts/uxlint-context.js';
-import type {UxReport} from './machines/uxlint-machine.js';
+import type {UxReport} from './models/uxlint-machine.js';
 import type {UxLintConfig} from './models/config.js';
 import {defaultTheme} from './models/theme.js';
 
 // Load environment variables from .env file
 dotenvConfig();
+
+/**
+ * Delay before calling process.exit() after reaching 'done' state.
+ *
+ * This delay is necessary to:
+ * 1. Allow React/Ink to complete any pending UI updates
+ * 2. Ensure the final success/error message is rendered before exit
+ * 3. Prevent "cannot update during render" warnings from Ink
+ *
+ * Without this delay, the process might exit before the final UI state is painted,
+ * or React might log warnings about state updates during render.
+ */
+const EXIT_DELAY_MS = 100;
 
 /**
  * Main App component (Interactive mode only)
@@ -44,10 +57,9 @@ export default function App() {
 	// Using useEffect to avoid triggering updates during render
 	useEffect(() => {
 		if (stateValue === 'done') {
-			// Small delay to ensure UI updates are complete
 			const timer = setTimeout(() => {
 				process.exit(context.exitCode === 0 ? 0 : 1);
-			}, 100);
+			}, EXIT_DELAY_MS);
 			return () => {
 				clearTimeout(timer);
 			};

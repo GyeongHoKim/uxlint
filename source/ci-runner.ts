@@ -33,7 +33,7 @@ function createProgressCallback(
 
 /**
  * Run analysis in CI mode without any UI
- * Uses console.log/console.error for output
+ * All output goes to logger (log files) only
  */
 export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 	const {pages} = config;
@@ -46,15 +46,18 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 		reportOutput: config.report.output,
 	});
 
-	console.log(`Starting UX analysis for ${totalPages} page(s)...`);
-
 	try {
 		// Get AI Service instance
 		logger.debug('Initializing AI service');
 		const aiService = await getAIService();
 		logger.debug('AI service initialized');
 
-		// Process each page sequentially
+		// Process each page sequentially (not in parallel)
+		// Sequential processing is required because:
+		// 1. The Playwright MCP server manages a single browser instance
+		// 2. Each page analysis uses browser_navigate which changes the active page
+		// 3. Parallel execution would cause race conditions in the browser state
+		// 4. AI service maintains state (report builder) that accumulates findings
 		for (const [index, page] of pages.entries()) {
 			const currentPage = index + 1;
 			const pageStartTime = Date.now();
@@ -64,8 +67,6 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 				totalPages,
 				url: page.url,
 			});
-
-			console.log(`[${currentPage}/${totalPages}] Analyzing: ${page.url}`);
 
 			// Create progress callback with captured values
 			const progressCallback = createProgressCallback(currentPage, page.url);
@@ -81,13 +82,10 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 				url: page.url,
 				durationMs: pageDuration,
 			});
-
-			console.log(`[${currentPage}/${totalPages}] ✓ Complete`);
 		}
 
 		// Generate report
 		logger.info('Report generation started');
-		console.log('Generating report...');
 
 		const reportBuilder = aiService.getReportBuilder();
 		const report = reportBuilder.generateFinalReport();
@@ -103,8 +101,6 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 			totalDurationMs: totalDuration,
 			findingsCount: report.prioritizedFindings?.length ?? 0,
 		});
-
-		console.log(`✓ Report saved to: ${config.report.output}`);
 
 		// Cleanup
 		logger.debug('Cleaning up AI service');
@@ -123,7 +119,6 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 			elapsedMs: Date.now() - startTime,
 		});
 
-		console.error(`✗ Analysis failed: ${errorMessage}`);
 		process.exit(1);
 	}
 }

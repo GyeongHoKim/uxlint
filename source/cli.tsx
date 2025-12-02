@@ -152,9 +152,6 @@ if (cli.flags.interactive) {
 			cwd: process.cwd(),
 			searchedFiles: ['.uxlintrc.json', '.uxlintrc.yml', '.uxlintrc.yaml'],
 		});
-		console.error(
-			'Error: Configuration file not found. Use --interactive flag to create one, or create .uxlintrc.yml or .uxlintrc.json in the current directory.',
-		);
 		process.exit(1);
 	}
 
@@ -170,7 +167,6 @@ if (cli.flags.interactive) {
 
 		if (!isUxLintConfig(parsed)) {
 			logger.error('Invalid configuration file format', {configPath});
-			console.error('Error: Invalid configuration file format');
 			process.exit(1);
 		}
 
@@ -189,7 +185,6 @@ if (cli.flags.interactive) {
 			error: errorMessage,
 			configPath,
 		});
-		console.error(`Error: ${errorMessage}`);
 		process.exit(1);
 	}
 }
