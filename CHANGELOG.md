@@ -1,3 +1,13 @@
+## [2.2.1](https://github.com/GyeongHoKim/uxlint/compare/v2.2.0...v2.2.1) (2025-12-02)
+
+
+### Bug Fixes
+
+* delete console log and rename uxlint-machine into models ([6e08d75](https://github.com/GyeongHoKim/uxlint/commit/6e08d75488e7fe91d163ebf357e718348d750c73))
+* remove hard coded delay ([138be79](https://github.com/GyeongHoKim/uxlint/commit/138be79e83ab2158e542fdcfbe54181c4b90be3e))
+* tsconfig to compile test files into dist ([e3cb301](https://github.com/GyeongHoKim/uxlint/commit/e3cb301aa0bf4820e21b1f290904ba15348f28c7))
+* unexpected process exit and rendering ([2e59327](https://github.com/GyeongHoKim/uxlint/commit/2e59327a6420ba8c2b492c81ecc273c209108eb1))
+
 # [2.2.0](https://github.com/GyeongHoKim/uxlint/compare/v2.1.0...v2.2.0) (2025-12-01)
 
 

@@ -1,7 +1,7 @@
 {
 	"name": "@gyeonghokim/uxlint",
 	"description": "AI-powered UX review CLI for web apps — guided by your product personas and key features",
-	"version": "2.2.0",
+	"version": "2.2.1",
 	"private": false,
 	"license": "MIT",
 	"bin": "dist/cli.js",
