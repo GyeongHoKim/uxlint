@@ -11,5 +11,3 @@ process.env['FORCE_COLOR'] = '0';
 
 // Also disable chalk colors specifically
 process.env['CHALK_LEVEL'] = '0';
-
-// Note: process.exit mock removed (AVA handles test isolation differently)

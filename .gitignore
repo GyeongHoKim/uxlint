@@ -4,5 +4,4 @@ dist
 .npmrc
 coverage
 .uxlintrc.*
-specs
 .env

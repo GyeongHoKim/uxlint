@@ -72,8 +72,6 @@ export default function App({mode = 'normal'}: AppProps) {
 			<ConfigWizard
 				theme={defaultTheme}
 				onComplete={(_config: UxLintConfig) => {
-					// Config created successfully
-					// In the future, this could automatically start the analysis
 					process.exit(0);
 				}}
 				onCancel={() => {
