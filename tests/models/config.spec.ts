@@ -1,5 +1,5 @@
 import test from 'ava';
-import {isPage, isUxLintConfig} from '../../dist/models/config.js';
+import {isPage, isUxLintConfig} from '../../source/models/config.js';
 
 test('isPage() returns true for valid page object', t => {
 	const page = {
@@ -63,7 +63,6 @@ test('isUxLintConfig() returns false for invalid pages array', t => {
 	const config = {
 		mainPageUrl: 'https://example.com',
 		subPageUrls: [],
-		// Missing features
 		pages: [{url: 'https://example.com'}],
 		persona: 'Test persona',
 		report: {output: './report.md'},

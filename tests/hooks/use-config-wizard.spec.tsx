@@ -1,11 +1,11 @@
 import {act, renderHook} from '@testing-library/react';
 import test from 'ava';
-import {useConfigWizard} from '../../dist/hooks/use-config-wizard.js';
+import {useConfigWizard} from '../../source/hooks/use-config-wizard.js';
 import {
 	LengthValidationError,
 	RequiredFieldError,
 	UrlValidationError,
-} from '../../dist/models/errors.js';
+} from '../../source/models/errors.js';
 
 test('useConfigWizard initializes with empty state', t => {
 	const {result} = renderHook(() => useConfigWizard());
@@ -74,12 +74,10 @@ test('useConfigWizard.validateAndSetMainUrl throws UrlValidationError for invali
 test('useConfigWizard.validateAndAddSubUrl validates and adds sub URL', t => {
 	const {result} = renderHook(() => useConfigWizard());
 
-	// First set main URL
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
 	});
 
-	// Then add sub URL
 	act(() => {
 		const success = result.current.validateAndAddSubUrl(
 			'https://example.com/about',
@@ -96,12 +94,10 @@ test('useConfigWizard.validateAndAddSubUrl validates and adds sub URL', t => {
 test('useConfigWizard.validateAndAddSubUrl handles empty input as done', t => {
 	const {result} = renderHook(() => useConfigWizard());
 
-	// First set main URL
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
 	});
 
-	// Empty input should move to next phase
 	act(() => {
 		const success = result.current.validateAndAddSubUrl('');
 		t.true(success);
@@ -113,7 +109,6 @@ test('useConfigWizard.validateAndAddSubUrl handles empty input as done', t => {
 test('useConfigWizard.validateAndAddPage validates feature description', t => {
 	const {result} = renderHook(() => useConfigWizard());
 
-	// Set up state
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
 	});
@@ -148,7 +143,6 @@ test('useConfigWizard.validateAndAddPage throws for too short feature descriptio
 test('useConfigWizard.validateAndSetPersona validates persona description', t => {
 	const {result} = renderHook(() => useConfigWizard());
 
-	// Set up state
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
 	});
@@ -164,7 +158,6 @@ test('useConfigWizard.validateAndSetPersona validates persona description', t =>
 		);
 	});
 
-	// Move to persona phase
 	act(() => {
 		result.current.dispatch({type: 'DONE_PAGES'});
 	});
@@ -193,7 +186,6 @@ test('useConfigWizard.validateAndSetPersona throws for too short persona', t => 
 test('useConfigWizard.validateAndSetReportPath validates report path', t => {
 	const {result} = renderHook(() => useConfigWizard());
 
-	// Set up state
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
 	});
@@ -209,7 +201,6 @@ test('useConfigWizard.validateAndSetReportPath validates report path', t => {
 		);
 	});
 
-	// Move to persona phase
 	act(() => {
 		result.current.dispatch({type: 'DONE_PAGES'});
 	});
@@ -234,7 +225,6 @@ test('useConfigWizard.validateAndSetReportPath validates report path', t => {
 test('useConfigWizard.validateAndSetReportPath uses default path when empty', t => {
 	const {result} = renderHook(() => useConfigWizard());
 
-	// Set up state
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
 	});
@@ -250,7 +240,6 @@ test('useConfigWizard.validateAndSetReportPath uses default path when empty', t 
 		);
 	});
 
-	// Move to persona phase
 	act(() => {
 		result.current.dispatch({type: 'DONE_PAGES'});
 	});
