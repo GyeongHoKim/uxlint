@@ -2,24 +2,22 @@ import * as fs from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'ava';
-import {ConfigurationError} from '../../../dist/models/errors.js';
+import {ConfigurationError} from '../../../source/models/errors.js';
 import {
 	findConfigFile,
 	readConfigFile,
-} from '../../../dist/infrastructure/config/config-io.js';
+} from '../../../source/infrastructure/config/config-io.js';
 
 test('findConfigFile() returns path when config exists', t => {
 	const testDir = tmpdir();
 	const configPath = join(testDir, '.uxlintrc.json');
 
-	// Create temporary config file
 	fs.writeFileSync(configPath, '{}');
 
 	try {
 		const found = findConfigFile(testDir);
 		t.is(found, configPath);
 	} finally {
-		// Cleanup
 		if (fs.existsSync(configPath)) {
 			fs.unlinkSync(configPath);
 		}
@@ -36,7 +34,6 @@ test('findConfigFile() prefers .uxlintrc.json over .uxlintrc.yaml', t => {
 	const jsonPath = join(testDir, '.uxlintrc.json');
 	const yamlPath = join(testDir, '.uxlintrc.yaml');
 
-	// Create both files
 	fs.writeFileSync(jsonPath, '{}');
 	fs.writeFileSync(yamlPath, '{}');
 
@@ -44,7 +41,6 @@ test('findConfigFile() prefers .uxlintrc.json over .uxlintrc.yaml', t => {
 		const found = findConfigFile(testDir);
 		t.is(found, jsonPath);
 	} finally {
-		// Cleanup
 		if (fs.existsSync(jsonPath)) {
 			fs.unlinkSync(jsonPath);
 		}

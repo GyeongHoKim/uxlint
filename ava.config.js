@@ -1,7 +1,8 @@
 export default {
 	typescript: {
 		rewritePaths: {
-			'source/': 'dist/',
+			'source/': 'dist/source/',
+			'tests/': 'dist/tests/',
 		},
 		compile: false,
 		extensions: ['ts', 'tsx'],

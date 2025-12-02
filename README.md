@@ -88,21 +88,19 @@ Choose one of the following providers:
 
 ## Quick start
 
-### Option 1: Interactive mode
+uxlint supports two execution modes: **Interactive mode** (with UI) and **CI mode** (headless). The behavior depends on the `--interactive` flag and whether a configuration file exists.
 
-Run uxlint without a configuration file to launch the interactive wizard:
+### Scenario 1: Interactive mode without config (Wizard)
+
+When you run `uxlint --interactive` **without** a configuration file, the interactive wizard launches:
 
 ```bash
 uxlint --interactive
-```
-
-Or with npx:
-
-```bash
+# or
 npx @gyeonghokim/uxlint --interactive
 ```
 
-The wizard will guide you through:
+The wizard guides you through:
 
 1. Main page URL
 2. Additional pages (optional)
@@ -111,32 +109,85 @@ The wizard will guide you through:
 5. Report output path
 6. Option to save configuration to a file
 
-You can also explicitly request interactive mode with the `--interactive` or `-i` flag.
+After completing the wizard, analysis runs automatically and generates the report.
 
-### Option 2: Configuration file
+### Scenario 2: Interactive mode with config (Direct analysis)
 
-1. Create a configuration file in your project root named either `.uxlintrc.yml` or `.uxlintrc.json`.
+When you run `uxlint --interactive` **with** an existing `.uxlintrc.yml` or `.uxlintrc.json` file, the wizard is skipped and analysis starts immediately:
 
-2. Run the CLI:
+```bash
+uxlint --interactive
+# or
+npx @gyeonghokim/uxlint --interactive
+```
+
+The CLI reads the configuration file and runs analysis with a visual progress UI.
+
+### Scenario 3: CI mode with config (Headless)
+
+When you run `uxlint` **without** the `--interactive` flag **with** a configuration file, it runs in CI mode (no UI):
 
 ```bash
 uxlint
-```
-
-Or with npx:
-
-```bash
+# or
 npx @gyeonghokim/uxlint
 ```
 
-The CLI reads the configuration file in the current working directory and writes the UX report to the configured output path.
+This mode is designed for CI/CD pipelines and provides minimal console output:
+
+```
+Starting UX analysis for 3 page(s)...
+[1/3] Analyzing: https://example.com
+[1/3] ✓ Complete
+[2/3] Analyzing: https://example.com/page2
+[2/3] ✓ Complete
+[3/3] Analyzing: https://example.com/page3
+[3/3] ✓ Complete
+Generating report...
+✓ Report saved to: ./ux-report.md
+```
+
+### Scenario 4: CI mode without config (Error)
+
+When you run `uxlint` **without** the `--interactive` flag **without** a configuration file, it exits with an error:
+
+```bash
+uxlint
+# Error: Configuration file not found. Use --interactive flag to create one,
+# or create .uxlintrc.yml or .uxlintrc.json in the current directory.
+```
+
+**Solution**: Use `uxlint --interactive` to create a configuration file, or manually create `.uxlintrc.yml` or `.uxlintrc.json` in your project root.
+
+### Quick reference
+
+| Command                | Config file exists? | Behavior                            |
+| ---------------------- | ------------------- | ----------------------------------- |
+| `uxlint --interactive` | ❌ No               | Launches wizard, then runs analysis |
+| `uxlint --interactive` | ✅ Yes              | Skips wizard, runs analysis with UI |
+| `uxlint`               | ✅ Yes              | Runs analysis in CI mode (headless) |
+| `uxlint`               | ❌ No               | Shows error and exits               |
 
 ## Configuration
+
+### Configuration file
 
 uxlint reads one of the following files from the current working directory (CWD):
 
 - `.uxlintrc.yml`
 - `.uxlintrc.json`
+
+**When is a config file required?**
+
+- ✅ **CI mode** (`uxlint` without `--interactive`): Config file is **required**
+- ✅ **Interactive mode** (`uxlint --interactive`): Config file is **optional**
+  - If present: Wizard is skipped, analysis starts immediately
+  - If absent: Wizard launches to create configuration
+
+**Creating a config file:**
+
+1. **Interactive wizard**: Run `uxlint --interactive` and choose to save the configuration
+2. **Manual creation**: Create `.uxlintrc.yml` or `.uxlintrc.json` in your project root (see schema below)
 
 ### Schema
 
@@ -274,6 +325,8 @@ report:
 
 ## uxlint CLI State Machine
 
+The CLI uses an XState state machine to manage execution flow. The behavior depends on the `--interactive` flag and configuration file presence:
+
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
@@ -281,12 +334,12 @@ stateDiagram-v2
     IDLE --> TTY: --interactive flag is present
     IDLE --> CI: --interactive flag is not present
 
-    %% TTY branch
+    %% TTY branch (Interactive mode)
     TTY --> Wizard: uxlintrc file is not present
     TTY --> AnalyzeWithUI: uxlintrc file is present
     Wizard --> AnalyzeWithUI: uxlintrc file is created
 
-    %% CI branch
+    %% CI branch (Headless mode)
     CI --> AnalyzeWithoutUI: uxlintrc file is present
     CI --> Error: uxlintrc file is not present
 
@@ -296,6 +349,27 @@ stateDiagram-v2
 
     ReportBuilder --> [*]
 ```
+
+### State descriptions
+
+- **IDLE**: Initial state, determines mode based on `--interactive` flag
+- **TTY (Interactive mode)**: Uses Ink UI components
+  - **Wizard**: Interactive configuration wizard (when no config file exists)
+  - **AnalyzeWithUI**: Analysis with visual progress indicators
+- **CI (Headless mode)**: No UI, uses `console.log` output
+  - **AnalyzeWithoutUI**: Headless analysis execution
+  - **Error**: Missing configuration error state
+- **ReportBuilder**: Generates final markdown report
+- **Done**: Final state, exits with appropriate exit code
+
+### Mapping to usage scenarios
+
+| Scenario        | Command                              | Initial State                | Final State          |
+| --------------- | ------------------------------------ | ---------------------------- | -------------------- |
+| Wizard          | `uxlint --interactive` (no config)   | IDLE → TTY → Wizard          | ReportBuilder → Done |
+| Direct analysis | `uxlint --interactive` (with config) | IDLE → TTY → AnalyzeWithUI   | ReportBuilder → Done |
+| CI mode         | `uxlint` (with config)               | IDLE → CI → AnalyzeWithoutUI | ReportBuilder → Done |
+| Error           | `uxlint` (no config)                 | IDLE → CI → Error            | Done (exit code 1)   |
 
 ## Roadmap
 

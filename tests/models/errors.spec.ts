@@ -3,7 +3,7 @@ import {
 	MissingConfigError,
 	isUxlintError,
 	isErrorOfType,
-} from '../../dist/models/errors.js';
+} from '../../source/models/errors.js';
 
 // T006: Test for MissingConfigError
 test('MissingConfigError has correct message', t => {
