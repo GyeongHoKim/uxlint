@@ -3,14 +3,15 @@
  * Centralized exports for all UI components
  */
 
-export {Header} from './header.js';
-export {UserInputLabel} from './user-input-label.js';
-export {UserInput} from './user-input.js';
-export {PromptStep} from './prompt-step.js';
-export {ConfigSummary} from './config-summary.js';
-export {ConfigWizard} from './config-wizard.js';
 export {AnalysisProgress} from './analysis-progress.js';
 export {AnalysisRunner} from './analysis-runner.js';
+export {ConfigSummary} from './config-summary.js';
+export {ConfigWizard} from './config-wizard.js';
+export {Header} from './header.js';
+export {PromptStep} from './prompt-step.js';
+export {ReportBuilder} from './report-builder.js';
+export {UserInputLabel} from './user-input-label.js';
+export {UserInput} from './user-input.js';
 
 // Export UserInput variant types
 export type {
@@ -45,3 +46,6 @@ export type {AnalysisProgressProps} from './analysis-progress.js';
 
 // Export AnalysisRunner types
 export type {AnalysisRunnerProps} from './analysis-runner.js';
+
+// Export ReportBuilder types
+export type {ReportBuilderProps} from './report-builder.js';

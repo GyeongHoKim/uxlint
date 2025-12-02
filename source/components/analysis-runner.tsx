@@ -5,11 +5,11 @@
  * @packageDocumentation
  */
 
-import process from 'node:process';
-import {Box, Text, useInput} from 'ink';
+import {Box, Text} from 'ink';
 import {useEffect, useState} from 'react';
 import type {ThemeConfig} from '../models/theme.js';
 import type {UxLintConfig} from '../models/config.js';
+import type {UxReport} from '../machines/uxlint-machine.js';
 import {useAnalysis} from '../hooks/use-analysis.js';
 import {AnalysisProgress} from './analysis-progress.js';
 
@@ -22,37 +22,65 @@ export type AnalysisRunnerProps = {
 
 	/** UxLint configuration */
 	readonly config: UxLintConfig;
+
+	/** Callback when analysis completes successfully */
+	readonly onComplete?: (result: UxReport) => void;
+
+	/** Callback when analysis fails */
+	readonly onError?: (error: Error) => void;
 };
 
 /**
  * AnalysisRunner component
  * Runs multi-page analysis and displays progress
  */
-export function AnalysisRunner({theme, config}: AnalysisRunnerProps) {
+export function AnalysisRunner({
+	theme,
+	config,
+	onComplete,
+	onError,
+}: AnalysisRunnerProps) {
 	// Use analysis orchestration hook
 	const {analysisState, runAnalysis, getCurrentPageUrl} = useAnalysis(config);
 	const [showExitPrompt, setShowExitPrompt] = useState(false);
+	const [hasNotified, setHasNotified] = useState(false);
 
 	useEffect(() => {
 		void runAnalysis();
 	}, [runAnalysis]);
 
-	// Show exit prompt when complete or error
+	// Show exit prompt and notify when complete or error
 	useEffect(() => {
 		if (
 			analysisState.currentStage === 'complete' ||
 			analysisState.currentStage === 'error'
 		) {
 			setShowExitPrompt(true);
-		}
-	}, [analysisState.currentStage]);
 
-	// Handle any key press to exit
-	useInput((_input, key) => {
-		if (showExitPrompt && !key.ctrl) {
-			process.exit(analysisState.currentStage === 'complete' ? 0 : 1);
+			// Notify parent via callbacks (only once)
+			if (!hasNotified) {
+				setHasNotified(true);
+
+				if (analysisState.currentStage === 'complete' && onComplete) {
+					// Create a basic UxReport from analysis state
+					const result: UxReport = {
+						pages: [],
+						summary: 'Analysis completed successfully',
+						recommendations: [],
+					};
+					onComplete(result);
+				} else if (analysisState.currentStage === 'error' && onError) {
+					onError(analysisState.error ?? new Error('Unknown analysis error'));
+				}
+			}
 		}
-	});
+	}, [
+		analysisState.currentStage,
+		analysisState.error,
+		hasNotified,
+		onComplete,
+		onError,
+	]);
 
 	return (
 		<Box flexDirection="column" gap={1}>
@@ -69,14 +97,14 @@ export function AnalysisRunner({theme, config}: AnalysisRunnerProps) {
 			{Boolean(showExitPrompt && analysisState.currentStage === 'complete') && (
 				<Box flexDirection="column" gap={1} marginTop={1}>
 					<Text color="green">✓ Report saved to: {config.report.output}</Text>
-					<Text dimColor>Press any key to exit</Text>
+					{!onComplete && <Text dimColor>Press any key to exit</Text>}
 				</Box>
 			)}
 
 			{/* Show error message and exit prompt */}
 			{Boolean(showExitPrompt && analysisState.currentStage === 'error') && (
 				<Box flexDirection="column" gap={1} marginTop={1}>
-					<Text dimColor>Press any key to exit</Text>
+					{!onError && <Text dimColor>Press any key to exit</Text>}
 				</Box>
 			)}
 		</Box>
