@@ -1,6 +1,9 @@
-import {act, renderHook} from '@testing-library/react';
+import {act, renderHook, type RenderHookResult} from '@testing-library/react';
 import test from 'ava';
-import {useConfigWizard} from '../../source/hooks/use-config-wizard.js';
+import {
+	useConfigWizard,
+	type UseConfigWizardResult,
+} from '../../source/hooks/use-config-wizard.js';
 import {
 	LengthValidationError,
 	RequiredFieldError,
@@ -8,7 +11,9 @@ import {
 } from '../../source/models/errors.js';
 
 test('useConfigWizard initializes with empty state', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	t.is(result.current.state.phase, 'intro');
 	t.is(result.current.currentInput, '');
@@ -16,7 +21,9 @@ test('useConfigWizard initializes with empty state', t => {
 });
 
 test('useConfigWizard.validateAndSetMainUrl validates correct URL', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		result.current.setCurrentInput('https://example.com');
@@ -35,7 +42,9 @@ test('useConfigWizard.validateAndSetMainUrl validates correct URL', t => {
 });
 
 test('useConfigWizard.validateAndSetMainUrl adds https:// prefix when missing', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		const success = result.current.validateAndSetMainUrl('example.com');
@@ -50,7 +59,9 @@ test('useConfigWizard.validateAndSetMainUrl adds https:// prefix when missing', 
 });
 
 test('useConfigWizard.validateAndSetMainUrl throws RequiredFieldError for empty URL', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		const success = result.current.validateAndSetMainUrl('');
@@ -61,7 +72,9 @@ test('useConfigWizard.validateAndSetMainUrl throws RequiredFieldError for empty 
 });
 
 test('useConfigWizard.validateAndSetMainUrl throws UrlValidationError for invalid URL', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		const success = result.current.validateAndSetMainUrl('http://');
@@ -72,7 +85,9 @@ test('useConfigWizard.validateAndSetMainUrl throws UrlValidationError for invali
 });
 
 test('useConfigWizard.validateAndAddSubUrl validates and adds sub URL', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
@@ -92,7 +107,9 @@ test('useConfigWizard.validateAndAddSubUrl validates and adds sub URL', t => {
 });
 
 test('useConfigWizard.validateAndAddSubUrl handles empty input as done', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
@@ -107,7 +124,9 @@ test('useConfigWizard.validateAndAddSubUrl handles empty input as done', t => {
 });
 
 test('useConfigWizard.validateAndAddPage validates feature description', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
@@ -127,7 +146,9 @@ test('useConfigWizard.validateAndAddPage validates feature description', t => {
 });
 
 test('useConfigWizard.validateAndAddPage throws for too short feature description', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		const success = result.current.validateAndAddPage(
@@ -141,7 +162,9 @@ test('useConfigWizard.validateAndAddPage throws for too short feature descriptio
 });
 
 test('useConfigWizard.validateAndSetPersona validates persona description', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
@@ -173,7 +196,9 @@ test('useConfigWizard.validateAndSetPersona validates persona description', t =>
 });
 
 test('useConfigWizard.validateAndSetPersona throws for too short persona', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		const success = result.current.validateAndSetPersona('short');
@@ -184,7 +209,9 @@ test('useConfigWizard.validateAndSetPersona throws for too short persona', t => 
 });
 
 test('useConfigWizard.validateAndSetReportPath validates report path', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
@@ -223,7 +250,9 @@ test('useConfigWizard.validateAndSetReportPath validates report path', t => {
 });
 
 test('useConfigWizard.validateAndSetReportPath uses default path when empty', t => {
-	const {result} = renderHook(() => useConfigWizard());
+	const {result}: RenderHookResult<UseConfigWizardResult, unknown> = renderHook(
+		() => useConfigWizard(),
+	);
 
 	act(() => {
 		result.current.validateAndSetMainUrl('https://example.com');
