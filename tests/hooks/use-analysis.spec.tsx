@@ -3,20 +3,21 @@
  * Verifies state updates for multiple pages and iterations
  */
 
+import {promises as fsPromises} from 'node:fs';
 import {act, renderHook, type RenderHookResult} from '@testing-library/react';
-import test from 'ava';
 import {MockLanguageModelV2} from 'ai/test';
+import test from 'ava';
 import sinon from 'sinon';
-import {createMockMCPClient} from '../utils.js';
 import {
 	useAnalysis,
 	type UseAnalysisResult,
 } from '../../source/hooks/use-analysis.js';
-import {AIService} from '../../source/services/ai-service.js';
-import {ReportBuilder} from '../../source/services/report-builder.js';
+import type {AnalysisStage} from '../../source/models/analysis.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import type {LLMResponseData} from '../../source/models/llm-response.js';
-import type {AnalysisStage} from '../../source/models/analysis.js';
+import {AIService} from '../../source/services/ai-service.js';
+import {ReportBuilder} from '../../source/services/report-builder.js';
+import {createMockMCPClient} from '../utils.js';
 
 test('useAnalysis updates iteration number within same page', async t => {
 	const sandbox = sinon.createSandbox();
@@ -58,7 +59,11 @@ test('useAnalysis updates iteration number within same page', async t => {
 		},
 	});
 
-	const reportBuilder = new ReportBuilder();
+	const mockFsAsync = {
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	};
+	const reportBuilder = new ReportBuilder(mockFsAsync);
 	const aiService = new AIService(mockModel, mockMCPClient, reportBuilder);
 
 	// Create mock getAIService function for dependency injection
@@ -88,7 +93,7 @@ test('useAnalysis updates iteration number within same page', async t => {
 	}> = [];
 
 	const {result}: RenderHookResult<UseAnalysisResult, unknown> = renderHook(
-		() => useAnalysis(config, mockGetAIService),
+		() => useAnalysis(config, mockGetAIService, reportBuilder),
 	);
 
 	// Subscribe to state changes - must be done before runAnalysis

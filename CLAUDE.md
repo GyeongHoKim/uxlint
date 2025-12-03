@@ -144,6 +144,43 @@ The following configuration files control the project's code quality tooling and
 
 These files are carefully configured to work together. Modifying them can break the tooling integration and cause conflicts between formatters and linters. If you encounter linting or formatting issues, fix the source code to comply with the existing rules, do not modify the configuration files.
 
+### Code Patterns
+
+**Re-exports are PROHIBITED:**
+
+DO NOT create wrapper functions or re-export class methods as standalone functions for "backward compatibility". This pattern:
+- Creates unnecessary code duplication
+- Makes the codebase harder to maintain
+- Obscures the actual implementation
+- Adds no value to the project
+
+**BAD (Do NOT do this):**
+```typescript
+export class ConfigIO {
+  findConfigFile(dir: string) { /* ... */ }
+}
+
+export const configIO = new ConfigIO();
+
+// ❌ NEVER do this - no re-exports!
+export const findConfigFile = (dir: string) => configIO.findConfigFile(dir);
+```
+
+**GOOD (Do this instead):**
+```typescript
+export class ConfigIO {
+  findConfigFile(dir: string) { /* ... */ }
+}
+
+export const configIO = new ConfigIO();
+
+// ✓ Use the singleton instance directly
+import {configIO} from './config-io.js';
+configIO.findConfigFile(process.cwd());
+```
+
+If you need to refactor from functions to classes, update all call sites to use the class directly. Do not add compatibility layers.
+
 ## Configuration Files
 
 The CLI reads `.uxlintrc.yml` or `.uxlintrc.json` from CWD with:

@@ -3,6 +3,7 @@
  * Uses MockLanguageModelV2 from ai/test as required by Constitution II (Test-First Development)
  */
 
+import {promises as fsPromises} from 'node:fs';
 import {MockLanguageModelV2} from 'ai/test';
 import test from 'ava';
 import sinon from 'sinon';
@@ -57,7 +58,12 @@ test('llmResponse contains text, toolCalls, iteration, timestamp', t => {
 });
 
 test('generateFinalReport creates valid report when page analysis is completed', t => {
-	const reportBuilder = new ReportBuilder();
+	const sandbox = sinon.createSandbox();
+	const mockFsAsync = {
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	};
+	const reportBuilder = new ReportBuilder(mockFsAsync);
 	const pageUrl = 'https://example.com';
 	const features = 'Test page features';
 	const persona = 'Test persona';
@@ -99,10 +105,17 @@ test('generateFinalReport creates valid report when page analysis is completed',
 	t.is(report.metadata.totalFindings, 1);
 	t.is(report.metadata.analyzedPages.length, 1);
 	t.is(report.metadata.analyzedPages[0], pageUrl);
+
+	sandbox.restore();
 });
 
 test('generateFinalReport creates empty report when no page analysis is completed', t => {
-	const reportBuilder = new ReportBuilder();
+	const sandbox = sinon.createSandbox();
+	const mockFsAsync = {
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	};
+	const reportBuilder = new ReportBuilder(mockFsAsync);
 	const persona = 'Test persona';
 
 	// Set persona without completing any page analysis
@@ -120,6 +133,8 @@ test('generateFinalReport creates empty report when no page analysis is complete
 	t.truthy(report.summary);
 	t.true(Array.isArray(report.prioritizedFindings));
 	t.is(report.prioritizedFindings.length, 0);
+
+	sandbox.restore();
 });
 
 test('AIService generates valid report when LLM completes page analysis using MockLanguageModelV2', async t => {
@@ -148,7 +163,11 @@ test('AIService generates valid report when LLM completes page analysis using Mo
 		}),
 	});
 
-	const reportBuilder = new ReportBuilder();
+	const mockFsAsync = {
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	};
+	const reportBuilder = new ReportBuilder(mockFsAsync);
 	const aiService = new AIService(mockModel, mockMCPClient, reportBuilder);
 
 	const config: UxLintConfig = {
@@ -247,7 +266,11 @@ test('AIService calls onProgress with increasing iteration numbers for multiple 
 		},
 	});
 
-	const reportBuilder = new ReportBuilder();
+	const mockFsAsync = {
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	};
+	const reportBuilder = new ReportBuilder(mockFsAsync);
 	const aiService = new AIService(mockModel, mockMCPClient, reportBuilder);
 
 	const config: UxLintConfig = {
