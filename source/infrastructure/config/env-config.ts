@@ -6,10 +6,10 @@
  */
 
 import process from 'node:process';
-// Side-effect import required: dotenv/config loads .env file into process.env at module initialization
-// This import MUST execute its side effects before loadEnvConfig() reads from process.env
-// eslint-disable-next-line import-x/no-unassigned-import -- Required side-effect import for .env file loading
-import 'dotenv/config';
+import {config as dotenvConfig} from 'dotenv';
+
+// Load environment variables from .env file (quiet mode to suppress output)
+dotenvConfig({quiet: true});
 
 /**
  * Supported AI provider types

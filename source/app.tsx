@@ -13,12 +13,12 @@ import {
 	matchesStatePath,
 	useUxlintContext,
 } from './contexts/uxlint-context.js';
-import type {UxReport} from './models/uxlint-machine.js';
+import type {UxReport} from './models/analysis.js';
 import type {UxLintConfig} from './models/config.js';
 import {defaultTheme} from './models/theme.js';
 
 // Load environment variables from .env file
-dotenvConfig();
+dotenvConfig({quiet: true});
 
 /**
  * Delay before calling process.exit() after reaching 'done' state.
