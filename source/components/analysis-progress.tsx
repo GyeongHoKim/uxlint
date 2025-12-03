@@ -9,6 +9,8 @@ import {Box, Text} from 'ink';
 import Spinner from 'ink-spinner';
 import type {ThemeConfig} from '../models/theme.js';
 import type {AnalysisStage} from '../models/analysis.js';
+import type {LLMResponseData} from '../models/llm-response.js';
+import {LLMResponseDisplay} from './llm-response-display.js';
 
 /**
  * AnalysisProgress component props
@@ -31,6 +33,21 @@ export type AnalysisProgressProps = {
 
 	/** Optional error message */
 	readonly error?: string;
+
+	/**
+	 * Last LLM response to display
+	 */
+	readonly lastLLMResponse?: LLMResponseData;
+
+	/**
+	 * Waiting message to display while waiting for LLM response
+	 */
+	readonly waitingMessage?: string;
+
+	/**
+	 * Whether currently waiting for LLM response
+	 */
+	readonly isWaitingForLLM?: boolean;
 };
 
 /**
@@ -40,7 +57,8 @@ const stageMessages: Record<AnalysisStage, string> = {
 	idle: 'Idle',
 	navigating: 'Navigating to page',
 	capturing: 'Capturing page snapshot',
-	analyzing: 'Analyzing with AI',
+	analyzing: 'Analyzing',
+	'page-complete': 'Page analysis complete',
 	'generating-report': 'Generating report',
 	complete: 'Analysis complete',
 	error: 'Error occurred',
@@ -67,6 +85,9 @@ export function AnalysisProgress({
 	totalPages,
 	pageUrl,
 	error,
+	lastLLMResponse,
+	waitingMessage,
+	isWaitingForLLM,
 }: AnalysisProgressProps) {
 	const stageMessage = stageMessages[stage];
 	const showSpinner = spinnerStages.has(stage);
@@ -75,32 +96,34 @@ export function AnalysisProgress({
 
 	return (
 		<Box flexDirection="column" gap={1}>
-			{/* Stage indicator */}
-			<Box>
-				{Boolean(showSpinner) && (
-					<Box marginRight={1}>
-						<Text color={theme.accent}>
-							<Spinner type="dots" />
-						</Text>
-					</Box>
-				)}
-				{Boolean(isComplete) && (
-					<Box marginRight={1}>
-						<Text color="green">✓</Text>
-					</Box>
-				)}
-				{Boolean(isError) && (
-					<Box marginRight={1}>
-						<Text color="red">✗</Text>
-					</Box>
-				)}
-				<Text color={isError ? 'red' : isComplete ? 'green' : theme.primary}>
-					{stageMessage}
-				</Text>
-			</Box>
+			{/* Stage indicator - hide for analyzing stage */}
+			{stage !== 'analyzing' && (
+				<Box>
+					{Boolean(showSpinner) && (
+						<Box marginRight={1}>
+							<Text color={theme.accent}>
+								<Spinner type="dots" />
+							</Text>
+						</Box>
+					)}
+					{Boolean(isComplete) && (
+						<Box marginRight={1}>
+							<Text color="green">✓</Text>
+						</Box>
+					)}
+					{Boolean(isError) && (
+						<Box marginRight={1}>
+							<Text color="red">✗</Text>
+						</Box>
+					)}
+					<Text color={isError ? 'red' : isComplete ? 'green' : theme.primary}>
+						{stageMessage}
+					</Text>
+				</Box>
+			)}
 
-			{/* Page progress */}
-			{stage !== 'idle' && (
+			{/* Page progress - hide for analyzing stage (shown in LLM Response header) */}
+			{stage !== 'idle' && stage !== 'analyzing' && (
 				<Box>
 					<Text dimColor>
 						Page {currentPage}/{totalPages}
@@ -108,8 +131,8 @@ export function AnalysisProgress({
 				</Box>
 			)}
 
-			{/* Page URL */}
-			{Boolean(pageUrl) && (
+			{/* Page URL - hide for analyzing stage (shown in LLM Response header) */}
+			{Boolean(pageUrl) && stage !== 'analyzing' && (
 				<Box>
 					<Text dimColor>{pageUrl}</Text>
 				</Box>
@@ -121,6 +144,32 @@ export function AnalysisProgress({
 					<Text color="red">{error}</Text>
 				</Box>
 			)}
+
+			{/* Waiting message with spinner */}
+			{Boolean(isWaitingForLLM && waitingMessage && stage === 'analyzing') && (
+				<Box flexDirection="column" marginTop={1}>
+					<Box>
+						<Box marginRight={1}>
+							<Text color={theme.accent}>
+								<Spinner type="dots" />
+							</Text>
+						</Box>
+						<Text dimColor color="cyan">
+							{waitingMessage}
+						</Text>
+					</Box>
+				</Box>
+			)}
+
+			{/* LLM Response Display - includes page info in header */}
+			{lastLLMResponse && stage === 'analyzing' ? (
+				<LLMResponseDisplay
+					response={lastLLMResponse}
+					currentPage={currentPage}
+					totalPages={totalPages}
+					pageUrl={pageUrl}
+				/>
+			) : null}
 		</Box>
 	);
 }

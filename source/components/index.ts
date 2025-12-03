@@ -8,6 +8,7 @@ export {AnalysisRunner} from './analysis-runner.js';
 export {ConfigSummary} from './config-summary.js';
 export {ConfigWizard} from './config-wizard.js';
 export {Header} from './header.js';
+export {LLMResponseDisplay} from './llm-response-display.js';
 export {PromptStep} from './prompt-step.js';
 export {ReportBuilder} from './report-builder.js';
 export {UserInputLabel} from './user-input-label.js';
@@ -43,6 +44,9 @@ export type {ConfigWizardProps} from './config-wizard.js';
 
 // Export AnalysisProgress types
 export type {AnalysisProgressProps} from './analysis-progress.js';
+
+// Export LLMResponseDisplay types
+export type {LLMResponseDisplayProps} from './llm-response-display.js';
 
 // Export AnalysisRunner types
 export type {AnalysisRunnerProps} from './analysis-runner.js';

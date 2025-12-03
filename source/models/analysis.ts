@@ -5,6 +5,8 @@
  * @packageDocumentation
  */
 
+import type {LLMResponseData} from './llm-response.js';
+
 /**
  * Analysis status for a single page
  * Represents the current state of page analysis
@@ -166,6 +168,7 @@ const analysisStages = [
 	'navigating',
 	'capturing',
 	'analyzing',
+	'page-complete',
 	'generating-report',
 	'complete',
 	'error',
@@ -201,6 +204,33 @@ export type AnalysisState = {
 	 * Fatal error that aborts entire analysis
 	 */
 	error?: Error;
+
+	/**
+	 * Last LLM response data for UI display
+	 * Contains text, tool calls, and metadata from the most recent LLM call
+	 */
+	lastLLMResponse?: LLMResponseData;
+
+	/**
+	 * Waiting message to display during LLM call
+	 * Humorous/informative message shown while waiting for response
+	 */
+	waitingMessage?: string;
+
+	/**
+	 * Current iteration in the agent loop
+	 */
+	currentIteration?: number;
+
+	/**
+	 * Whether currently waiting for LLM response
+	 */
+	isWaitingForLLM?: boolean;
+
+	/**
+	 * Final aggregated report once the workflow finishes
+	 */
+	finalReport?: UxReport;
 };
 
 /**
@@ -261,7 +291,11 @@ export function isAnalysisComplete(state: AnalysisState): boolean {
  * ```
  */
 export function isAnalysisInProgress(state: AnalysisState): boolean {
-	return ['navigating', 'capturing', 'analyzing', 'generating-report'].includes(
-		state.currentStage,
-	);
+	return [
+		'navigating',
+		'capturing',
+		'analyzing',
+		'page-complete',
+		'generating-report',
+	].includes(state.currentStage);
 }
