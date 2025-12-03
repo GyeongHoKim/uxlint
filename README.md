@@ -88,6 +88,22 @@ Choose one of the following providers:
 
 ## Quick start
 
+### With Example Configuration File
+
+```bash
+cp .env.example .env
+```
+
+and edit the API tokens and model names in the .env file.
+
+```bash
+cp .uxlintrc-example.json .uxlintrc.json
+```
+
+```bash
+npx @gyeonghokim/uxlint --interactive
+```
+
 uxlint supports two execution modes: **Interactive mode** (with UI) and **CI mode** (headless). The behavior depends on the `--interactive` flag and whether a configuration file exists.
 
 ### Scenario 1: Interactive mode without config (Wizard)
@@ -133,19 +149,7 @@ uxlint
 npx @gyeonghokim/uxlint
 ```
 
-This mode is designed for CI/CD pipelines and provides minimal console output:
-
-```
-Starting UX analysis for 3 page(s)...
-[1/3] Analyzing: https://example.com
-[1/3] ✓ Complete
-[2/3] Analyzing: https://example.com/page2
-[2/3] ✓ Complete
-[3/3] Analyzing: https://example.com/page3
-[3/3] ✓ Complete
-Generating report...
-✓ Report saved to: ./ux-report.md
-```
+This mode is designed for CI/CD pipelines, UI is disabled.
 
 ### Scenario 4: CI mode without config (Error)
 
