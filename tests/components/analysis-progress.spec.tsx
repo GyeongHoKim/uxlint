@@ -30,6 +30,7 @@ test('renders lastLLMResponse when provided', t => {
 	t.truthy(output);
 	t.true(output?.includes('Analyzing navigation menu'));
 	t.true(output?.includes('Iteration 1'));
+	t.true(output?.includes('Page 1/3'));
 });
 
 test('renders LLMResponseDisplay component integration', t => {
@@ -62,7 +63,7 @@ test('renders LLMResponseDisplay component integration', t => {
 	t.true(output?.includes('browser_snapshot'));
 });
 
-test('does not break existing functionality for non-analyzing stages', t => {
+test('renders nothing for non-analyzing stages without error', t => {
 	const {lastFrame, unmount} = render(
 		<AnalysisProgress
 			theme={defaultTheme}
@@ -75,10 +76,12 @@ test('does not break existing functionality for non-analyzing stages', t => {
 
 	const output = lastFrame();
 	unmount();
-	t.truthy(output);
-	t.true(output?.includes('Navigating to page'));
-	t.true(output?.includes('Page 1/3'));
-	t.true(output?.includes('https://example.com'));
+	// Component renders nothing (empty string) when stage is not analyzing and no error
+	t.is(output, '');
+	// Should not show stage indicator, page progress, or URL (removed features)
+	t.false(output?.includes('Navigating to page'));
+	t.false(output?.includes('Page 1/3'));
+	t.false(output?.includes('https://example.com'));
 });
 
 test('does not render LLMResponseDisplay when stage is not analyzing', t => {
@@ -100,9 +103,11 @@ test('does not render LLMResponseDisplay when stage is not analyzing', t => {
 
 	const output = lastFrame();
 	unmount();
-	t.truthy(output);
+	// Component renders nothing (empty string) when stage is not analyzing
+	t.is(output, '');
 	t.false(output?.includes('Should not appear'));
-	t.true(output?.includes('Analysis complete'));
+	// Stage indicator is no longer displayed
+	t.false(output?.includes('Analysis complete'));
 });
 
 test('waiting message displays with spinner when isWaitingForLLM is true', t => {
@@ -182,8 +187,10 @@ test('iteration number increases within same page but resets when page changes',
 
 	let output = firstFrame();
 	t.truthy(output);
+	// Page info is now shown in LLMResponseDisplay header
 	t.true(output?.includes('Page 1/2'));
 	t.true(output?.includes('Iteration 1'));
+	t.true(output?.includes('https://example.com/page1'));
 
 	// First page, second iteration (iteration should increase)
 	const secondIteration: LLMResponseData = {
@@ -205,9 +212,9 @@ test('iteration number increases within same page but resets when page changes',
 
 	output = firstFrame();
 	t.truthy(output);
-	// Page should still be 1/2
+	// Page should still be 1/2 (shown in LLMResponseDisplay header)
 	t.true(output?.includes('Page 1/2'));
-	// Iteration should increase to 2 (this is the bug - it might stay at 1)
+	// Iteration should increase to 2
 	t.true(
 		output?.includes('Iteration 2'),
 		'Iteration should increase to 2 within the same page',
@@ -233,8 +240,10 @@ test('iteration number increases within same page but resets when page changes',
 
 	output = firstFrame();
 	t.truthy(output);
-	// Page should increase to 2/2
+	// Page should increase to 2/2 (shown in LLMResponseDisplay header)
 	t.true(output?.includes('Page 2/2'));
+	// URL should change to page2
+	t.true(output?.includes('https://example.com/page2'));
 	// Iteration should reset to 1 for new page
 	t.true(
 		output?.includes('Iteration 1'),
@@ -242,4 +251,39 @@ test('iteration number increases within same page but resets when page changes',
 	);
 
 	unmount();
+});
+
+test('renders error message when stage is error', t => {
+	const {lastFrame, unmount} = render(
+		<AnalysisProgress
+			theme={defaultTheme}
+			stage="error"
+			currentPage={1}
+			totalPages={1}
+			error="Failed to load page"
+		/>,
+	);
+
+	const output = lastFrame();
+	unmount();
+	t.truthy(output);
+	t.true(output?.includes('Failed to load page'));
+});
+
+test('does not render error message when error prop is not provided', t => {
+	const {lastFrame, unmount} = render(
+		<AnalysisProgress
+			theme={defaultTheme}
+			stage="error"
+			currentPage={1}
+			totalPages={1}
+		/>,
+	);
+
+	const output = lastFrame();
+	unmount();
+	// Component renders nothing (empty string) when error prop is missing
+	t.is(output, '');
+	// Should not show error message when error prop is missing
+	t.false(output?.includes('Error occurred'));
 });
