@@ -10,11 +10,11 @@ import {type experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {type LanguageModelV2} from '@ai-sdk/provider';
 import {generateText, tool, type ModelMessage} from 'ai';
 import {z} from 'zod/v4';
-import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
-import type {LLMResponseData} from '../models/llm-response.js';
 import {getRandomWaitingMessage} from '../constants/waiting-messages.js';
-import type {Page, UxLintConfig} from '../models/config.js';
 import {logger} from '../infrastructure/logger.js';
+import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
+import type {Page, UxLintConfig} from '../models/config.js';
+import type {LLMResponseData} from '../models/llm-response.js';
 import {getLanguageModel} from './llm-provider.js';
 import {getMCPClient} from './mcp-client.js';
 import {reportBuilder, type ReportBuilder} from './report-builder.js';
@@ -74,13 +74,6 @@ export class AIService {
 		}
 
 		this.reportBuilder.reset();
-	}
-
-	/**
-	 * Get the report builder instance
-	 */
-	getReportBuilder(): ReportBuilder {
-		return this.reportBuilder;
 	}
 
 	/**
@@ -243,6 +236,7 @@ export class AIService {
 		},
 		iteration: number,
 	): LLMResponseData {
+		const emptyArgs: Record<string, unknown> = {};
 		return {
 			text: result.text,
 			toolCalls: result.toolCalls?.map((tc, index) => ({
@@ -252,8 +246,8 @@ export class AIService {
 					typeof tc.args === 'object' &&
 					tc.args !== null &&
 					!Array.isArray(tc.args)
-						? tc.args
-						: {},
+						? (tc.args as Record<string, unknown>)
+						: emptyArgs,
 			})),
 			finishReason: result.finishReason,
 			iteration,

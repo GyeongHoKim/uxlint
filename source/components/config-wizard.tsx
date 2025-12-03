@@ -7,10 +7,7 @@ import {ConfirmInput, Select} from '@inkjs/ui';
 import {Box, Text} from 'ink';
 import {useEffect, useState} from 'react';
 import {useConfigWizard} from '../hooks/use-config-wizard.js';
-import {
-	getDefaultReportPath,
-	saveConfigToFile,
-} from '../infrastructure/config/config-io.js';
+import {configIO} from '../infrastructure/config/config-io.js';
 import {buildConfig} from '../models/config-builder.js';
 import type {ThemeConfig, UxLintConfig} from '../models/index.js';
 import type {WizardState} from '../models/wizard-state.js';
@@ -190,7 +187,7 @@ function SavePhase({
 				const config = buildConfig(state.data);
 
 				try {
-					const filePath = await saveConfigToFile(config, {
+					const filePath = await configIO.saveConfigToFile(config, {
 						shouldSave: true,
 						format: selectedFormat,
 					});
@@ -510,7 +507,7 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 	const renderReport = () => {
 		if (state.phase !== 'report') return null;
 
-		const defaultPath = getDefaultReportPath();
+		const defaultPath = configIO.getDefaultReportPath();
 
 		const handleSubmit = (value: string) => {
 			validateAndSetReportPath(value, defaultPath);

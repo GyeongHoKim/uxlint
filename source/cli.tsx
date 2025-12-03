@@ -4,11 +4,7 @@ import {render, Text} from 'ink';
 import meow from 'meow';
 import App from './app.js';
 import {UxlintMachineContext} from './contexts/uxlint-context.js';
-import {
-	findConfigFile,
-	readConfigFile,
-	parseConfigFile,
-} from './infrastructure/config/config-io.js';
+import {configIO} from './infrastructure/config/config-io.js';
 import {loadEnvConfig} from './infrastructure/config/env-config.js';
 import {logger} from './infrastructure/logger.js';
 import {isUxLintConfig, type UxLintConfig} from './models/config.js';
@@ -56,7 +52,7 @@ function getConfigFormat(path: string): 'json' | 'yaml' | 'yml' {
 }
 
 // Check for existing config file
-const configPath = findConfigFile(process.cwd());
+const configPath = configIO.findConfigFile(process.cwd());
 const configExists = configPath !== undefined;
 
 // Log application startup
@@ -98,9 +94,9 @@ if (cli.flags.interactive) {
 	if (configExists && configPath) {
 		logger.debug('Loading existing config for interactive mode', {configPath});
 		try {
-			const configContent = readConfigFile(configPath);
+			const configContent = configIO.readConfigFile(configPath);
 			const format = getConfigFormat(configPath);
-			const parsed = parseConfigFile(configContent, format);
+			const parsed = configIO.parseConfigFile(configContent, format);
 
 			if (isUxLintConfig(parsed)) {
 				preloadedConfig = parsed;
@@ -161,9 +157,9 @@ if (cli.flags.interactive) {
 		loadEnvConfig();
 
 		logger.debug('Reading config file', {configPath});
-		const configContent = readConfigFile(configPath);
+		const configContent = configIO.readConfigFile(configPath);
 		const format = getConfigFormat(configPath);
-		const parsed = parseConfigFile(configContent, format);
+		const parsed = configIO.parseConfigFile(configContent, format);
 
 		if (!isUxLintConfig(parsed)) {
 			logger.error('Invalid configuration file format', {configPath});
