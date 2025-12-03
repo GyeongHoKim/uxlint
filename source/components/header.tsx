@@ -1,4 +1,4 @@
-import {Box, Text, useStdout} from 'ink';
+import {Box, useStdout} from 'ink';
 import BigText from 'ink-big-text';
 import type {ThemeConfig} from '../models/theme.js';
 
@@ -21,30 +21,12 @@ export function Header({theme}: HeaderProps) {
 	return (
 		<Box flexDirection="column" alignItems="center" marginBottom={1}>
 			{/* Big Text Logo or Compact Title */}
-			<Box marginBottom={1}>
+			<Box>
 				{isCompact ? (
 					<BigText text="ux" colors={[theme.accent]} />
 				) : (
 					<BigText text="uxlint" colors={[theme.accent]} />
 				)}
-			</Box>
-
-			{/* Subtitle/Tagline */}
-			<Box marginBottom={1}>
-				<Text color={theme.text.secondary}>
-					{isCompact
-						? 'AI-powered UX review CLI'
-						: 'AI-powered UX review CLI tool for web applications'}
-				</Text>
-			</Box>
-
-			{/* Additional branding line */}
-			<Box>
-				<Text color={theme.text.muted}>
-					{isCompact
-						? 'Persona-aware analysis'
-						: 'Get actionable UX feedback with persona-aware analysis'}
-				</Text>
 			</Box>
 		</Box>
 	);
