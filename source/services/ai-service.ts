@@ -11,6 +11,8 @@ import {type LanguageModelV2} from '@ai-sdk/provider';
 import {generateText, tool, type ModelMessage} from 'ai';
 import {z} from 'zod/v4';
 import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
+import type {LLMResponseData} from '../models/llm-response.js';
+import {getRandomWaitingMessage} from '../constants/waiting-messages.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import {logger} from '../infrastructure/logger.js';
 import {getLanguageModel} from './llm-provider.js';
@@ -24,10 +26,12 @@ const MAX_AGENT_ITERATIONS = 20;
 
 /**
  * Analysis progress callback type
+ * Extended to support LLM response data display
  */
 export type AnalysisProgressCallback = (
 	stage: AnalysisStage,
 	message?: string,
+	llmResponse?: LLMResponseData,
 ) => void;
 
 /**
@@ -46,7 +50,7 @@ const UxFindingSchema = z.object({
  * AI Service
  * Orchestrates AI-powered UX analysis using MCP tools
  */
-class AIService {
+export class AIService {
 	private readonly model: LanguageModelV2;
 	private readonly mcpClient: MCPClient;
 	private readonly reportBuilder: ReportBuilder;
@@ -131,7 +135,8 @@ class AIService {
 			while (iterations < MAX_AGENT_ITERATIONS && !analysisCompleted) {
 				iterations++;
 
-				onProgress?.('analyzing', `Analysis iteration ${iterations}`);
+				// Show waiting message before LLM call
+				onProgress?.('analyzing', getRandomWaitingMessage(), undefined);
 
 				// Log AI request
 				logger.info('AI Request', {
@@ -158,48 +163,28 @@ class AIService {
 					},
 				});
 
+				// Create and send LLM response to UI
+				const llmResponse = this.createLLMResponseData(result, iterations);
+				onProgress?.('analyzing', undefined, llmResponse);
+
 				// Add response messages to history
 				const responseMessages = result.response.messages;
 				messages.push(...responseMessages);
 
-				// Check if page analysis is complete
-				if (result.finishReason === 'tool-calls') {
-					const {toolCalls} = result;
+				// Process result and check if analysis is complete
+				const shouldContinue = this.processAgentResult(
+					result,
+					messages,
+					iterations,
+				);
 
-					// Check if completePageAnalysis was called
-					const completeCall = toolCalls.find(
-						tc => tc.toolName === 'completePageAnalysis',
-					);
-
-					if (completeCall) {
-						analysisCompleted = true;
-					}
-
-					// Continue loop to process tool results
-					continue;
+				if (shouldContinue === false) {
+					break;
 				}
 
-				// Handle stop or other finish reasons
-				if (result.finishReason === 'stop') {
-					const state = this.reportBuilder.getCurrentState();
-					const shouldRemind =
-						state.currentPageAnalysis &&
-						!analysisCompleted &&
-						iterations < MAX_AGENT_ITERATIONS;
-
-					if (shouldRemind) {
-						// Add a reminder message to prompt completion
-						messages.push({
-							role: 'user',
-							content:
-								'Please complete your analysis by calling addFinding for any UX issues you identified, then call completePageAnalysis to finish.',
-						});
-						continue;
-					}
+				if (shouldContinue === 'completed') {
+					analysisCompleted = true;
 				}
-
-				// Break loop for stop or other finish reasons
-				break;
 			}
 
 			// If analysis was not completed properly, complete it now
@@ -220,7 +205,7 @@ class AIService {
 				throw new Error('Failed to complete page analysis');
 			}
 
-			onProgress?.('complete');
+			onProgress?.('page-complete', `Finished analyzing ${page.url}`);
 
 			return completedAnalysis;
 		} catch (error) {
@@ -241,6 +226,72 @@ class AIService {
 				error: errorMessage,
 			};
 		}
+	}
+
+	/**
+	 * Create LLM response data for UI display
+	 */
+	private createLLMResponseData(
+		result: {
+			text: string;
+			toolCalls?: Array<{toolName: string; args?: unknown}>;
+			finishReason?: string;
+		},
+		iteration: number,
+	): LLMResponseData {
+		return {
+			text: result.text,
+			toolCalls: result.toolCalls?.map(tc => ({
+				toolName: tc.toolName,
+				args:
+					'args' in tc && tc.args ? (tc.args as Record<string, unknown>) : {},
+			})),
+			finishReason: result.finishReason,
+			iteration,
+			timestamp: Date.now(),
+		};
+	}
+
+	/**
+	 * Process agent loop result and determine next action
+	 * @returns false to break loop, true to continue, 'completed' if analysis done
+	 */
+	private processAgentResult(
+		result: {
+			finishReason?: string;
+			toolCalls?: Array<{toolName: string}>;
+		},
+		messages: ModelMessage[],
+		iterations: number,
+	): boolean | 'completed' {
+		if (result.finishReason === 'tool-calls' && result.toolCalls) {
+			const completeCall = result.toolCalls.find(
+				tc => tc.toolName === 'completePageAnalysis',
+			);
+
+			if (completeCall) {
+				return 'completed';
+			}
+
+			return true;
+		}
+
+		if (result.finishReason === 'stop') {
+			const state = this.reportBuilder.getCurrentState();
+			const shouldRemind =
+				state.currentPageAnalysis && iterations < MAX_AGENT_ITERATIONS;
+
+			if (shouldRemind) {
+				messages.push({
+					role: 'user',
+					content:
+						'Please complete your analysis by calling addFinding for any UX issues you identified, then call completePageAnalysis to finish.',
+				});
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

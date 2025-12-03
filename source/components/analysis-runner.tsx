@@ -9,7 +9,7 @@ import {Box, Text} from 'ink';
 import {useEffect, useState} from 'react';
 import type {ThemeConfig} from '../models/theme.js';
 import type {UxLintConfig} from '../models/config.js';
-import type {UxReport} from '../models/uxlint-machine.js';
+import type {UxReport} from '../models/analysis.js';
 import {useAnalysis} from '../hooks/use-analysis.js';
 import {AnalysisProgress} from './analysis-progress.js';
 
@@ -51,32 +51,38 @@ export function AnalysisRunner({
 
 	// Show exit prompt and notify when complete or error
 	useEffect(() => {
-		if (
+		const isTerminalStage =
 			analysisState.currentStage === 'complete' ||
-			analysisState.currentStage === 'error'
-		) {
-			setShowExitPrompt(true);
+			analysisState.currentStage === 'error';
 
-			// Notify parent via callbacks (only once)
-			if (!hasNotified) {
-				setHasNotified(true);
+		if (!isTerminalStage) {
+			return;
+		}
 
-				if (analysisState.currentStage === 'complete' && onComplete) {
-					// Create a basic UxReport from analysis state
-					const result: UxReport = {
-						pages: [],
-						summary: 'Analysis completed successfully',
-						recommendations: [],
-					};
-					onComplete(result);
-				} else if (analysisState.currentStage === 'error' && onError) {
-					onError(analysisState.error ?? new Error('Unknown analysis error'));
-				}
+		setShowExitPrompt(true);
+
+		if (hasNotified) {
+			return;
+		}
+
+		if (analysisState.currentStage === 'complete' && onComplete) {
+			if (!analysisState.finalReport) {
+				return;
 			}
+
+			setHasNotified(true);
+			onComplete(analysisState.finalReport);
+			return;
+		}
+
+		if (analysisState.currentStage === 'error' && onError) {
+			setHasNotified(true);
+			onError(analysisState.error ?? new Error('Unknown analysis error'));
 		}
 	}, [
 		analysisState.currentStage,
 		analysisState.error,
+		analysisState.finalReport,
 		hasNotified,
 		onComplete,
 		onError,
@@ -91,6 +97,9 @@ export function AnalysisRunner({
 				totalPages={analysisState.totalPages}
 				pageUrl={getCurrentPageUrl()}
 				error={analysisState.error?.message}
+				lastLLMResponse={analysisState.lastLLMResponse}
+				waitingMessage={analysisState.waitingMessage}
+				isWaitingForLLM={analysisState.isWaitingForLLM}
 			/>
 
 			{/* Show completion message and exit prompt */}
