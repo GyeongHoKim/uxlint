@@ -5,9 +5,9 @@
 
 import {act, renderHook, type RenderHookResult} from '@testing-library/react';
 import test from 'ava';
-import sinon from 'sinon';
-import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {MockLanguageModelV2} from 'ai/test';
+import sinon from 'sinon';
+import {createMockMCPClient} from '../utils.js';
 import {
 	useAnalysis,
 	type UseAnalysisResult,
@@ -22,15 +22,7 @@ test('useAnalysis updates iteration number within same page', async t => {
 	const sandbox = sinon.createSandbox();
 
 	// Create mock MCP client
-	const mockMCPClient: MCPClient = {
-		tools: sandbox.stub().resolves({}),
-		close: sandbox.stub().resolves(),
-		listResources: sandbox.stub().resolves([]),
-		readResource: sandbox.stub().resolves({}),
-		listResourceTemplates: sandbox.stub().resolves([]),
-		listPrompts: sandbox.stub().resolves([]),
-		getPrompt: sandbox.stub().resolves({}),
-	};
+	const mockMCPClient = createMockMCPClient();
 
 	// Create mock language model that requires multiple iterations
 	let callCount = 0;
