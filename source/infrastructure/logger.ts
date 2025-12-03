@@ -5,6 +5,9 @@ import fs from 'node:fs';
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 
+// Type definitions for fs dependency injection
+type FsSyncMethods = Pick<typeof fs, 'existsSync' | 'mkdirSync'>;
+
 /**
  * Logger type for dependency injection
  * IMPORTANT: All implementations ONLY write to files, never to stdout/stderr
@@ -23,7 +26,18 @@ export type ILogger = {
 export class WinstonLogger implements ILogger {
 	private readonly logger: winston.Logger;
 
-	constructor(logDirectory: string, enableDebug = false) {
+	constructor(
+		logDirectory: string,
+		enableDebug = false,
+		private readonly fsSync: FsSyncMethods = fs,
+	) {
+		const {existsSync, mkdirSync} = this.fsSync;
+
+		// Ensure log directory exists
+		if (!existsSync(logDirectory)) {
+			mkdirSync(logDirectory, {recursive: true});
+		}
+
 		const logFilePath = path.join(logDirectory, 'uxlint-%DATE%.log');
 
 		this.logger = winston.createLogger({
@@ -95,25 +109,13 @@ function getLogDirectory(): string {
 }
 
 /**
- * Ensure log directory exists
- */
-function ensureLogDirectory(): string {
-	const logDir = getLogDirectory();
-	if (!fs.existsSync(logDir)) {
-		fs.mkdirSync(logDir, {recursive: true});
-	}
-
-	return logDir;
-}
-
-/**
  * Singleton logger instance
  * IMPORTANT: This logger ONLY writes to files, never to stdout/stderr
  * because stdout is reserved for MCP protocol communication.
  *
  * Log level defaults to 'info' (logs info, warn, error only).
  */
-export const logger: ILogger = new WinstonLogger(ensureLogDirectory(), false);
+export const logger: ILogger = new WinstonLogger(getLogDirectory(), false);
 
 /**
  * Get log file path for user reference

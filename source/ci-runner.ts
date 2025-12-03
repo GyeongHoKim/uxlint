@@ -5,13 +5,12 @@
  * @packageDocumentation
  */
 
-import {writeFile} from 'node:fs/promises';
 import process from 'node:process';
 import {logger} from './infrastructure/logger.js';
-import {generateMarkdownReport} from './infrastructure/reports/report-generator.js';
 import type {AnalysisStage} from './models/analysis.js';
 import type {UxLintConfig} from './models/config.js';
 import {getAIService} from './services/ai-service.js';
+import {reportBuilder} from './services/report-builder.js';
 
 /**
  * Create a progress callback for page analysis
@@ -84,15 +83,13 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 			});
 		}
 
-		// Generate report
+		// Generate and save report
 		logger.info('Report generation started');
 
-		const reportBuilder = aiService.getReportBuilder();
 		const report = reportBuilder.generateFinalReport();
 
-		// Write report to file
-		const markdown = generateMarkdownReport(report);
-		await writeFile(config.report.output, markdown, 'utf8');
+		// Save report to file using ReportBuilder
+		await reportBuilder.saveReport(config.report.output);
 
 		const totalDuration = Date.now() - startTime;
 		logger.info('CI analysis completed successfully', {

@@ -5,17 +5,19 @@
  * @packageDocumentation
  */
 
-import {writeFile} from 'node:fs/promises';
 import {useCallback, useRef, useState} from 'react';
-import type {AnalysisStage, AnalysisState} from '../models/analysis.js';
-import type {LLMResponseData} from '../models/llm-response.js';
-import type {UxLintConfig} from '../models/config.js';
-import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
 import {logger} from '../infrastructure/logger.js';
+import type {AnalysisStage, AnalysisState} from '../models/analysis.js';
+import type {UxLintConfig} from '../models/config.js';
+import type {LLMResponseData} from '../models/llm-response.js';
 import {
 	getAIService as defaultGetAIService,
 	type AIService,
 } from '../services/ai-service.js';
+import {
+	reportBuilder as defaultReportBuilder,
+	type ReportBuilder,
+} from '../services/report-builder.js';
 
 /**
  * State change callback type
@@ -45,11 +47,13 @@ export type UseAnalysisResult = {
  *
  * @param config - UxLint configuration
  * @param getAIService - Optional function to get AIService instance (for testing)
+ * @param reportBuilder - Optional ReportBuilder instance (for testing, defaults to singleton)
  * @returns Analysis state and control functions
  */
 export function useAnalysis(
 	config: UxLintConfig,
 	getAIService: () => Promise<AIService> = defaultGetAIService,
+	reportBuilder: ReportBuilder = defaultReportBuilder,
 ): UseAnalysisResult {
 	const [analysisState, setAnalysisState] = useState<AnalysisState>({
 		currentPageIndex: 0,
@@ -193,8 +197,7 @@ export function useAnalysis(
 				isWaitingForLLM: false,
 			}));
 
-			// Get report builder and generate final report
-			const reportBuilder = aiService.getReportBuilder();
+			// Get report builder and save report
 			const report = reportBuilder.generateFinalReport();
 
 			logger.info('Report generation started', {
@@ -203,13 +206,11 @@ export function useAnalysis(
 				pagesAnalyzed: report.metadata.analyzedPages.length,
 			});
 
-			// Write report to file
-			const markdown = generateMarkdownReport(report);
-			await writeFile(config.report.output, markdown, 'utf8');
+			// Save report to file using ReportBuilder
+			await reportBuilder.saveReport(config.report.output);
 
 			logger.info('Report saved successfully', {
 				outputPath: config.report.output,
-				reportSize: markdown.length,
 			});
 
 			// Update state to complete with final report
@@ -241,7 +242,7 @@ export function useAnalysis(
 			const aiService = await getAIService();
 			await aiService.close();
 		}
-	}, [config, updateAnalysisState, getAIService]);
+	}, [config, updateAnalysisState, getAIService, reportBuilder]);
 
 	return {
 		analysisState,

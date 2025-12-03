@@ -5,7 +5,13 @@
  * @packageDocumentation
  */
 
+import type * as fs from 'node:fs';
+import {promises as fsPromises} from 'node:fs';
+import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
 import type {PageAnalysis, UxFinding, UxReport} from '../models/analysis.js';
+
+// Type definition for fs dependency injection
+type FsAsyncMethods = typeof fs.promises;
 
 /**
  * Report Builder
@@ -17,6 +23,8 @@ export class ReportBuilder {
 	private currentPageAnalysis: Partial<PageAnalysis> | undefined;
 	private allAnalyses: PageAnalysis[] = [];
 	private persona = '';
+
+	constructor(private readonly fsAsync?: FsAsyncMethods) {}
 
 	/**
 	 * Initialize a new page analysis session
@@ -188,6 +196,33 @@ export class ReportBuilder {
 	}
 
 	/**
+	 * Save the final report to a file
+	 *
+	 * @param outputPath - Path where the report should be saved
+	 * @returns Promise that resolves when the file is written
+	 * @throws Error if fs module is not available
+	 *
+	 * @example
+	 * ```typescript
+	 * const report = reportBuilder.generateFinalReport();
+	 * await reportBuilder.saveReport('./ux-report.md');
+	 * ```
+	 */
+	async saveReport(outputPath: string): Promise<void> {
+		if (!this.fsAsync) {
+			throw new Error(
+				'File system not available. ReportBuilder was created without fs dependency.',
+			);
+		}
+
+		const report = this.generateFinalReport();
+		const markdown = generateMarkdownReport(report);
+		const {writeFile} = this.fsAsync;
+
+		await writeFile(outputPath, markdown, 'utf8');
+	}
+
+	/**
 	 * Prioritize findings by severity
 	 * Sorts findings: critical > high > medium > low
 	 */
@@ -211,4 +246,7 @@ export class ReportBuilder {
 	}
 }
 
-export const reportBuilder = new ReportBuilder();
+/**
+ * Singleton instance of ReportBuilder with fs dependency
+ */
+export const reportBuilder = new ReportBuilder(fsPromises);
