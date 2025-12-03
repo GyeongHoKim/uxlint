@@ -41,7 +41,7 @@ Verify compliance with uxlint Constitution v1.2.0:
 **II. Test-First Development** (NON-NEGOTIABLE):
 - [x] Tests will be written BEFORE implementation
 - [x] Testing strategy defined: Unit tests (Ava) for state machine transitions, visual regression (ink-testing-library) for App component
-- [x] Language model tests use MockLanguageModelV3 from `ai/test` (N/A for this feature - no new LLM integration)
+- [x] Language model tests use MockLanguageModelV2 from `ai/test` (N/A for this feature - no new LLM integration)
 - [x] 80% coverage target via c8
 
 **III. UX Consistency**:

@@ -1,22 +1,25 @@
 <!--
 Sync Impact Report:
-Version: 1.1.0 → 1.2.0 (MINOR - Added language model testing standards using AI SDK mock providers)
+Version: 1.2.0 → 1.2.1 (PATCH - Corrected AI SDK mock provider version from V3 to V2 to match AI SDK 5.x)
 
 Modified principles:
-  - II. Test-First Development → Enhanced with language model testing guidance using MockLanguageModelV3
+  - II. Test-First Development → Corrected language model testing guidance to use MockLanguageModelV2 (AI SDK 5.x standard)
 
-Added sections:
-  - Testing Language Models (subsection under Code Quality Standards)
+Added sections: None
 
 Removed sections: None
 
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md - Constitution Check section updated with v1.2.0
-  ✅ .specify/templates/spec-template.md - Testing strategies include language model testing
-  ✅ .specify/templates/tasks-template.md - Test requirements include language model testing approach
-  ✅ CLAUDE.md - Updated to reference v1.2.0 with language model testing standards
+  ✅ .specify/memory/constitution.md - Updated examples to use MockLanguageModelV2
+  ✅ .specify/templates/plan-template.md - Updated to reference MockLanguageModelV2
+  ✅ .specify/templates/spec-template.md - Updated to reference MockLanguageModelV2
+  ✅ .specify/templates/tasks-template.md - Updated to reference MockLanguageModelV2
+  ✅ specs/002-uxlint-tty-analyze/tasks.md - Updated to reference MockLanguageModelV2
+  ✅ specs/002-uxlint-tty-analyze/plan.md - Updated to reference MockLanguageModelV2
+  ✅ specs/001-readme-md-uxlint/tasks.md - Updated to reference MockLanguageModelV2
+  ✅ specs/001-readme-md-uxlint/plan.md - Updated to reference MockLanguageModelV2
 
-Follow-up TODOs: None - All templates synchronized
+Follow-up TODOs: None
 -->
 
 # uxlint Project Constitution
@@ -109,22 +112,22 @@ Complexity MUST be justified before introduction:
 Language model integrations MUST use mock-based testing to ensure deterministic, fast, and cost-effective tests:
 
 **Required Approach**:
-- Import test helpers from `ai/test`: `MockLanguageModelV3`, `simulateReadableStream`, `mockId`, `mockValues`
-- Use `MockLanguageModelV3` to mock language model responses in unit tests
+- Import test helpers from `ai/test`: `MockLanguageModelV2`, `simulateReadableStream`, `mockId`, `mockValues`
+- Use `MockLanguageModelV2` to mock language model responses in unit tests (AI SDK 5.x standard)
 - Control output with `doGenerate` for synchronous calls or `doStream` for streaming responses
 - Test both success and failure scenarios without calling actual LLM providers
 
-**Rationale**: Language models are non-deterministic, slow, and expensive to call. Mock providers enable repeatable, deterministic testing of AI-powered features without API costs or network dependencies. This ensures tests run quickly in CI/CD and remain stable across environments.
+**Rationale**: Language models are non-deterministic, slow, and expensive to call. Mock providers enable repeatable, deterministic testing of AI-powered features without API costs or network dependencies. This ensures tests run quickly in CI/CD and remain stable across environments. AI SDK 5.x uses the V2 specification for mock providers as documented at https://ai-sdk.dev/docs/ai-sdk-core/testing#testing.
 
 **Examples**:
 
 Testing `generateText`:
 ```typescript
 import { generateText } from 'ai';
-import { MockLanguageModelV3 } from 'ai/test';
+import { MockLanguageModelV2 } from 'ai/test';
 
 const result = await generateText({
-  model: new MockLanguageModelV3({
+  model: new MockLanguageModelV2({
     doGenerate: async () => ({
       finishReason: 'stop',
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
@@ -139,10 +142,10 @@ const result = await generateText({
 Testing `streamText`:
 ```typescript
 import { streamText, simulateReadableStream } from 'ai';
-import { MockLanguageModelV3 } from 'ai/test';
+import { MockLanguageModelV2 } from 'ai/test';
 
 const result = streamText({
-  model: new MockLanguageModelV3({
+  model: new MockLanguageModelV2({
     doStream: async () => ({
       stream: simulateReadableStream({
         chunks: [
@@ -168,11 +171,11 @@ const result = streamText({
 Testing `generateObject`:
 ```typescript
 import { generateObject } from 'ai';
-import { MockLanguageModelV3 } from 'ai/test';
+import { MockLanguageModelV2 } from 'ai/test';
 import { z } from 'zod';
 
 const result = await generateObject({
-  model: new MockLanguageModelV3({
+  model: new MockLanguageModelV2({
     doGenerate: async () => ({
       finishReason: 'stop',
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
@@ -242,4 +245,4 @@ const result = await generateObject({
 - `CLAUDE.md` MUST reference constitutional principles
 - Constitutional updates propagate to `CLAUDE.md` within 24 hours
 
-**Version**: 1.2.0 | **Ratified**: 2025-10-08 | **Last Amended**: 2025-12-01
+**Version**: 1.2.1 | **Ratified**: 2025-10-08 | **Last Amended**: 2025-12-03

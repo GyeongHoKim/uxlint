@@ -18,7 +18,7 @@ TTY 모드에서 분석 중 **직전 LLM 응답(text + tool calls)을 실시간�
 **Language/Version**: TypeScript 5.x with ES modules
 **Primary Dependencies**: React (Ink), AI SDK (`ai` package), XState
 **Storage**: N/A (in-memory state only)
-**Testing**: Ava + ink-testing-library + MockLanguageModelV3 from `ai/test`
+**Testing**: Ava + ink-testing-library + MockLanguageModelV2 from `ai/test`
 **Target Platform**: Node.js >=18.18.0 (CLI application)
 **Project Type**: Single project (CLI tool)
 **Performance Goals**: UI 업데이트 1초 이내, 초당 5개 메시지까지 반응성 유지
@@ -38,7 +38,7 @@ Verify compliance with uxlint Constitution v1.2.0:
 **II. Test-First Development** (NON-NEGOTIABLE):
 - [x] Tests will be written BEFORE implementation
 - [x] Testing strategy defined: Unit tests (Ava) for models, visual regression (ink-testing-library) for components, mock-based tests for language model integrations
-- [x] Language model tests use MockLanguageModelV3 from `ai/test`
+- [x] Language model tests use MockLanguageModelV2 from `ai/test`
 - [x] 80% coverage target via c8
 
 **III. UX Consistency**:
@@ -142,7 +142,7 @@ tests/
 - `analyzePage` 메서드에서:
   - generateText 호출 전: `onProgress('analyzing', waitingMessage, undefined)`
   - generateText 호출 후: `onProgress('analyzing', undefined, llmResponse)`
-- 테스트: MockLanguageModelV3 사용
+- 테스트: MockLanguageModelV2 사용
 
 **Task 5: Update useAnalysis Hook**
 - 파일: `source/hooks/use-analysis.ts`

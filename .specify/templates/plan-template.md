@@ -40,7 +40,7 @@ Verify compliance with uxlint Constitution v1.2.0:
 **II. Test-First Development** (NON-NEGOTIABLE):
 - [ ] Tests will be written BEFORE implementation
 - [ ] Testing strategy defined: Unit tests (Ava) for models, visual regression (ink-testing-library) for components, mock-based tests for language model integrations
-- [ ] Language model tests use MockLanguageModelV3 from `ai/test`
+- [ ] Language model tests use MockLanguageModelV2 from `ai/test` (AI SDK 5.x standard)
 - [ ] 80% coverage target via c8
 
 **III. UX Consistency**:

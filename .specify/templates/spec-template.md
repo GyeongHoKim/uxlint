@@ -22,7 +22,7 @@
   TESTING STRATEGY (per Constitution v1.2.0 II):
   - Models (pure TypeScript classes/functions): Unit tests using Ava
   - Components (React/Ink UI): Visual regression tests using ink-testing-library
-  - Language Model Integrations: Mock-based tests using MockLanguageModelV3 from `ai/test`
+  - Language Model Integrations: Mock-based tests using MockLanguageModelV2 from `ai/test` (AI SDK 5.x standard)
   - Tests MUST be written and approved BEFORE implementation
 -->
 

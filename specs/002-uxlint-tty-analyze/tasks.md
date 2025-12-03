@@ -6,7 +6,7 @@
 **Tests**: Per Constitution v1.2.0 II, tests are MANDATORY and MUST be written BEFORE implementation:
 - Models (pure TypeScript classes/functions): Unit tests using Ava
 - Components (React/Ink UI): Visual regression tests using ink-testing-library
-- Language Model Integrations: Mock-based tests using MockLanguageModelV3 from `ai/test`
+- Language Model Integrations: Mock-based tests using MockLanguageModelV2 from `ai/test` (AI SDK 5.x standard)
 - Tests MUST fail initially (red phase) before implementation begins
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
@@ -30,12 +30,12 @@
 
 **Purpose**: Project structure and new file scaffolding
 
-- [ ] T001 [P] Create `source/models/llm-response.ts` file scaffold
-- [ ] T002 [P] Create `source/constants/waiting-messages.ts` file scaffold
-- [ ] T003 [P] Create `source/components/llm-response-display.tsx` file scaffold
-- [ ] T004 [P] Create `tests/models/llm-response.spec.ts` file scaffold
-- [ ] T005 [P] Create `tests/constants/waiting-messages.spec.ts` file scaffold
-- [ ] T006 [P] Create `tests/components/llm-response-display.spec.tsx` file scaffold
+- [x] T001 [P] Create `source/models/llm-response.ts` file scaffold
+- [x] T002 [P] Create `source/constants/waiting-messages.ts` file scaffold
+- [x] T003 [P] Create `source/components/llm-response-display.tsx` file scaffold
+- [x] T004 [P] Create `tests/models/llm-response.spec.ts` file scaffold
+- [x] T005 [P] Create `tests/constants/waiting-messages.spec.ts` file scaffold
+- [x] T006 [P] Create `tests/components/llm-response-display.spec.tsx` file scaffold
 
 ---
 
@@ -49,36 +49,36 @@
 
 **Strategy**: Unit tests (Ava) for models
 
-- [ ] T007 [P] [FOUND] Write unit tests for `LLMResponseData` type validation in `tests/models/llm-response.spec.ts`
+- [x] T007 [P] [FOUND] Write unit tests for `LLMResponseData` type validation in `tests/models/llm-response.spec.ts`
   - Test valid LLMResponseData creation
   - Test with text only, toolCalls only, both
   - Test iteration and timestamp fields
 
-- [ ] T008 [P] [FOUND] Write unit tests for waiting messages in `tests/constants/waiting-messages.spec.ts`
+- [x] T008 [P] [FOUND] Write unit tests for waiting messages in `tests/constants/waiting-messages.spec.ts`
   - Test messages array is not empty
   - Test getRandomWaitingMessage returns valid message
   - Test all messages are non-empty strings
 
 ### Implementation for Foundational
 
-- [ ] T009 [P] [FOUND] Implement `LLMResponseData` and `LLMToolCall` types in `source/models/llm-response.ts`
+- [x] T009 [P] [FOUND] Implement `LLMResponseData` and `LLMToolCall` types in `source/models/llm-response.ts`
   - Define LLMToolCall type (toolName, args)
   - Define LLMResponseData type (text, toolCalls, finishReason, iteration, timestamp)
   - Export types for use in other modules
 
-- [ ] T010 [P] [FOUND] Implement waiting messages module in `source/constants/waiting-messages.ts`
+- [x] T010 [P] [FOUND] Implement waiting messages module in `source/constants/waiting-messages.ts`
   - Define waitingMessages array with 20+ humorous messages
   - Implement getRandomWaitingMessage() function
   - Export messages and function
 
-- [ ] T011 [FOUND] Extend `AnalysisState` type in `source/models/analysis.ts`
+- [x] T011 [FOUND] Extend `AnalysisState` type in `source/models/analysis.ts`
   - Import LLMResponseData from llm-response.ts
   - Add `lastLLMResponse?: LLMResponseData` field
   - Add `waitingMessage?: string` field
   - Add `isWaitingForLLM?: boolean` field
   - Add `currentIteration?: number` field
 
-- [ ] T012 [FOUND] Extend `AnalysisProgressCallback` type in `source/services/ai-service.ts`
+- [x] T012 [FOUND] Extend `AnalysisProgressCallback` type in `source/services/ai-service.ts`
   - Import LLMResponseData from models
   - Add optional `llmResponse` parameter to callback type
   - Maintain backward compatibility with existing calls
@@ -97,52 +97,52 @@
 
 **Strategy**: Visual regression (ink-testing-library) for components, mocks (MockLanguageModelV3) for LLM integrations
 
-- [ ] T013 [P] [US1] Write visual regression tests for `LLMResponseDisplay` component in `tests/components/llm-response-display.spec.tsx`
+- [x] T013 [P] [US1] Write visual regression tests for `LLMResponseDisplay` component in `tests/components/llm-response-display.spec.tsx`
   - Test renders LLM text response correctly
   - Test renders tool calls list correctly
   - Test renders iteration number
   - Test renders empty state when no response
 
-- [ ] T014 [P] [US1] Write visual regression tests for updated `AnalysisProgress` in `tests/components/analysis-progress.spec.tsx`
+- [x] T014 [P] [US1] Write visual regression tests for updated `AnalysisProgress` in `tests/components/analysis-progress.spec.tsx`
   - Test renders lastLLMResponse when provided
   - Test renders LLMResponseDisplay component integration
   - Test does not break existing functionality
 
-- [ ] T015 [US1] Write mock-based tests for AIService LLM response callback in `tests/services/ai-service.spec.ts`
+- [x] T015 [US1] Write mock-based tests for AIService LLM response callback in `tests/services/ai-service.spec.ts`
   - Use MockLanguageModelV3 from `ai/test`
   - Test onProgress is called with llmResponse after generateText
   - Test llmResponse contains text, toolCalls, iteration, timestamp
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Implement `LLMResponseDisplay` component in `source/components/llm-response-display.tsx`
+- [x] T016 [US1] Implement `LLMResponseDisplay` component in `source/components/llm-response-display.tsx`
   - Create LLMResponseDisplayProps type
   - Render iteration header with emoji (📝)
   - Render LLM text response in Box
   - Render tool calls list with emoji (🔧)
   - Use Ink Text and Box components
 
-- [ ] T017 [US1] Update `AIService.analyzePage` to pass LLM response in `source/services/ai-service.ts`
+- [x] T017 [US1] Update `AIService.analyzePage` to pass LLM response in `source/services/ai-service.ts`
   - Import getRandomWaitingMessage from constants
   - After generateText call: create LLMResponseData from result
   - Call onProgress with llmResponse parameter
   - Include text, toolCalls, finishReason, iteration, timestamp
 
-- [ ] T018 [US1] Update `useAnalysis` hook to handle LLM response in `source/hooks/use-analysis.ts`
+- [x] T018 [US1] Update `useAnalysis` hook to handle LLM response in `source/hooks/use-analysis.ts`
   - Update onProgress callback signature to accept llmResponse
   - When llmResponse provided: set lastLLMResponse, isWaitingForLLM: false
   - When llmResponse not provided: preserve lastLLMResponse
   - Update currentIteration from llmResponse
 
-- [ ] T019 [US1] Update `AnalysisProgress` component in `source/components/analysis-progress.tsx`
+- [x] T019 [US1] Update `AnalysisProgress` component in `source/components/analysis-progress.tsx`
   - Add lastLLMResponse prop to AnalysisProgressProps
   - Import and render LLMResponseDisplay when lastLLMResponse exists
   - Only show when stage is 'analyzing'
 
-- [ ] T020 [US1] Update `AnalysisRunner` component in `source/components/analysis-runner.tsx`
+- [x] T020 [US1] Update `AnalysisRunner` component in `source/components/analysis-runner.tsx`
   - Pass analysisState.lastLLMResponse to AnalysisProgress
 
-- [ ] T021 [US1] Export LLMResponseDisplay from `source/components/index.ts`
+- [x] T021 [US1] Export LLMResponseDisplay from `source/components/index.ts`
 
 **Checkpoint**: User Story 1 complete - LLM responses now visible in terminal UI
 
@@ -158,37 +158,37 @@
 
 **Strategy**: Visual regression (ink-testing-library) for components
 
-- [ ] T022 [P] [US2] Write visual regression tests for message type distinction in `tests/components/llm-response-display.spec.tsx`
+- [x] T022 [P] [US2] Write visual regression tests for message type distinction in `tests/components/llm-response-display.spec.tsx`
   - Test text response has distinct styling (color, prefix)
   - Test tool calls have distinct styling (different color, bullet points)
   - Test finishReason is indicated visually
 
-- [ ] T023 [P] [US2] Write visual regression tests for waiting message display in `tests/components/analysis-progress.spec.tsx`
+- [x] T023 [P] [US2] Write visual regression tests for waiting message display in `tests/components/analysis-progress.spec.tsx`
   - Test waiting message displays with spinner when isWaitingForLLM is true
   - Test waiting message has distinct styling from LLM response
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Enhance `LLMResponseDisplay` with visual distinction in `source/components/llm-response-display.tsx`
+- [x] T024 [US2] Enhance `LLMResponseDisplay` with visual distinction in `source/components/llm-response-display.tsx`
   - Add color coding: cyan for text response header
   - Add color coding: yellow for tool calls header
   - Add emoji prefixes: 📝 for text, 🔧 for tools
   - Add bullet points (•) for tool call items
 
-- [ ] T025 [US2] Add waiting message display in `source/components/analysis-progress.tsx`
+- [x] T025 [US2] Add waiting message display in `source/components/analysis-progress.tsx`
   - Add waitingMessage and isWaitingForLLM props
   - Show spinner + waitingMessage when isWaitingForLLM is true
   - Use cyan color and dimColor for waiting state
 
-- [ ] T026 [US2] Update AIService to send waiting message before LLM call in `source/services/ai-service.ts`
+- [x] T026 [US2] Update AIService to send waiting message before LLM call in `source/services/ai-service.ts`
   - Before generateText: call onProgress('analyzing', waitingMessage, undefined)
   - This sets isWaitingForLLM: true in state
 
-- [ ] T027 [US2] Update useAnalysis hook to handle waiting state in `source/hooks/use-analysis.ts`
+- [x] T027 [US2] Update useAnalysis hook to handle waiting state in `source/hooks/use-analysis.ts`
   - When message provided but no llmResponse: set waitingMessage, isWaitingForLLM: true
   - When llmResponse provided: clear waitingMessage, isWaitingForLLM: false
 
-- [ ] T028 [US2] Update AnalysisRunner to pass waiting state props in `source/components/analysis-runner.tsx`
+- [x] T028 [US2] Update AnalysisRunner to pass waiting state props in `source/components/analysis-runner.tsx`
   - Pass analysisState.waitingMessage to AnalysisProgress
   - Pass analysisState.isWaitingForLLM to AnalysisProgress
 
@@ -206,31 +206,31 @@
 
 **Strategy**: Unit tests (Ava) for truncation logic, visual regression for display
 
-- [ ] T029 [P] [US3] Write unit tests for text truncation in `tests/models/llm-response.spec.ts`
+- [x] T029 [P] [US3] Write unit tests for text truncation in `tests/models/llm-response.spec.ts`
   - Test truncateText function with short text (no truncation)
   - Test truncateText function with long text (200+ chars)
   - Test truncation adds "..." indicator
 
-- [ ] T030 [P] [US3] Write visual regression tests for overflow handling in `tests/components/llm-response-display.spec.tsx`
+- [x] T030 [P] [US3] Write visual regression tests for overflow handling in `tests/components/llm-response-display.spec.tsx`
   - Test long text is truncated with "..." indicator
   - Test many tool calls (6+) shows "+N more..." indicator
   - Test display adapts to content without breaking layout
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Add truncation utility functions in `source/models/llm-response.ts`
+- [x] T031 [US3] Add truncation utility functions in `source/models/llm-response.ts`
   - Implement truncateText(text: string, maxLength: number): string
   - Implement formatToolCall(toolCall: LLMToolCall): string
   - Export utility functions
 
-- [ ] T032 [US3] Update `LLMResponseDisplay` with truncation in `source/components/llm-response-display.tsx`
+- [x] T032 [US3] Update `LLMResponseDisplay` with truncation in `source/components/llm-response-display.tsx`
   - Add maxTextLength prop (default: 200)
   - Add maxToolCalls prop (default: 5)
   - Truncate text response to maxTextLength
   - Limit tool calls display to maxToolCalls
   - Show "+N more..." when tool calls exceed limit
 
-- [ ] T033 [US3] Add wrap="wrap" to text display in `source/components/llm-response-display.tsx`
+- [x] T033 [US3] Add wrap="wrap" to text display in `source/components/llm-response-display.tsx`
   - Ensure long lines wrap properly within terminal width
   - Use Ink's Text wrap prop
 
@@ -242,17 +242,17 @@
 
 **Purpose**: Quality assurance and final integration
 
-- [ ] T034 [P] Run `npm run compile` and fix any TypeScript errors
-- [ ] T035 [P] Run `npm run format` to apply Prettier formatting
-- [ ] T036 [P] Run `npm run lint` and fix any XO linting issues
-- [ ] T037 Run full test suite `npm test` and ensure all tests pass
-- [ ] T038 Verify 80% coverage threshold is met via c8
-- [ ] T039 Manual integration test: run uxlint in TTY mode and verify:
+- [x] T034 [P] Run `npm run compile` and fix any TypeScript errors
+- [x] T035 [P] Run `npm run format` to apply Prettier formatting
+- [x] T036 [P] Run `npm run lint` and fix any XO linting issues
+- [x] T037 Run full test suite `npm test` and ensure all tests pass
+- [x] T038 Verify 80% coverage threshold is met via c8
+- [x] T039 Manual integration test: run uxlint in TTY mode and verify:
   - LLM responses appear in terminal
   - Tool calls are displayed
   - Waiting messages show during LLM calls
   - Long messages are truncated
-- [ ] T040 Update component exports in `source/components/index.ts` if needed
+- [x] T040 Update component exports in `source/components/index.ts` if needed
 
 ---
 
