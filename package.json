@@ -4,7 +4,7 @@
 	"version": "2.2.1",
 	"private": false,
 	"license": "MIT",
-	"bin": "dist/cli.js",
+	"bin": "dist/source/cli.js",
 	"type": "module",
 	"repository": {
 		"type": "git",
@@ -92,6 +92,7 @@
 		"@types/js-yaml": "^4.0.9",
 		"@types/react": "^18.2.0",
 		"@types/react-dom": "^18.2.0",
+		"@types/sinon": "^21.0.0",
 		"@vdemedes/prettier-config": "^2.0.1",
 		"ava": "^6.4.1",
 		"c8": "^10.1.3",
@@ -104,26 +105,30 @@
 		"husky": "^9.1.7",
 		"ink-testing-library": "^3.0.0",
 		"jsdom": "^27.2.0",
+		"msw": "^2.12.3",
 		"prettier": "^2.8.8",
 		"rimraf": "^6.0.1",
 		"semantic-release": "^24.2.9",
+		"sinon": "^21.0.0",
 		"ts-node": "^10.9.1",
 		"tsimp": "2.0.12",
 		"typescript": "5.5.4",
+		"vitest": "^4.0.15",
 		"xo": "^1.2.2"
 	},
 	"c8": {
 		"include": [
-			"source/**/*.{ts,tsx}"
+			"dist/source/**/*.js"
 		],
 		"exclude": [
 			"tests/**",
-			"dist/**",
+			"dist/tests/**",
 			"node_modules/**"
 		],
 		"lines": 80,
 		"functions": 80,
 		"branches": 80,
-		"statements": 80
+		"statements": 80,
+		"all": true
 	}
 }

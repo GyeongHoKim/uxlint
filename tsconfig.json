@@ -9,6 +9,7 @@
 		"resolveJsonModule": false,
 		"jsx": "react-jsx",
 		"declaration": true,
+		"sourceMap": true,
 		"outDir": "dist",
 		"pretty": true,
 		"newLine": "lf",
