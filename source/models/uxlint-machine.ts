@@ -5,25 +5,7 @@
 import {assign, setup} from 'xstate';
 import type {UxLintConfig} from '../models/config.js';
 import {MissingConfigError} from '../models/errors.js';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-/**
- * Analysis result structure
- */
-export type UxReport = {
-	pages: PageAnalysis[];
-	summary: string;
-	recommendations: string[];
-};
-
-export type PageAnalysis = {
-	url: string;
-	findings: string[];
-	score: number;
-};
+import type {UxReport} from './analysis.js';
 
 /**
  * Machine context - runtime state data
