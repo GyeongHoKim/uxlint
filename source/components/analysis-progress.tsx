@@ -7,9 +7,9 @@
 
 import {Box, Text} from 'ink';
 import Spinner from 'ink-spinner';
-import type {ThemeConfig} from '../models/theme.js';
 import type {AnalysisStage} from '../models/analysis.js';
 import type {LLMResponseData} from '../models/llm-response.js';
+import type {ThemeConfig} from '../models/theme.js';
 import {LLMResponseDisplay} from './llm-response-display.js';
 
 /**
@@ -51,30 +51,6 @@ export type AnalysisProgressProps = {
 };
 
 /**
- * Map analysis stages to human-readable messages
- */
-const stageMessages: Record<AnalysisStage, string> = {
-	idle: 'Idle',
-	navigating: 'Navigating to page',
-	capturing: 'Capturing page snapshot',
-	analyzing: 'Analyzing',
-	'page-complete': 'Page analysis complete',
-	'generating-report': 'Generating report',
-	complete: 'Analysis complete',
-	error: 'Error occurred',
-};
-
-/**
- * Stages that should show a spinner
- */
-const spinnerStages = new Set<AnalysisStage>([
-	'navigating',
-	'capturing',
-	'analyzing',
-	'generating-report',
-]);
-
-/**
  * AnalysisProgress component
  * Shows progress for multi-page analysis
  */
@@ -89,55 +65,10 @@ export function AnalysisProgress({
 	waitingMessage,
 	isWaitingForLLM,
 }: AnalysisProgressProps) {
-	const stageMessage = stageMessages[stage];
-	const showSpinner = spinnerStages.has(stage);
-	const isComplete = stage === 'complete';
 	const isError = stage === 'error';
 
 	return (
 		<Box flexDirection="column" gap={1}>
-			{/* Stage indicator - hide for analyzing stage */}
-			{stage !== 'analyzing' && (
-				<Box>
-					{Boolean(showSpinner) && (
-						<Box marginRight={1}>
-							<Text color={theme.accent}>
-								<Spinner type="dots" />
-							</Text>
-						</Box>
-					)}
-					{Boolean(isComplete) && (
-						<Box marginRight={1}>
-							<Text color="green">✓</Text>
-						</Box>
-					)}
-					{Boolean(isError) && (
-						<Box marginRight={1}>
-							<Text color="red">✗</Text>
-						</Box>
-					)}
-					<Text color={isError ? 'red' : isComplete ? 'green' : theme.primary}>
-						{stageMessage}
-					</Text>
-				</Box>
-			)}
-
-			{/* Page progress - hide for analyzing stage (shown in LLM Response header) */}
-			{stage !== 'idle' && stage !== 'analyzing' && (
-				<Box>
-					<Text dimColor>
-						Page {currentPage}/{totalPages}
-					</Text>
-				</Box>
-			)}
-
-			{/* Page URL - hide for analyzing stage (shown in LLM Response header) */}
-			{Boolean(pageUrl) && stage !== 'analyzing' && (
-				<Box>
-					<Text dimColor>{pageUrl}</Text>
-				</Box>
-			)}
-
 			{/* Error message */}
 			{Boolean(isError && error) && (
 				<Box>
