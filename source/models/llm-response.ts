@@ -10,6 +10,11 @@
  */
 export type LLMToolCall = {
 	/**
+	 * Unique identifier for this tool call (when provided by the LLM/SDK)
+	 */
+	id?: string;
+
+	/**
 	 * Name of the tool that was called
 	 */
 	toolName: string;

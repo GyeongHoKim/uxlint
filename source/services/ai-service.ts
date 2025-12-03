@@ -234,17 +234,26 @@ export class AIService {
 	private createLLMResponseData(
 		result: {
 			text: string;
-			toolCalls?: Array<{toolName: string; args?: unknown}>;
+			toolCalls?: Array<{
+				toolName: string;
+				toolCallId?: string;
+				args?: unknown;
+			}>;
 			finishReason?: string;
 		},
 		iteration: number,
 	): LLMResponseData {
 		return {
 			text: result.text,
-			toolCalls: result.toolCalls?.map(tc => ({
+			toolCalls: result.toolCalls?.map((tc, index) => ({
+				id: tc.toolCallId ?? `${tc.toolName}-${iteration}-${index}`,
 				toolName: tc.toolName,
 				args:
-					'args' in tc && tc.args ? (tc.args as Record<string, unknown>) : {},
+					typeof tc.args === 'object' &&
+					tc.args !== null &&
+					!Array.isArray(tc.args)
+						? tc.args
+						: {},
 			})),
 			finishReason: result.finishReason,
 			iteration,

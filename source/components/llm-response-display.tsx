@@ -6,7 +6,11 @@
  */
 
 import {Box, Text} from 'ink';
-import {truncateText, type LLMResponseData} from '../models/llm-response.js';
+import {
+	truncateText,
+	type LLMResponseData,
+	formatToolCall,
+} from '../models/llm-response.js';
 
 /**
  * LLMResponseDisplay component props
@@ -83,11 +87,15 @@ export function LLMResponseDisplay({
 			{toolCalls.length > 0 && (
 				<Box flexDirection="column" marginTop={1}>
 					<Text color="yellow">🔧 Tool Calls:</Text>
-					{displayToolCalls.map(tc => (
-						<Box key={tc.toolName} marginLeft={2}>
-							<Text>• {tc.toolName}</Text>
-						</Box>
-					))}
+					{displayToolCalls.map(tc => {
+						const label = formatToolCall(tc);
+						const key = tc.id ?? label;
+						return (
+							<Box key={key} marginLeft={2}>
+								<Text>• {label}</Text>
+							</Box>
+						);
+					})}
 					{remainingCount > 0 && (
 						<Box marginLeft={2}>
 							<Text dimColor>+{remainingCount} more...</Text>
