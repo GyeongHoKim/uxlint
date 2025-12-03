@@ -3,18 +3,18 @@
  * Uses MockLanguageModelV2 from ai/test as required by Constitution II (Test-First Development)
  */
 
-import test from 'ava';
 import {MockLanguageModelV2} from 'ai/test';
+import test from 'ava';
 import sinon from 'sinon';
-import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
+import type {UxFinding} from '../../source/models/analysis.js';
+import type {UxLintConfig} from '../../source/models/config.js';
+import type {LLMResponseData} from '../../source/models/llm-response.js';
 import {
 	AIService,
 	type AnalysisProgressCallback,
 } from '../../source/services/ai-service.js';
-import type {LLMResponseData} from '../../source/models/llm-response.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
-import type {UxLintConfig} from '../../source/models/config.js';
-import type {UxFinding} from '../../source/models/analysis.js';
+import {createMockMCPClient} from '../utils.js';
 
 test('onProgress callback type accepts llmResponse parameter', t => {
 	const onProgress: AnalysisProgressCallback = (
@@ -125,17 +125,8 @@ test('generateFinalReport creates empty report when no page analysis is complete
 test('AIService generates valid report when LLM completes page analysis using MockLanguageModelV2', async t => {
 	const sandbox = sinon.createSandbox();
 
-	// Create mock MCP client using Sinon stub
-	// Implement all MCPClient interface methods to avoid type assertion
-	const mockMCPClient: MCPClient = {
-		tools: sandbox.stub().resolves({}),
-		close: sandbox.stub().resolves(),
-		listResources: sandbox.stub().resolves([]),
-		readResource: sandbox.stub().resolves({}),
-		listResourceTemplates: sandbox.stub().resolves([]),
-		listPrompts: sandbox.stub().resolves([]),
-		getPrompt: sandbox.stub().resolves({}),
-	};
+	// Create mock MCP client
+	const mockMCPClient = createMockMCPClient();
 
 	// Create mock language model using MockLanguageModelV2 (Constitution requirement)
 	// Reference: https://ai-sdk.dev/docs/ai-sdk-core/testing#testing
@@ -213,17 +204,8 @@ test('AIService generates valid report when LLM completes page analysis using Mo
 test('AIService calls onProgress with increasing iteration numbers for multiple iterations', async t => {
 	const sandbox = sinon.createSandbox();
 
-	// Create mock MCP client using Sinon stub
-	// Implement all MCPClient interface methods to avoid type assertion
-	const mockMCPClient: MCPClient = {
-		tools: sandbox.stub().resolves({}),
-		close: sandbox.stub().resolves(),
-		listResources: sandbox.stub().resolves([]),
-		readResource: sandbox.stub().resolves({}),
-		listResourceTemplates: sandbox.stub().resolves([]),
-		listPrompts: sandbox.stub().resolves([]),
-		getPrompt: sandbox.stub().resolves({}),
-	};
+	// Create mock MCP client
+	const mockMCPClient = createMockMCPClient();
 
 	// Track iteration numbers from onProgress callbacks
 	const receivedIterations: number[] = [];
