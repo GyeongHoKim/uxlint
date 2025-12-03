@@ -1,3 +1,21 @@
+# [2.3.0](https://github.com/GyeongHoKim/uxlint/compare/v2.2.1...v2.3.0) (2025-12-03)
+
+
+### Bug Fixes
+
+* eslint issues of return type ([6322a8c](https://github.com/GyeongHoKim/uxlint/commit/6322a8c7f065f6845d8789c4882c983aee24c3a9))
+* re-exporting types deleted ([7092e9b](https://github.com/GyeongHoKim/uxlint/commit/7092e9b54fc21a8e44cc14da29865569c7941e15))
+* react key duplication issue ([6cabfbb](https://github.com/GyeongHoKim/uxlint/commit/6cabfbb2f668d20d5655123f2174ca7fec811c0c))
+
+
+### Features
+
+* adjust height of header component ([5276eb8](https://github.com/GyeongHoKim/uxlint/commit/5276eb88655b9ebd15013627b454ad7320797ae3))
+* adjust unused components ([0fde557](https://github.com/GyeongHoKim/uxlint/commit/0fde5576cd1d2c77fb910d18a2c354962f46bcaf))
+* prevent dotenv from writing stdout ([858b128](https://github.com/GyeongHoKim/uxlint/commit/858b128b29ea77aaa1f0b16ed9afbf4a68aad56c))
+* responsive terminal ui ([4797ef2](https://github.com/GyeongHoKim/uxlint/commit/4797ef2cebac62189490832eced7d6aa82932846))
+* waiting messages for fallback of llm response ([1ca80ad](https://github.com/GyeongHoKim/uxlint/commit/1ca80ad8d74ae61cfedf7653333b7e74f954d7a1))
+
 ## [2.2.1](https://github.com/GyeongHoKim/uxlint/compare/v2.2.0...v2.2.1) (2025-12-02)
 
 
