@@ -23,19 +23,19 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Dependencies Installation
 
-- [ ] T001 Install authentication dependencies: `npm install keytar open oauth-callback @inkjs/ui`
-- [ ] T002 Install development dependencies: `npm install --save-dev @types/keytar`
-- [ ] T003 Verify MSW is installed (already in project): check package.json includes `msw`
+- [x] T001 Install authentication dependencies: `npm install keytar open oauth-callback @inkjs/ui`
+- [x] T002 Install development dependencies: `npm install --save-dev @types/keytar`
+- [x] T003 Verify MSW is installed (already in project): check package.json includes `msw`
 - [ ] T004 Update .env file with OAuth configuration (UXLINT_CLOUD_CLIENT_ID, UXLINT_CLOUD_API_BASE_URL)
-- [ ] T005 Run quality gates to verify setup: `npm run compile && npm run format && npm run lint`
+- [x] T005 Run quality gates to verify setup: `npm run compile && npm run format && npm run lint`
 
 ### Directory Structure
 
-- [ ] T006 [P] Create auth infrastructure directory: `source/infrastructure/auth/`
-- [ ] T007 [P] Create auth components directory: `source/components/auth/`
-- [ ] T008 [P] Create auth models directory entries in `source/models/` (no new dir needed)
-- [ ] T009 [P] Create auth tests directory: `tests/infrastructure/auth/`
-- [ ] T010 [P] Create auth component tests directory: `tests/components/auth/`
+- [x] T006 [P] Create auth infrastructure directory: `source/infrastructure/auth/`
+- [x] T007 [P] Create auth components directory: `source/components/auth/`
+- [x] T008 [P] Create auth models directory entries in `source/models/` (no new dir needed)
+- [x] T009 [P] Create auth tests directory: `tests/infrastructure/auth/`
+- [x] T010 [P] Create auth component tests directory: `tests/components/auth/`
 
 **Validation**: All directories created, dependencies installed, quality gates pass
 
@@ -49,29 +49,29 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Data Models (Blocking - Required by all user stories)
 
-- [ ] T011 **TEST**: Write unit tests for AuthenticationSession model in `tests/models/auth-session.spec.ts` (validation, expiry check)
-- [ ] T012 Create AuthenticationSession model in `source/models/auth-session.ts` with version, user, tokens, metadata
-- [ ] T013 Implement `isValidSession()` type guard in `source/models/auth-session.ts`
-- [ ] T014 Implement `isSessionExpired()` function in `source/models/auth-session.ts` with buffer parameter
-- [ ] T015 **TEST**: Write unit tests for UserProfile model in `tests/models/user-profile.spec.ts`
-- [ ] T016 [P] Create UserProfile interface in `source/models/user-profile.ts` with id, email, name, organization, picture, emailVerified
-- [ ] T017 **TEST**: Write unit tests for TokenSet model in `tests/models/token-set.spec.ts`
-- [ ] T018 [P] Create TokenSet interface in `source/models/token-set.ts` with accessToken, tokenType, expiresIn, refreshToken, idToken, scope
-- [ ] T019 **TEST**: Write unit tests for PKCEParameters model in `tests/models/pkce-params.spec.ts`
-- [ ] T020 [P] Create PKCEParameters interface in `source/models/pkce-params.ts` with codeVerifier, codeChallenge, codeChallengeMethod, state
-- [ ] T021 **TEST**: Write unit tests for AuthenticationError in `tests/models/auth-error.spec.ts`
-- [ ] T022 [P] Create AuthError enum and AuthenticationError class in `source/models/auth-error.ts`
+- [x] T011 **TEST**: Write unit tests for AuthenticationSession model in `tests/models/auth-session.spec.ts` (validation, expiry check)
+- [x] T012 Create AuthenticationSession model in `source/models/auth-session.ts` with version, user, tokens, metadata
+- [x] T013 Implement `isValidSession()` type guard in `source/models/auth-session.ts`
+- [x] T014 Implement `isSessionExpired()` function in `source/models/auth-session.ts` with buffer parameter
+- [x] T015 **TEST**: Write unit tests for UserProfile model in `tests/models/user-profile.spec.ts`
+- [x] T016 [P] Create UserProfile interface in `source/models/user-profile.ts` with id, email, name, organization, picture, emailVerified
+- [x] T017 **TEST**: Write unit tests for TokenSet model in `tests/models/token-set.spec.ts`
+- [x] T018 [P] Create TokenSet interface in `source/models/token-set.ts` with accessToken, tokenType, expiresIn, refreshToken, idToken, scope
+- [x] T019 **TEST**: Write unit tests for PKCEParameters model in `tests/models/pkce-params.spec.ts`
+- [x] T020 [P] Create PKCEParameters interface in `source/models/pkce-params.ts` with codeVerifier, codeChallenge, codeChallengeMethod, state
+- [x] T021 **TEST**: Write unit tests for AuthenticationError in `tests/models/auth-error.spec.ts`
+- [x] T022 [P] Create AuthError enum and AuthenticationError class in `source/models/auth-error.ts`
 
 ### PKCE Utilities (Blocking - Required by US1)
 
-- [ ] T023 **TEST**: Write unit tests for PKCE generator in `tests/infrastructure/auth/pkce-generator.spec.ts` (verify SHA-256, Base64URL encoding, randomness)
-- [ ] T024 Create PKCE generator utility in `source/infrastructure/auth/pkce-generator.ts` with `generatePKCEParameters()` function
-- [ ] T025 Implement `base64URLEncode()` helper function in `source/infrastructure/auth/pkce-generator.ts`
-- [ ] T026 Verify PKCE generation produces 43-128 character code verifier (add assertion in tests)
+- [x] T023 **TEST**: Write unit tests for PKCE generator in `tests/infrastructure/auth/pkce-generator.spec.ts` (verify SHA-256, Base64URL encoding, randomness)
+- [x] T024 Create PKCE generator utility in `source/infrastructure/auth/pkce-generator.ts` with `generatePKCEParameters()` function
+- [x] T025 Implement `base64URLEncode()` helper function in `source/infrastructure/auth/pkce-generator.ts`
+- [x] T026 Verify PKCE generation produces 43-128 character code verifier (add assertion in tests)
 
 ### Export Models
 
-- [ ] T027 [P] Update `source/models/index.ts` to export all auth models (AuthenticationSession, UserProfile, TokenSet, PKCEParameters, AuthenticationError)
+- [x] T027 [P] Update `source/models/index.ts` to export all auth models (AuthenticationSession, UserProfile, TokenSet, PKCEParameters, AuthenticationError)
 
 **Validation**: All model tests pass, PKCE generator verified with cryptographic tests, quality gates pass
 
@@ -97,139 +97,139 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Service Interfaces
 
-- [ ] T028 **TEST**: Write unit tests for KeychainService interface in `tests/infrastructure/auth/keychain-service.spec.ts` (mock implementation)
-- [ ] T029 Create IKeychainService interface in `source/infrastructure/auth/keychain-service.ts` with getPassword, setPassword, deletePassword, isAvailable methods
-- [ ] T030 **TEST**: Write unit tests for BrowserService interface in `tests/infrastructure/auth/browser-service.spec.ts` (mock implementation)
-- [ ] T031 [P] Create IBrowserService interface in `source/infrastructure/auth/browser-service.ts` with openUrl, isAvailable methods
+- [x] T028 **TEST**: Write unit tests for KeychainService interface in `tests/infrastructure/auth/keychain-service.spec.ts` (mock implementation)
+- [x] T029 Create IKeychainService interface in `source/infrastructure/auth/keychain-service.ts` with getPassword, setPassword, deletePassword, isAvailable methods
+- [x] T030 **TEST**: Write unit tests for BrowserService interface in `tests/infrastructure/auth/browser-service.spec.ts` (mock implementation)
+- [x] T031 [P] Create IBrowserService interface in `source/infrastructure/auth/browser-service.ts` with openUrl, isAvailable methods
 
 ### Keychain Service Implementation
 
-- [ ] T032 **TEST**: Write unit tests for KeytarKeychainService in `tests/infrastructure/auth/keychain-impl.spec.ts` (test with mock keytar)
-- [ ] T033 Create KeytarKeychainService class in `source/infrastructure/auth/keychain-impl.ts` implementing IKeychainService
-- [ ] T034 Implement getPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
-- [ ] T035 Implement setPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
-- [ ] T036 Implement deletePassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
-- [ ] T037 Implement isAvailable method checking keytar availability in `source/infrastructure/auth/keychain-impl.ts`
-- [ ] T038 Add error handling for keychain access failures in `source/infrastructure/auth/keychain-impl.ts` (throw AuthenticationError with KEYCHAIN_ERROR code)
+- [x] T032 **TEST**: Write unit tests for KeytarKeychainService in `tests/infrastructure/auth/keychain-impl.spec.ts` (test with mock keytar)
+- [x] T033 Create KeytarKeychainService class in `source/infrastructure/auth/keychain-impl.ts` implementing IKeychainService
+- [x] T034 Implement getPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
+- [x] T035 Implement setPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
+- [x] T036 Implement deletePassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
+- [x] T037 Implement isAvailable method checking keytar availability in `source/infrastructure/auth/keychain-impl.ts`
+- [x] T038 Add error handling for keychain access failures in `source/infrastructure/auth/keychain-impl.ts` (throw AuthenticationError with KEYCHAIN_ERROR code)
 
 ### Mock Keychain (Testing)
 
-- [ ] T039 [P] [US1] Create MockKeychainService class in `source/infrastructure/auth/keychain-mock.ts` with in-memory storage Map
-- [ ] T040 [P] [US1] Implement all IKeychainService methods using Map in `source/infrastructure/auth/keychain-mock.ts`
-- [ ] T041 [P] [US1] Add `clear()` method to MockKeychainService for test cleanup
+- [x] T039 [P] [US1] Create MockKeychainService class in `source/infrastructure/auth/keychain-mock.ts` with in-memory storage Map
+- [x] T040 [P] [US1] Implement all IKeychainService methods using Map in `source/infrastructure/auth/keychain-mock.ts`
+- [x] T041 [P] [US1] Add `clear()` method to MockKeychainService for test cleanup
 
 ### Browser Service Implementation
 
-- [ ] T042 **TEST**: Write unit tests for OpenBrowserService in `tests/infrastructure/auth/browser-impl.spec.ts`
-- [ ] T043 [P] [US1] Create OpenBrowserService class in `source/infrastructure/auth/browser-impl.ts` implementing IBrowserService
-- [ ] T044 [P] [US1] Implement openUrl method using `open` library in `source/infrastructure/auth/browser-impl.ts`
-- [ ] T045 [P] [US1] Implement isAvailable method in `source/infrastructure/auth/browser-impl.ts` (always true, `open` handles platform detection)
-- [ ] T046 [P] [US1] Add error handling for browser launch failures in `source/infrastructure/auth/browser-impl.ts` (throw AuthenticationError with BROWSER_FAILED code)
+- [x] T042 **TEST**: Write unit tests for OpenBrowserService in `tests/infrastructure/auth/browser-impl.spec.ts`
+- [x] T043 [P] [US1] Create OpenBrowserService class in `source/infrastructure/auth/browser-impl.ts` implementing IBrowserService
+- [x] T044 [P] [US1] Implement openUrl method using `open` library in `source/infrastructure/auth/browser-impl.ts`
+- [x] T045 [P] [US1] Implement isAvailable method in `source/infrastructure/auth/browser-impl.ts` (always true, `open` handles platform detection)
+- [x] T046 [P] [US1] Add error handling for browser launch failures in `source/infrastructure/auth/browser-impl.ts` (throw AuthenticationError with BROWSER_FAILED code)
 
 ### Mock Browser (Testing)
 
-- [ ] T047 [P] [US1] Create MockBrowserService class in `source/infrastructure/auth/browser-mock.ts` with openedUrls array
-- [ ] T048 [P] [US1] Implement openUrl method tracking URLs in array in `source/infrastructure/auth/browser-mock.ts`
-- [ ] T049 [P] [US1] Add `shouldFail` flag to simulate browser launch failure in `source/infrastructure/auth/browser-mock.ts`
-- [ ] T050 [P] [US1] Add `clear()` method to MockBrowserService for test cleanup
+- [x] T047 [P] [US1] Create MockBrowserService class in `source/infrastructure/auth/browser-mock.ts` with openedUrls array
+- [x] T048 [P] [US1] Implement openUrl method tracking URLs in array in `source/infrastructure/auth/browser-mock.ts`
+- [x] T049 [P] [US1] Add `shouldFail` flag to simulate browser launch failure in `source/infrastructure/auth/browser-mock.ts`
+- [x] T050 [P] [US1] Add `clear()` method to MockBrowserService for test cleanup
 
 ### OAuth HTTP Client
 
-- [ ] T051 **TEST**: Write unit tests for OAuthHttpClient in `tests/infrastructure/auth/oauth-http-client.spec.ts` (use MSW to mock HTTP responses)
-- [ ] T052 [US1] Create OAuthHttpClient class in `source/infrastructure/auth/oauth-http-client.ts`
-- [ ] T053 [US1] Implement exchangeCodeForTokens method in `source/infrastructure/auth/oauth-http-client.ts` (POST /token with authorization_code grant)
-- [ ] T054 [US1] Implement refreshAccessToken method in `source/infrastructure/auth/oauth-http-client.ts` (POST /token with refresh_token grant)
-- [ ] T055 [US1] Implement getOpenIDConfiguration method in `source/infrastructure/auth/oauth-http-client.ts` (GET /.well-known/openid-configuration)
-- [ ] T056 [US1] Add error handling for HTTP failures in `source/infrastructure/auth/oauth-http-client.ts` (parse OAuth error responses, throw AuthenticationError)
-- [ ] T057 [US1] Setup MSW handlers in `tests/mocks/oauth-server.ts` for token endpoint, OIDC config endpoint
+- [x] T051 **TEST**: Write unit tests for OAuthHttpClient in `tests/infrastructure/auth/oauth-http-client.spec.ts` (use MSW to mock HTTP responses)
+- [x] T052 [US1] Create OAuthHttpClient class in `source/infrastructure/auth/oauth-http-client.ts`
+- [x] T053 [US1] Implement exchangeCodeForTokens method in `source/infrastructure/auth/oauth-http-client.ts` (POST /token with authorization_code grant)
+- [x] T054 [US1] Implement refreshAccessToken method in `source/infrastructure/auth/oauth-http-client.ts` (POST /token with refresh_token grant)
+- [x] T055 [US1] Implement getOpenIDConfiguration method in `source/infrastructure/auth/oauth-http-client.ts` (GET /.well-known/openid-configuration)
+- [x] T056 [US1] Add error handling for HTTP failures in `source/infrastructure/auth/oauth-http-client.ts` (parse OAuth error responses, throw AuthenticationError)
+- [x] T057 [US1] Setup MSW handlers in `tests/mocks/oauth-server.ts` for token endpoint, OIDC config endpoint
 
 ### Callback Server
 
-- [ ] T058 **TEST**: Write unit tests for CallbackServer in `tests/infrastructure/auth/callback-server.spec.ts` (mock oauth-callback library)
-- [ ] T059 [US1] Create CallbackServer class in `source/infrastructure/auth/callback-server.ts`
-- [ ] T060 [US1] Implement waitForCallback method using oauth-callback library in `source/infrastructure/auth/callback-server.ts`
-- [ ] T061 [US1] Add state verification in waitForCallback in `source/infrastructure/auth/callback-server.ts` (throw INVALID_RESPONSE if state mismatch)
-- [ ] T062 [US1] Implement stop method in `source/infrastructure/auth/callback-server.ts` (oauth-callback handles cleanup)
-- [ ] T063 [US1] Add timeout handling (default 5 minutes) in `source/infrastructure/auth/callback-server.ts`
+- [x] T058 **TEST**: Write unit tests for CallbackServer in `tests/infrastructure/auth/callback-server.spec.ts` (mock oauth-callback library)
+- [x] T059 [US1] Create CallbackServer class in `source/infrastructure/auth/callback-server.ts`
+- [x] T060 [US1] Implement waitForCallback method using oauth-callback library in `source/infrastructure/auth/callback-server.ts`
+- [x] T061 [US1] Add state verification in waitForCallback in `source/infrastructure/auth/callback-server.ts` (throw INVALID_RESPONSE if state mismatch)
+- [x] T062 [US1] Implement stop method in `source/infrastructure/auth/callback-server.ts` (oauth-callback handles cleanup)
+- [x] T063 [US1] Add timeout handling (default 5 minutes) in `source/infrastructure/auth/callback-server.ts`
 - [ ] T064 [US1] Add error handling for port conflicts in `source/infrastructure/auth/callback-server.ts` (oauth-callback tries multiple ports)
 
 ### OAuth Flow Orchestrator
 
-- [ ] T065 **TEST**: Write integration tests for OAuthFlow in `tests/infrastructure/auth/oauth-flow.spec.ts` (mock HTTP client, browser, callback server)
-- [ ] T066 [US1] Create OAuthFlow class in `source/infrastructure/auth/oauth-flow.ts` with constructor injecting httpClient, callbackServer, browserService
-- [ ] T067 [US1] Implement authorize method in `source/infrastructure/auth/oauth-flow.ts` (orchestrates full OAuth flow)
-- [ ] T068 [US1] Implement PKCE parameter generation in authorize method
-- [ ] T069 [US1] Implement authorization URL construction in authorize method with PKCE parameters
-- [ ] T070 [US1] Implement callback server start in authorize method
-- [ ] T071 [US1] Implement browser launch in authorize method with try-catch for BROWSER_FAILED
-- [ ] T072 [US1] Implement callback wait in authorize method
-- [ ] T073 [US1] Implement code-for-tokens exchange in authorize method
-- [ ] T074 [US1] Implement refresh method in `source/infrastructure/auth/oauth-flow.ts` (refresh tokens using refresh token)
-- [ ] T075 [US1] Add `buildAuthorizationUrl` private helper method in `source/infrastructure/auth/oauth-flow.ts`
+- [x] T065 **TEST**: Write integration tests for OAuthFlow in `tests/infrastructure/auth/oauth-flow.spec.ts` (mock HTTP client, browser, callback server)
+- [x] T066 [US1] Create OAuthFlow class in `source/infrastructure/auth/oauth-flow.ts` with constructor injecting httpClient, callbackServer, browserService
+- [x] T067 [US1] Implement authorize method in `source/infrastructure/auth/oauth-flow.ts` (orchestrates full OAuth flow)
+- [x] T068 [US1] Implement PKCE parameter generation in authorize method
+- [x] T069 [US1] Implement authorization URL construction in authorize method with PKCE parameters
+- [x] T070 [US1] Implement callback server start in authorize method
+- [x] T071 [US1] Implement browser launch in authorize method with try-catch for BROWSER_FAILED
+- [x] T072 [US1] Implement callback wait in authorize method
+- [x] T073 [US1] Implement code-for-tokens exchange in authorize method
+- [x] T074 [US1] Implement refresh method in `source/infrastructure/auth/oauth-flow.ts` (refresh tokens using refresh token)
+- [x] T075 [US1] Add `buildAuthorizationUrl` private helper method in `source/infrastructure/auth/oauth-flow.ts`
 
 ### Token Manager
 
-- [ ] T076 **TEST**: Write unit tests for TokenManager in `tests/infrastructure/auth/token-manager.spec.ts` (use MockKeychainService)
-- [ ] T077 [US1] Create TokenManager class in `source/infrastructure/auth/token-manager.ts` with keychain injected
-- [ ] T078 [US1] Implement loadSession method in `source/infrastructure/auth/token-manager.ts` (retrieve from keychain, parse JSON, validate)
-- [ ] T079 [US1] Implement saveSession method in `source/infrastructure/auth/token-manager.ts` (serialize to JSON, store in keychain)
-- [ ] T080 [US1] Implement deleteSession method in `source/infrastructure/auth/token-manager.ts` (remove from keychain)
-- [ ] T081 [US1] Add error handling for corrupted sessions in loadSession (delete corrupted session, return null)
-- [ ] T082 [US1] Use service name 'uxlint-cli' and account 'default' for keychain storage
+- [x] T076 **TEST**: Write unit tests for TokenManager in `tests/infrastructure/auth/token-manager.spec.ts` (use MockKeychainService)
+- [x] T077 [US1] Create TokenManager class in `source/infrastructure/auth/token-manager.ts` with keychain injected
+- [x] T078 [US1] Implement loadSession method in `source/infrastructure/auth/token-manager.ts` (retrieve from keychain, parse JSON, validate)
+- [x] T079 [US1] Implement saveSession method in `source/infrastructure/auth/token-manager.ts` (serialize to JSON, store in keychain)
+- [x] T080 [US1] Implement deleteSession method in `source/infrastructure/auth/token-manager.ts` (remove from keychain)
+- [x] T081 [US1] Add error handling for corrupted sessions in loadSession (delete corrupted session, return null)
+- [x] T082 [US1] Use service name 'uxlint-cli' and account 'default' for keychain storage
 
 ### UXLintClient (Singleton)
 
-- [ ] T083 **TEST**: Write integration tests for UXLintClient in `tests/infrastructure/auth/uxlint-client.spec.ts` (mock all dependencies)
-- [ ] T084 [US1] Create UXLintClient class in `source/infrastructure/auth/uxlint-client.ts` implementing IUXLintClient
-- [ ] T085 [US1] Implement singleton pattern with getInstance static method in `source/infrastructure/auth/uxlint-client.ts`
-- [ ] T086 [US1] Implement private constructor with tokenManager, oauthFlow, config injected in `source/infrastructure/auth/uxlint-client.ts`
-- [ ] T087 [US1] Implement login method in `source/infrastructure/auth/uxlint-client.ts` (check existing session, execute OAuth flow, decode ID token, create session, save to keychain)
-- [ ] T088 [US1] Implement logout method in `source/infrastructure/auth/uxlint-client.ts` (delete session from keychain, clear in-memory session)
-- [ ] T089 [US1] Implement getStatus method in `source/infrastructure/auth/uxlint-client.ts` (load session from keychain if not in memory)
-- [ ] T090 [US1] Implement isAuthenticated method in `source/infrastructure/auth/uxlint-client.ts` (check session exists and not expired)
-- [ ] T091 [US1] Implement getUserProfile method in `source/infrastructure/auth/uxlint-client.ts` (throw NOT_AUTHENTICATED if no session)
-- [ ] T092 [US1] Implement getAccessToken method in `source/infrastructure/auth/uxlint-client.ts` (auto-refresh if expired within 5 minutes)
-- [ ] T093 [US1] Implement refreshToken method in `source/infrastructure/auth/uxlint-client.ts` (use OAuth flow refresh, update session, handle REFRESH_FAILED)
-- [ ] T094 [US1] Implement decodeIdToken private method in `source/infrastructure/auth/uxlint-client.ts` (Base64URL decode JWT payload, map claims to UserProfile)
-- [ ] T095 [US1] Add production dependency creation in getInstance in `source/infrastructure/auth/uxlint-client.ts` (KeytarKeychainService, OpenBrowserService, etc.)
-- [ ] T096 [US1] Export getUXLintClient() singleton accessor function in `source/infrastructure/auth/uxlint-client.ts`
+- [x] T083 **TEST**: Write integration tests for UXLintClient in `tests/infrastructure/auth/uxlint-client.spec.ts` (mock all dependencies)
+- [x] T084 [US1] Create UXLintClient class in `source/infrastructure/auth/uxlint-client.ts` implementing IUXLintClient
+- [x] T085 [US1] Implement singleton pattern with getInstance static method in `source/infrastructure/auth/uxlint-client.ts`
+- [x] T086 [US1] Implement private constructor with tokenManager, oauthFlow, config injected in `source/infrastructure/auth/uxlint-client.ts`
+- [x] T087 [US1] Implement login method in `source/infrastructure/auth/uxlint-client.ts` (check existing session, execute OAuth flow, decode ID token, create session, save to keychain)
+- [x] T088 [US1] Implement logout method in `source/infrastructure/auth/uxlint-client.ts` (delete session from keychain, clear in-memory session)
+- [x] T089 [US1] Implement getStatus method in `source/infrastructure/auth/uxlint-client.ts` (load session from keychain if not in memory)
+- [x] T090 [US1] Implement isAuthenticated method in `source/infrastructure/auth/uxlint-client.ts` (check session exists and not expired)
+- [x] T091 [US1] Implement getUserProfile method in `source/infrastructure/auth/uxlint-client.ts` (throw NOT_AUTHENTICATED if no session)
+- [x] T092 [US1] Implement getAccessToken method in `source/infrastructure/auth/uxlint-client.ts` (auto-refresh if expired within 5 minutes)
+- [x] T093 [US1] Implement refreshToken method in `source/infrastructure/auth/uxlint-client.ts` (use OAuth flow refresh, update session, handle REFRESH_FAILED)
+- [x] T094 [US1] Implement decodeIdToken private method in `source/infrastructure/auth/uxlint-client.ts` (Base64URL decode JWT payload, map claims to UserProfile)
+- [x] T095 [US1] Add production dependency creation in getInstance in `source/infrastructure/auth/uxlint-client.ts` (KeytarKeychainService, OpenBrowserService, etc.)
+- [x] T096 [US1] Export getUXLintClient() singleton accessor function in `source/infrastructure/auth/uxlint-client.ts`
 
 ### OAuth Configuration
 
-- [ ] T097 [P] [US1] Create OAuthConfig interface in `source/infrastructure/auth/oauth-config.ts` with clientId, baseUrl, endpoints, redirectUri, scopes
-- [ ] T098 [P] [US1] Create defaultOAuthConfig constant in `source/infrastructure/auth/oauth-config.ts` reading from environment variables
-- [ ] T099 [P] [US1] Set default baseUrl to 'https://app.uxlint.org' with UXLINT_CLOUD_API_BASE_URL override
-- [ ] T100 [P] [US1] Set default clientId from UXLINT_CLOUD_CLIENT_ID or build-time injection
-- [ ] T101 [P] [US1] Define default OAuth endpoints (/auth/v1/oauth/authorize, /token, /.well-known/openid-configuration)
-- [ ] T102 [P] [US1] Set default redirectUri to 'http://localhost:8080/callback'
-- [ ] T103 [P] [US1] Set default scopes to ['openid', 'profile', 'email', 'uxlint:api']
+- [x] T097 [P] [US1] Create OAuthConfig interface in `source/infrastructure/auth/oauth-config.ts` with clientId, baseUrl, endpoints, redirectUri, scopes
+- [x] T098 [P] [US1] Create defaultOAuthConfig constant in `source/infrastructure/auth/oauth-config.ts` reading from environment variables
+- [x] T099 [P] [US1] Set default baseUrl to 'https://app.uxlint.org' with UXLINT_CLOUD_API_BASE_URL override
+- [x] T100 [P] [US1] Set default clientId from UXLINT_CLOUD_CLIENT_ID or build-time injection
+- [x] T101 [P] [US1] Define default OAuth endpoints (/auth/v1/oauth/authorize, /token, /.well-known/openid-configuration)
+- [x] T102 [P] [US1] Set default redirectUri to 'http://localhost:8080/callback'
+- [x] T103 [P] [US1] Set default scopes to ['openid', 'profile', 'email', 'uxlint:api']
 
 ### Login UI Component
 
-- [ ] T104 **TEST**: Write visual regression tests for LoginFlow component in `tests/components/auth/login-flow.spec.tsx` (use ink-testing-library)
-- [ ] T105 [US1] Create LoginFlow component in `source/components/auth/login-flow.tsx` with onComplete, onError props
-- [ ] T106 [US1] Implement useEffect hook calling uxlintClient.login() in `source/components/auth/login-flow.tsx`
-- [ ] T107 [US1] Implement status state management (opening-browser, waiting, exchanging, success) in `source/components/auth/login-flow.tsx`
-- [ ] T108 [US1] Render Spinner with "Opening browser..." message in `source/components/auth/login-flow.tsx`
-- [ ] T109 [US1] Render Spinner with "Waiting for authentication..." message in `source/components/auth/login-flow.tsx`
-- [ ] T110 [US1] Render Spinner with "Completing authentication..." message in `source/components/auth/login-flow.tsx`
-- [ ] T111 [US1] Render success message with green checkmark when complete in `source/components/auth/login-flow.tsx`
+- [x] T104 **TEST**: Write visual regression tests for LoginFlow component in `tests/components/auth/login-flow.spec.tsx` (use ink-testing-library)
+- [x] T105 [US1] Create LoginFlow component in `source/components/auth/login-flow.tsx` with onComplete, onError props
+- [x] T106 [US1] Implement useEffect hook calling uxlintClient.login() in `source/components/auth/login-flow.tsx`
+- [x] T107 [US1] Implement status state management (opening-browser, waiting, exchanging, success) in `source/components/auth/login-flow.tsx`
+- [x] T108 [US1] Render Spinner with "Opening browser..." message in `source/components/auth/login-flow.tsx`
+- [x] T109 [US1] Render Spinner with "Waiting for authentication..." message in `source/components/auth/login-flow.tsx`
+- [x] T110 [US1] Render Spinner with "Completing authentication..." message in `source/components/auth/login-flow.tsx`
+- [x] T111 [US1] Render success message with green checkmark when complete in `source/components/auth/login-flow.tsx`
 - [ ] T112 [US1] Handle BROWSER_FAILED error by displaying manual URL in `source/components/auth/login-flow.tsx`
-- [ ] T113 [US1] Handle other errors by calling onError prop in `source/components/auth/login-flow.tsx`
+- [x] T113 [US1] Handle other errors by calling onError prop in `source/components/auth/login-flow.tsx`
 
 ### CLI Integration
 
-- [ ] T114 [US1] Update CLI parser in `source/cli.tsx` to recognize 'auth' command with subcommands
-- [ ] T115 [US1] Implement 'auth login' command handler in `source/cli.tsx` rendering LoginFlow component
-- [ ] T116 [US1] Handle LoginFlow onComplete callback exiting with code 0 in `source/cli.tsx`
-- [ ] T117 [US1] Handle LoginFlow onError callback exiting with code 1 in `source/cli.tsx`
-- [ ] T118 [US1] Update help text in `source/cli.tsx` to document 'uxlint auth login' command
-- [ ] T119 [US1] Add usage examples for 'uxlint auth login' in help text
+- [x] T114 [US1] Update CLI parser in `source/cli.tsx` to recognize 'auth' command with subcommands
+- [x] T115 [US1] Implement 'auth login' command handler in `source/cli.tsx` rendering LoginFlow component
+- [x] T116 [US1] Handle LoginFlow onComplete callback exiting with code 0 in `source/cli.tsx`
+- [x] T117 [US1] Handle LoginFlow onError callback exiting with code 1 in `source/cli.tsx`
+- [x] T118 [US1] Update help text in `source/cli.tsx` to document 'uxlint auth login' command
+- [x] T119 [US1] Add usage examples for 'uxlint auth login' in help text
 
 ### Manual Testing & Validation
 
-- [ ] T120 [US1] Run `npm run compile && npm run format && npm run lint` (quality gates)
-- [ ] T121 [US1] Run `npm test` to verify all US1 tests pass with 80%+ coverage
+- [x] T120 [US1] Run `npm run compile && npm run format && npm run lint` (quality gates)
+- [x] T121 [US1] Run `npm test` to verify all US1 tests pass with 80%+ coverage
 - [ ] T122 [US1] **MANUAL**: Test `uxlint auth login` flow end-to-end (browser opens, login, CLI confirms)
 - [ ] T123 [US1] **MANUAL**: Test already-logged-in scenario (run login twice, verify notification)
 - [ ] T124 [US1] **MANUAL**: Verify credentials stored in OS keychain (check keychain app on macOS)

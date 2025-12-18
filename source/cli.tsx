@@ -3,6 +3,7 @@ import process from 'node:process';
 import {render, Text} from 'ink';
 import meow from 'meow';
 import App from './app.js';
+import {AuthStatus, LoginFlow} from './components/index.js';
 import {UxlintMachineContext} from './contexts/uxlint-context.js';
 import {configIO} from './infrastructure/config/config-io.js';
 import {logger} from './infrastructure/logger.js';
@@ -13,6 +14,7 @@ const cli = meow(
 	`
 	Usage
 	  $ uxlint [options]
+	  $ uxlint auth <command>
 
 	Options
 	  --interactive, -i  Use interactive mode to create configuration
@@ -22,6 +24,8 @@ const cli = meow(
 	Examples
 	  $ uxlint --interactive
 	  $ uxlint
+	  $ uxlint auth login
+	  $ uxlint auth status
 `,
 	{
 		importMeta: import.meta,
@@ -69,6 +73,13 @@ process.on('exit', code => {
 	});
 });
 
+const EXIT_DELAY_MS = 100;
+function exitAfterRender(code: number): void {
+	setTimeout(() => {
+		process.exit(code);
+	}, EXIT_DELAY_MS);
+}
+
 // Handle uncaught errors
 process.on('uncaughtException', error => {
 	logger.error('Uncaught exception', {
@@ -85,8 +96,39 @@ process.on('unhandledRejection', (reason: unknown) => {
 	process.exit(1);
 });
 
-// Interactive Mode: Use Ink UI
-if (cli.flags.interactive) {
+// Auth commands: independent from config / analysis flow
+if (cli.input[0] === 'auth') {
+	const subcommand = cli.input[1];
+
+	if (subcommand === 'login') {
+		render(
+			<LoginFlow
+				onComplete={() => {
+					exitAfterRender(0);
+				}}
+				onError={() => {
+					exitAfterRender(1);
+				}}
+			/>,
+		);
+	} else if (subcommand === 'status') {
+		render(
+			<AuthStatus
+				onComplete={() => {
+					exitAfterRender(0);
+				}}
+			/>,
+		);
+	} else {
+		render(
+			<Text color="red">
+				Unknown auth command. Use: uxlint auth login | uxlint auth status
+			</Text>,
+		);
+		exitAfterRender(1);
+	}
+} else if (cli.flags.interactive) {
+	// Interactive Mode: Use Ink UI
 	logger.info('Interactive mode selected');
 	let preloadedConfig: UxLintConfig | undefined;
 

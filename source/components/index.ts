@@ -14,6 +14,10 @@ export {ReportBuilder} from './report-builder.js';
 export {UserInputLabel} from './user-input-label.js';
 export {UserInput} from './user-input.js';
 
+// Auth components
+export {AuthStatus} from './auth/auth-status.js';
+export {LoginFlow} from './auth/login-flow.js';
+
 // Export UserInput variant types
 export type {
 	BaseUserInputProps,
