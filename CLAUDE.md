@@ -202,3 +202,10 @@ See README.md for full schema and examples.
 ## Release Process
 
 Uses semantic-release configured in `.releaserc.json`. Release workflow runs on main branch pushes.
+
+## Active Technologies
+- TypeScript (ES modules) with Node.js >=18.18.0 (003-cloud-oauth2)
+- OS-native secure storage (keychain on macOS, credential manager on Windows, keyring on Linux) for tokens (003-cloud-oauth2)
+
+## Recent Changes
+- 003-cloud-oauth2: Added TypeScript (ES modules) with Node.js >=18.18.0

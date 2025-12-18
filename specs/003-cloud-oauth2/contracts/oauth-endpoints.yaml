@@ -1,0 +1,467 @@
+openapi: 3.1.0
+info:
+  title: UXLint Cloud OAuth 2.0 API
+  version: 1.0.0
+  description: |
+    OAuth 2.0 OIDC + PKCE authentication endpoints for UXLint CLI.
+    Follows RFC 6749 (OAuth 2.0), RFC 7636 (PKCE), and OpenID Connect Core 1.0.
+
+servers:
+  - url: https://app.uxlint.org/auth/v1/oauth
+    description: Production server
+  - url: http://localhost:54321/functions/v1/cli-api/auth/v1/oauth
+    description: Local development server
+
+paths:
+  /authorize:
+    get:
+      summary: Authorization endpoint
+      description: |
+        Initiates OAuth 2.0 authorization code flow with PKCE.
+        Opens in browser, presents login/authorization UI to user.
+      operationId: authorize
+      parameters:
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: OAuth client ID (public identifier for uxlint CLI)
+          example: uxlint-cli-prod
+
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: Callback URI for authorization code delivery (localhost for CLI)
+          example: http://localhost:8080/callback
+
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+          description: OAuth response type (always "code" for authorization code flow)
+
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Space-separated list of requested scopes
+          example: "openid profile email uxlint:api"
+
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Random string for CSRF protection (minimum 16 chars)
+          example: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+
+        - name: code_challenge
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Base64URL-encoded SHA-256 hash of code_verifier (PKCE)
+          example: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+
+        - name: code_challenge_method
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [S256]
+          description: PKCE code challenge method (always S256 for SHA-256)
+
+      responses:
+        '302':
+          description: |
+            Redirect to callback URI with authorization code.
+            User is redirected after successful authentication.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+              description: Redirect URI with code and state parameters
+              example: http://localhost:8080/callback?code=AUTH_CODE&state=STATE
+
+        '400':
+          description: Invalid request parameters
+          content:
+            text/html:
+              schema:
+                type: string
+              example: |
+                <html>
+                  <body>Error: Invalid client_id</body>
+                </html>
+
+  /token:
+    post:
+      summary: Token endpoint
+      description: |
+        Exchanges authorization code for access token, refresh token, and ID token.
+        Requires code_verifier to complete PKCE flow.
+      operationId: exchangeToken
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - grant_type
+                - code
+                - redirect_uri
+                - client_id
+                - code_verifier
+              properties:
+                grant_type:
+                  type: string
+                  enum: [authorization_code]
+                  description: OAuth grant type (authorization_code for initial exchange)
+
+                code:
+                  type: string
+                  description: Authorization code received from /authorize callback
+
+                redirect_uri:
+                  type: string
+                  format: uri
+                  description: Redirect URI (must match /authorize request)
+
+                client_id:
+                  type: string
+                  description: OAuth client ID
+
+                code_verifier:
+                  type: string
+                  description: Original unhashed code verifier (PKCE)
+
+      responses:
+        '200':
+          description: Successful token exchange
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidCode:
+                  summary: Invalid authorization code
+                  value:
+                    error: invalid_grant
+                    error_description: Authorization code is invalid or expired
+                invalidVerifier:
+                  summary: Invalid PKCE verifier
+                  value:
+                    error: invalid_grant
+                    error_description: Code verifier does not match code challenge
+
+        '401':
+          description: Client authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /token (refresh):
+    post:
+      summary: Token refresh endpoint
+      description: |
+        Exchanges refresh token for new access token.
+        May return new refresh token (refresh token rotation).
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - grant_type
+                - refresh_token
+                - client_id
+              properties:
+                grant_type:
+                  type: string
+                  enum: [refresh_token]
+                  description: OAuth grant type (refresh_token for token refresh)
+
+                refresh_token:
+                  type: string
+                  description: Refresh token from previous token response
+
+                client_id:
+                  type: string
+                  description: OAuth client ID
+
+                scope:
+                  type: string
+                  description: (Optional) Requested scopes (must be subset of original)
+
+      responses:
+        '200':
+          description: Successful token refresh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+        '400':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidToken:
+                  summary: Invalid or expired refresh token
+                  value:
+                    error: invalid_grant
+                    error_description: Refresh token is invalid or expired
+
+  /.well-known/openid-configuration:
+    get:
+      summary: OpenID Connect discovery endpoint
+      description: |
+        Returns OIDC provider configuration metadata.
+        Used for automatic endpoint discovery.
+      operationId: openidConfiguration
+      responses:
+        '200':
+          description: OIDC configuration metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCConfiguration'
+
+components:
+  schemas:
+    TokenResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+        - refresh_token
+        - scope
+      properties:
+        access_token:
+          type: string
+          description: OAuth access token (JWT)
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+
+        token_type:
+          type: string
+          enum: [Bearer]
+          description: Token type (always Bearer)
+
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds
+          example: 3600
+
+        refresh_token:
+          type: string
+          description: Refresh token for obtaining new access tokens
+          example: v1.MRjT9X7A...
+
+        id_token:
+          type: string
+          description: OIDC ID token (JWT) containing user claims
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+
+        scope:
+          type: string
+          description: Space-separated list of granted scopes
+          example: "openid profile email uxlint:api"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: OAuth error code
+          enum:
+            - invalid_request
+            - invalid_client
+            - invalid_grant
+            - unauthorized_client
+            - unsupported_grant_type
+            - invalid_scope
+          example: invalid_grant
+
+        error_description:
+          type: string
+          description: Human-readable error description
+          example: Authorization code is invalid or expired
+
+        error_uri:
+          type: string
+          format: uri
+          description: URI to error documentation
+
+    OIDCConfiguration:
+      type: object
+      description: OpenID Connect provider configuration
+      required:
+        - issuer
+        - authorization_endpoint
+        - token_endpoint
+        - jwks_uri
+        - response_types_supported
+        - subject_types_supported
+        - id_token_signing_alg_values_supported
+      properties:
+        issuer:
+          type: string
+          format: uri
+          description: OIDC issuer identifier
+          example: https://app.uxlint.org
+
+        authorization_endpoint:
+          type: string
+          format: uri
+          description: Authorization endpoint URL
+          example: https://app.uxlint.org/auth/v1/oauth/authorize
+
+        token_endpoint:
+          type: string
+          format: uri
+          description: Token endpoint URL
+          example: https://app.uxlint.org/auth/v1/oauth/token
+
+        userinfo_endpoint:
+          type: string
+          format: uri
+          description: UserInfo endpoint URL
+          example: https://app.uxlint.org/auth/v1/oauth/userinfo
+
+        jwks_uri:
+          type: string
+          format: uri
+          description: JSON Web Key Set URI for token verification
+          example: https://app.uxlint.org/auth/v1/oauth/.well-known/jwks.json
+
+        response_types_supported:
+          type: array
+          items:
+            type: string
+          description: Supported OAuth response types
+          example: ["code"]
+
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+          description: Supported OAuth grant types
+          example: ["authorization_code", "refresh_token"]
+
+        subject_types_supported:
+          type: array
+          items:
+            type: string
+          description: Supported subject identifier types
+          example: ["public"]
+
+        id_token_signing_alg_values_supported:
+          type: array
+          items:
+            type: string
+          description: Supported ID token signing algorithms
+          example: ["RS256"]
+
+        scopes_supported:
+          type: array
+          items:
+            type: string
+          description: Supported OAuth scopes
+          example: ["openid", "profile", "email", "uxlint:api"]
+
+        token_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+          description: Supported token endpoint authentication methods
+          example: ["none"]
+
+        code_challenge_methods_supported:
+          type: array
+          items:
+            type: string
+          description: Supported PKCE code challenge methods
+          example: ["S256"]
+
+    UserInfo:
+      type: object
+      description: OIDC UserInfo endpoint response
+      required:
+        - sub
+        - email
+        - name
+      properties:
+        sub:
+          type: string
+          description: Subject identifier (unique user ID)
+          example: user_abc123xyz
+
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: developer@example.com
+
+        email_verified:
+          type: boolean
+          description: Whether email is verified
+          example: true
+
+        name:
+          type: string
+          description: User's full name
+          example: Jane Developer
+
+        given_name:
+          type: string
+          description: User's first name
+          example: Jane
+
+        family_name:
+          type: string
+          description: User's last name
+          example: Developer
+
+        picture:
+          type: string
+          format: uri
+          description: Profile picture URL
+          example: https://avatars.example.com/user123.jpg
+
+        org:
+          type: string
+          description: Organization name (custom claim)
+          example: Acme Corp
+
+security:
+  - none: []
+
+tags:
+  - name: OAuth 2.0
+    description: OAuth 2.0 authorization endpoints
+  - name: OIDC
+    description: OpenID Connect endpoints
