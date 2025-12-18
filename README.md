@@ -31,74 +31,7 @@ Or use directly with npx (no installation required):
 npx @gyeonghokim/uxlint
 ```
 
-## Environment Setup
-
-Copy and edit the example environment file
-
-```bash
-cp .env.example .env
-vim .env
-```
-
-### AI Provider Configuration
-
-Choose one of the following providers:
-
-- **Anthropic** (default):
-
-  - `UXLINT_AI_PROVIDER=anthropic`
-  - `UXLINT_ANTHROPIC_API_KEY`: Your Anthropic API key from https://console.anthropic.com/
-  - Default model: `claude-sonnet-4-5-20250929`
-
-- **OpenAI**:
-
-  - `UXLINT_AI_PROVIDER=openai`
-  - `UXLINT_OPENAI_API_KEY`: Your OpenAI API key from https://platform.openai.com/api-keys
-  - Default model: `gpt-5`
-
-- **Ollama** (local):
-
-  - `UXLINT_AI_PROVIDER=ollama`
-  - `UXLINT_OLLAMA_BASE_URL`: Your Ollama server URL (default: http://localhost:11434/api)
-  - Default model: `qwen3-vl`
-  - Requires [Ollama](https://ollama.ai/) to be installed and running locally
-  - **⚠️ Important**: The model must support **both vision (multimodal) and tool calling**
-    - ✅ Recommended: `qwen3-vl`, `qwen2-vl:7b`, `qwen2-vl:2b`
-    - ❌ Not supported: `llama3.2-vision` (no tool calling), `llama3.1` (no vision)
-
-- **xAI (Grok)**:
-
-  - `UXLINT_AI_PROVIDER=xai`
-  - `UXLINT_XAI_API_KEY`: Your xAI API key from https://x.ai/
-  - Default model: `grok-4`
-
-- **Google (Gemini)**:
-  - `UXLINT_AI_PROVIDER=google`
-  - `UXLINT_GOOGLE_API_KEY`: Your Google API key from https://ai.google.dev/
-  - Default model: `gemini-2.5-pro`
-
-**Optional Configuration:**
-
-- `UXLINT_AI_MODEL`: AI model to use for analysis (defaults vary by provider)
-- `MCP_SERVER_COMMAND`: Command to run MCP server (default: npx)
-- `MCP_SERVER_ARGS`: Arguments for MCP server (default: @playwright/mcp@latest)
-- `MCP_BROWSER`: Browser type for automation - chrome, firefox, webkit, msedge (default: chrome)
-- `MCP_HEADLESS`: Run browser in headless mode - true/false (default: true)
-- `MCP_TIMEOUT`: Operation timeout in milliseconds (default: 30000)
-
 ## Quick start
-
-### With Example Configuration File
-
-```bash
-cp .env.example .env
-```
-
-and edit the API tokens and model names in the .env file.
-
-```bash
-cp .uxlintrc-example.json .uxlintrc.json
-```
 
 ```bash
 npx @gyeonghokim/uxlint --interactive
@@ -205,6 +138,53 @@ Required fields are marked as required. All text fields accept natural language.
 - `persona` (string, required): Can be a short paragraph describing goals, motives, accessibility needs, devices, constraints, etc.
 - `report` (object, required): Report output configuration.
   - `output` (string, required): File path where the report will be written (e.g., `./ux-report.md`).
+- `ai` (object, optional): AI service configuration. If not provided, defaults to Anthropic with `UXLINT_ANTHROPIC_API_KEY` environment variable.
+  - `provider` (string, required): AI provider to use. One of: `anthropic`, `openai`, `ollama`, `xai`, `google`.
+  - `apiKey` (string, required for all providers except `ollama`): API key for the selected provider.
+  - `model` (string, optional): AI model name. Defaults vary by provider:
+    - `anthropic`: `claude-sonnet-4-5-20250929`
+    - `openai`: `gpt-5`
+    - `ollama`: `qwen3-vl`
+    - `xai`: `grok-4`
+    - `google`: `gemini-2.5-pro`
+  - `baseUrl` (string, optional, only for `ollama`): Ollama server base URL. Defaults to `http://localhost:11434/api`.
+
+### AI Provider Configuration
+
+Choose one of the following providers:
+
+- **Anthropic** (default if `ai` is not specified):
+
+  - Requires `apiKey`
+  - Default model: `claude-sonnet-4-5-20250929`
+  - Get your API key from https://console.anthropic.com/
+
+- **OpenAI**:
+
+  - Requires `apiKey`
+  - Default model: `gpt-5`
+  - Get your API key from https://platform.openai.com/api-keys
+
+- **Ollama** (local):
+
+  - Does not require `apiKey`
+  - Optional `baseUrl` (default: `http://localhost:11434/api`)
+  - Default model: `qwen3-vl`
+  - Requires [Ollama](https://ollama.ai/) to be installed and running locally
+  - **⚠️ Important**: The model must support **both vision (multimodal) and tool calling**
+    - ✅ Recommended: `qwen3-vl`, `qwen2-vl:7b`, `qwen2-vl:2b`
+    - ❌ Not supported: `llama3.2-vision` (no tool calling), `llama3.1` (no vision)
+
+- **xAI (Grok)**:
+
+  - Requires `apiKey`
+  - Default model: `grok-4`
+  - Get your API key from https://x.ai/
+
+- **Google (Gemini)**:
+  - Requires `apiKey`
+  - Default model: `gemini-2.5-pro`
+  - Get your API key from https://ai.google.dev/
 
 ### Example: YAML
 
@@ -285,6 +265,10 @@ persona: >-
   log in to access your dashboard and create your first repository.
 report:
   output: './ux-report.md'
+ai:
+  provider: anthropic
+  apiKey: your_anthropic_api_key_here
+  model: claude-sonnet-4-5-20250929
 ```
 
 ### Example: JSON
@@ -323,6 +307,11 @@ report:
 	"persona": "You are a developer looking to host your open source project on GitHub. You want to understand how easy it is to get started, explore existing projects, and set up your repository. Your approach: First, visit the pricing page to understand what features are available in the free plan. Next, explore the Explore page to see what kinds of projects are popular and get inspiration. Then, sign up for a free account to start hosting your own projects. Finally, log in to access your dashboard and create your first repository.",
 	"report": {
 		"output": "./ux-report.md"
+	},
+	"ai": {
+		"provider": "anthropic",
+		"apiKey": "your_anthropic_api_key_here",
+		"model": "claude-sonnet-4-5-20250929"
 	}
 }
 ```

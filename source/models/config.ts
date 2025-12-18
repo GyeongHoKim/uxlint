@@ -4,6 +4,128 @@
  */
 
 /**
+ * Supported AI provider types
+ */
+export type ProviderType = 'anthropic' | 'openai' | 'ollama' | 'xai' | 'google';
+
+/**
+ * Anthropic provider configuration
+ */
+export type AnthropicAiConfig = {
+	/**
+	 * Provider type
+	 */
+	provider: 'anthropic';
+
+	/**
+	 * AI model name
+	 * Defaults to 'claude-sonnet-4-5-20250929' if not specified
+	 */
+	model?: string;
+
+	/**
+	 * Anthropic API key
+	 */
+	apiKey: string;
+};
+
+/**
+ * OpenAI provider configuration
+ */
+export type OpenAiAiConfig = {
+	/**
+	 * Provider type
+	 */
+	provider: 'openai';
+
+	/**
+	 * AI model name
+	 * Defaults to 'gpt-5' if not specified
+	 */
+	model?: string;
+
+	/**
+	 * OpenAI API key
+	 */
+	apiKey: string;
+};
+
+/**
+ * Ollama provider configuration
+ */
+export type OllamaAiConfig = {
+	/**
+	 * Provider type
+	 */
+	provider: 'ollama';
+
+	/**
+	 * AI model name
+	 * Defaults to 'qwen3-vl' if not specified
+	 * IMPORTANT: Must support both vision and tool calling
+	 */
+	model?: string;
+
+	/**
+	 * Ollama server base URL
+	 * Defaults to 'http://localhost:11434/api' if not specified
+	 */
+	baseUrl?: string;
+};
+
+/**
+ * XAI (Grok) provider configuration
+ */
+export type XaiAiConfig = {
+	/**
+	 * Provider type
+	 */
+	provider: 'xai';
+
+	/**
+	 * AI model name
+	 * Defaults to 'grok-4' if not specified
+	 */
+	model?: string;
+
+	/**
+	 * XAI API key
+	 */
+	apiKey: string;
+};
+
+/**
+ * Google (Gemini) provider configuration
+ */
+export type GoogleAiConfig = {
+	/**
+	 * Provider type
+	 */
+	provider: 'google';
+
+	/**
+	 * AI model name
+	 * Defaults to 'gemini-2.5-pro' if not specified
+	 */
+	model?: string;
+
+	/**
+	 * Google API key
+	 */
+	apiKey: string;
+};
+
+/**
+ * AI service configuration (discriminated union)
+ */
+export type AiConfig =
+	| AnthropicAiConfig
+	| OpenAiAiConfig
+	| OllamaAiConfig
+	| XaiAiConfig
+	| GoogleAiConfig;
+
+/**
  * Represents a page configuration with its URL and feature descriptions
  */
 export type Page = {
@@ -65,6 +187,12 @@ export type UxLintConfig = {
 	 * Report output configuration
 	 */
 	report: ReportConfig;
+
+	/**
+	 * AI service configuration (optional)
+	 * If not provided, defaults to Anthropic with environment variables or prompts for API key
+	 */
+	ai?: AiConfig;
 };
 
 /**
@@ -108,22 +236,72 @@ function isPageArray(value: unknown): value is Page[] {
 }
 
 /**
+ * Type guard to check if a value is a valid AI configuration
+ */
+function isAiConfig(value: unknown): value is AiConfig {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+
+	const config = value as Record<string, unknown>;
+	if (!('provider' in config) || typeof config['provider'] !== 'string') {
+		return false;
+	}
+
+	const provider = config['provider'] as ProviderType;
+	if (!['anthropic', 'openai', 'ollama', 'xai', 'google'].includes(provider)) {
+		return false;
+	}
+
+	switch (provider) {
+		case 'anthropic':
+		case 'openai':
+		case 'xai':
+		case 'google': {
+			return (
+				'apiKey' in config &&
+				typeof config['apiKey'] === 'string' &&
+				(!('model' in config) || typeof config['model'] === 'string') &&
+				!('baseUrl' in config)
+			);
+		}
+
+		case 'ollama': {
+			return (
+				!('apiKey' in config) &&
+				(!('model' in config) || typeof config['model'] === 'string') &&
+				(!('baseUrl' in config) || typeof config['baseUrl'] === 'string')
+			);
+		}
+	}
+}
+
+/**
  * Type guard to check if a value is a valid UxLintConfig
  */
 export function isUxLintConfig(value: unknown): value is UxLintConfig {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'mainPageUrl' in value &&
-		typeof value.mainPageUrl === 'string' &&
-		'subPageUrls' in value &&
-		isStringArray(value.subPageUrls) &&
-		'pages' in value &&
-		isPageArray(value.pages) &&
-		'persona' in value &&
-		typeof value.persona === 'string' &&
-		value.persona.length > 0 &&
-		'report' in value &&
-		isReportConfig(value.report)
-	);
+	if (
+		typeof value !== 'object' ||
+		value === null ||
+		!('mainPageUrl' in value) ||
+		typeof value.mainPageUrl !== 'string' ||
+		!('subPageUrls' in value) ||
+		!isStringArray(value.subPageUrls) ||
+		!('pages' in value) ||
+		!isPageArray(value.pages) ||
+		!('persona' in value) ||
+		typeof value.persona !== 'string' ||
+		value.persona.length === 0 ||
+		!('report' in value) ||
+		!isReportConfig(value.report)
+	) {
+		return false;
+	}
+
+	const config = value as Record<string, unknown>;
+	if ('ai' in config && config['ai'] !== undefined) {
+		return isAiConfig(config['ai']);
+	}
+
+	return true;
 }

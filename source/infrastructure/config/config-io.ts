@@ -233,6 +233,11 @@ export class ConfigIO {
 			);
 		}
 
+		// Validate AI configuration if present (optional)
+		if ('ai' in config && config['ai'] !== undefined) {
+			this.validateAiConfig(config['ai'], filePath);
+		}
+
 		// Return the validated config (TypeScript now knows it's valid)
 		return config as UxLintConfig;
 	}
@@ -420,6 +425,79 @@ export class ConfigIO {
 				`pages[${index}].features is required and must be a string`,
 				filePath,
 				'pages',
+			);
+		}
+	}
+
+	/**
+	 * Validate AI configuration object
+	 * @param aiConfig - AI configuration object to validate
+	 * @param filePath - Path to config file (for error messages)
+	 * @throws ConfigurationError if validation fails
+	 */
+	private validateAiConfig(aiConfig: unknown, filePath: string): void {
+		if (!aiConfig || typeof aiConfig !== 'object') {
+			throw new ConfigurationError(
+				'ai must be an object if provided',
+				filePath,
+				'ai',
+			);
+		}
+
+		const config = aiConfig as Record<string, unknown>;
+		if (!config['provider'] || typeof config['provider'] !== 'string') {
+			throw new ConfigurationError(
+				'ai.provider is required and must be a string',
+				filePath,
+				'ai',
+			);
+		}
+
+		const {provider} = config;
+		if (
+			typeof provider !== 'string' ||
+			!['anthropic', 'openai', 'ollama', 'xai', 'google'].includes(provider)
+		) {
+			throw new ConfigurationError(
+				`ai.provider must be one of: anthropic, openai, ollama, xai, google`,
+				filePath,
+				'ai',
+			);
+		}
+
+		// Validate provider-specific fields
+		if (provider === 'ollama') {
+			// Ollama doesn't require apiKey, but baseUrl and model are optional
+			if (
+				'baseUrl' in config &&
+				config['baseUrl'] !== undefined &&
+				typeof config['baseUrl'] !== 'string'
+			) {
+				throw new ConfigurationError(
+					'ai.baseUrl must be a string if provided',
+					filePath,
+					'ai',
+				);
+			}
+		} else if (!config['apiKey'] || typeof config['apiKey'] !== 'string') {
+			// Other providers require apiKey
+			throw new ConfigurationError(
+				`ai.apiKey is required for ${provider} provider`,
+				filePath,
+				'ai',
+			);
+		}
+
+		// Validate model if provided
+		if (
+			'model' in config &&
+			config['model'] !== undefined &&
+			typeof config['model'] !== 'string'
+		) {
+			throw new ConfigurationError(
+				'ai.model must be a string if provided',
+				filePath,
+				'ai',
 			);
 		}
 	}

@@ -5,7 +5,6 @@ import meow from 'meow';
 import App from './app.js';
 import {UxlintMachineContext} from './contexts/uxlint-context.js';
 import {configIO} from './infrastructure/config/config-io.js';
-import {loadEnvConfig} from './infrastructure/config/env-config.js';
 import {logger} from './infrastructure/logger.js';
 import {isUxLintConfig, type UxLintConfig} from './models/config.js';
 import {runCIAnalysis} from './ci-runner.js';
@@ -153,9 +152,6 @@ if (cli.flags.interactive) {
 
 	// Load and validate config
 	try {
-		logger.debug('Loading environment config');
-		loadEnvConfig();
-
 		logger.debug('Reading config file', {configPath});
 		const configContent = configIO.readConfigFile(configPath);
 		const format = getConfigFormat(configPath);

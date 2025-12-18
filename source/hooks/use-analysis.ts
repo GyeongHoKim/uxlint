@@ -52,7 +52,9 @@ export type UseAnalysisResult = {
  */
 export function useAnalysis(
 	config: UxLintConfig,
-	getAIService: () => Promise<AIService> = defaultGetAIService,
+	getAIService: (
+		config: UxLintConfig,
+	) => Promise<AIService> = defaultGetAIService,
 	reportBuilder: ReportBuilder = defaultReportBuilder,
 ): UseAnalysisResult {
 	const [analysisState, setAnalysisState] = useState<AnalysisState>({
@@ -114,7 +116,7 @@ export function useAnalysis(
 	const runAnalysis = useCallback(async () => {
 		try {
 			// Get AI Service instance (lazy initialization)
-			const aiService = await getAIService();
+			const aiService = await getAIService(config);
 
 			// Process each page sequentially - await in loop is intentional
 			for (let i = 0; i < config.pages.length; i++) {
@@ -239,7 +241,7 @@ export function useAnalysis(
 			}));
 		} finally {
 			// Cleanup AI Service
-			const aiService = await getAIService();
+			const aiService = await getAIService(config);
 			await aiService.close();
 		}
 	}, [config, updateAnalysisState, getAIService, reportBuilder]);

@@ -1,5 +1,4 @@
 import process from 'node:process';
-import {config as dotenvConfig} from 'dotenv';
 import {Box, Text} from 'ink';
 import {useEffect} from 'react';
 import {
@@ -16,9 +15,6 @@ import {
 import type {UxReport} from './models/analysis.js';
 import type {UxLintConfig} from './models/config.js';
 import {defaultTheme} from './models/theme.js';
-
-// Load environment variables from .env file
-dotenvConfig({quiet: true});
 
 /**
  * Delay before calling process.exit() after reaching 'done' state.

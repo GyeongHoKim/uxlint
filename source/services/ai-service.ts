@@ -400,26 +400,32 @@ IMPORTANT: You MUST call completePageAnalysis before finishing. The analysis is 
 }
 
 /**
- * Singleton instance of AIService
+ * Singleton instance of AIService (per config)
  */
-let aiServiceInstance: AIService | undefined;
+const aiServiceInstances = new Map<string, AIService>();
 
 /**
- * Get or create AIService instance (lazy initialization)
+ * Get or create AIService instance for a given configuration
  */
-export async function getAIService(): Promise<AIService> {
-	if (!aiServiceInstance) {
-		const model = await getLanguageModel();
+export async function getAIService(config: UxLintConfig): Promise<AIService> {
+	// Create a cache key from config (using AI config as key)
+	const cacheKey = config.ai
+		? `${config.ai.provider}-${config.ai.model ?? 'default'}`
+		: 'default';
+
+	if (!aiServiceInstances.has(cacheKey)) {
+		const model = await getLanguageModel(config);
 		const client = await getMCPClient();
-		aiServiceInstance = new AIService(model, client, reportBuilder);
+		const service = new AIService(model, client, reportBuilder);
+		aiServiceInstances.set(cacheKey, service);
 	}
 
-	return aiServiceInstance;
+	return aiServiceInstances.get(cacheKey)!;
 }
 
 /**
  * Reset AIService instance (useful for testing)
  */
 export function resetAIService(): void {
-	aiServiceInstance = undefined;
+	aiServiceInstances.clear();
 }
