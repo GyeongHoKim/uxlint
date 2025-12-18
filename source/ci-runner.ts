@@ -48,7 +48,7 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 	try {
 		// Get AI Service instance
 		logger.debug('Initializing AI service');
-		const aiService = await getAIService();
+		const aiService = await getAIService(config);
 		logger.debug('AI service initialized');
 
 		// Process each page sequentially (not in parallel)
