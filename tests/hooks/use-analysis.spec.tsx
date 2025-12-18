@@ -67,7 +67,7 @@ test('useAnalysis updates iteration number within same page', async t => {
 	const aiService = new AIService(mockModel, mockMCPClient, reportBuilder);
 
 	// Create mock getAIService function for dependency injection
-	const mockGetAIService = async () => aiService;
+	const mockGetAIService = async (_config: UxLintConfig) => aiService;
 
 	const config: UxLintConfig = {
 		mainPageUrl: 'https://example.com',
