@@ -1,4 +1,5 @@
 ---
+
 description: "Task list template for feature implementation"
 ---
 
@@ -7,20 +8,18 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: Per Constitution v1.2.0 II, tests are MANDATORY and MUST be written BEFORE implementation:
-- Models (pure TypeScript classes/functions): Unit tests using Ava
-- Components (React/Ink UI): Visual regression tests using ink-testing-library
-- Language Model Integrations: Mock-based tests using MockLanguageModelV2 from `ai/test` (AI SDK 5.x standard)
-- Tests MUST fail initially (red phase) before implementation begins
+**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
 ## Format: `[ID] [P?] [Story] Description`
+
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
 
 ## Path Conventions
+
 - **Single project**: `src/`, `tests/` at repository root
 - **Web app**: `backend/src/`, `frontend/src/`
 - **Mobile**: `api/src/`, `ios/src/` or `android/src/`
@@ -80,10 +79,9 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (MANDATORY per Constitution v1.2.0) ⚠️
+### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
 
-**NOTE: Write these tests FIRST, ensure they FAIL before implementation**
-**Strategy**: Unit tests (Ava) for models, visual regression (ink-testing-library) for components, mocks (MockLanguageModelV3) for LLM integrations
+> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
 - [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
 - [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
@@ -107,9 +105,7 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (MANDATORY per Constitution v1.2.0) ⚠️
-
-**Strategy**: Unit tests (Ava) for models, visual regression (ink-testing-library) for components, mocks (MockLanguageModelV3) for LLM integrations
+### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
 
 - [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
 - [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
@@ -131,9 +127,7 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (MANDATORY per Constitution v1.2.0) ⚠️
-
-**Strategy**: Unit tests (Ava) for models, visual regression (ink-testing-library) for components, mocks (MockLanguageModelV3) for LLM integrations
+### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
 
 - [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
 - [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
@@ -159,7 +153,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional test coverage to meet 80% threshold (Constitution v1.2.0 II) in tests/unit/
+- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
 
@@ -255,5 +249,3 @@ With multiple developers:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
-
-

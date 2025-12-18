@@ -11,19 +11,13 @@
   IMPORTANT: User stories should be PRIORITIZED as user journeys ordered by importance.
   Each user story/journey must be INDEPENDENTLY TESTABLE - meaning if you implement just ONE of them,
   you should still have a viable MVP (Minimum Viable Product) that delivers value.
-
+  
   Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
   Think of each story as a standalone slice of functionality that can be:
   - Developed independently
   - Tested independently
   - Deployed independently
   - Demonstrated to users independently
-
-  TESTING STRATEGY (per Constitution v1.2.0 II):
-  - Models (pure TypeScript classes/functions): Unit tests using Ava
-  - Components (React/Ink UI): Visual regression tests using ink-testing-library
-  - Language Model Integrations: Mock-based tests using MockLanguageModelV2 from `ai/test` (AI SDK 5.x standard)
-  - Tests MUST be written and approved BEFORE implementation
 -->
 
 ### User Story 1 - [Brief Title] (Priority: P1)

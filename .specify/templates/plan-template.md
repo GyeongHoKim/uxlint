@@ -31,36 +31,13 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Verify compliance with uxlint Constitution v1.2.0:
-
-**I. Code Quality Gates** (NON-NEGOTIABLE):
-- [ ] `npm run compile && npm run format && npm run lint` sequence will be run after all code changes
-- [ ] No linting bypasses (`// eslint-disable-next-line`) planned
-
-**II. Test-First Development** (NON-NEGOTIABLE):
-- [ ] Tests will be written BEFORE implementation
-- [ ] Testing strategy defined: Unit tests (Ava) for models, visual regression (ink-testing-library) for components, mock-based tests for language model integrations
-- [ ] Language model tests use MockLanguageModelV2 from `ai/test` (AI SDK 5.x standard)
-- [ ] 80% coverage target via c8
-
-**III. UX Consistency**:
-- [ ] Feature references target personas from project context
-- [ ] Ink ecosystem libraries researched via GitHub MCP for UI patterns
-- [ ] Library choices documented with rationale
-
-**IV. Performance Accountability**:
-- [ ] Measurable performance goals defined (domain-specific)
-- [ ] Baseline metrics identified
-
-**V. Simplicity & Minimalism**:
-- [ ] Simplest viable approach chosen
-- [ ] Any complexity justified in Complexity Tracking table below
+[Gates determined based on constitution file]
 
 ## Project Structure
 
 ### Documentation (this feature)
 
-```
+```text
 specs/[###-feature]/
 ├── plan.md              # This file (/speckit.plan command output)
 ├── research.md          # Phase 0 output (/speckit.plan command)
@@ -78,7 +55,7 @@ specs/[###-feature]/
   not include Option labels.
 -->
 
-```
+```text
 # [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
 src/
 ├── models/
@@ -119,7 +96,7 @@ directories captured above]
 
 ## Complexity Tracking
 
-*Fill ONLY if Constitution Check has violations that must be justified*
+> **Fill ONLY if Constitution Check has violations that must be justified**
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
