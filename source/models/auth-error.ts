@@ -37,7 +37,7 @@ export class AuthenticationError extends Error {
 	constructor(
 		public code: AuthErrorCode,
 		message: string,
-		public cause?: Error,
+		public override cause?: Error,
 	) {
 		super(message);
 		this.name = 'AuthenticationError';
