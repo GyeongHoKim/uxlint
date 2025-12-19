@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import process from 'node:process';
 import {config as dotenvConfig} from 'dotenv';
-import {render, Text} from 'ink';
+import {Box, render, Text} from 'ink';
 import meow from 'meow';
 import App from './app.js';
 import {runCIAnalysis} from './ci-runner.js';
+import {AuthStatus, LoginFlow} from './components/auth/index.js';
 import {UxlintMachineContext} from './contexts/uxlint-context.js';
+import {getUXLintClient} from './infrastructure/auth/uxlint-client.js';
 import {configIO} from './infrastructure/config/config-io.js';
 import {logger} from './infrastructure/logger.js';
 import {isUxLintConfig, type UxLintConfig} from './models/config.js';
@@ -16,6 +18,12 @@ const cli = meow(
 	`
 	Usage
 	  $ uxlint [options]
+	  $ uxlint auth <command>
+
+	Auth Commands
+	  login              Authenticate with UXLint Cloud
+	  logout             Log out from UXLint Cloud
+	  status             Show current authentication status
 
 	Options
 	  --interactive, -i  Use interactive mode to create configuration
@@ -25,6 +33,9 @@ const cli = meow(
 	Examples
 	  $ uxlint --interactive
 	  $ uxlint
+	  $ uxlint auth login
+	  $ uxlint auth status
+	  $ uxlint auth logout
 `,
 	{
 		importMeta: import.meta,
@@ -88,8 +99,89 @@ process.on('unhandledRejection', (reason: unknown) => {
 	process.exit(1);
 });
 
-// Interactive Mode: Use Ink UI
-if (cli.flags.interactive) {
+// Auth Commands
+const authCommand = cli.input[0];
+if (authCommand === 'auth') {
+	const subcommand = cli.input[1];
+	logger.info('Auth command invoked', {subcommand});
+
+	// eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
+	switch (subcommand) {
+		case 'login': {
+			render(
+				<LoginFlow
+					onComplete={profile => {
+						logger.info('Login successful', {
+							email: profile.email,
+							name: profile.name,
+						});
+						process.exit(0);
+					}}
+					onError={error => {
+						logger.error('Login failed', {
+							error: error.message,
+						});
+						process.exit(1);
+					}}
+				/>,
+			);
+			break;
+		}
+
+		case 'status': {
+			render(
+				<AuthStatus
+					onComplete={() => {
+						process.exit(0);
+					}}
+				/>,
+			);
+			break;
+		}
+
+		case 'logout': {
+			const handleLogout = async () => {
+				try {
+					const client = getUXLintClient();
+					await client.logout();
+					render(
+						<Box>
+							<Text color="green">✓ Logged out successfully</Text>
+						</Box>,
+					);
+					logger.info('Logout successful');
+					setTimeout(() => process.exit(0), 100);
+				} catch (error_: unknown) {
+					const errorMessage =
+						error_ instanceof Error ? error_.message : 'Unknown error';
+					render(
+						<Box>
+							<Text color="red">✗ Logout failed: {errorMessage}</Text>
+						</Box>,
+					);
+					logger.error('Logout failed', {error: errorMessage});
+					setTimeout(() => process.exit(1), 100);
+				}
+			};
+
+			void handleLogout();
+			break;
+		}
+
+		default: {
+			render(
+				<Box flexDirection="column">
+					<Text color="red">
+						Unknown auth command: {subcommand ?? '(none)'}
+					</Text>
+					<Text>Available commands: login, logout, status</Text>
+				</Box>,
+			);
+			process.exit(1);
+		}
+	}
+} else if (cli.flags.interactive) {
+	// Interactive Mode: Use Ink UI
 	logger.info('Interactive mode selected');
 	let preloadedConfig: UxLintConfig | undefined;
 
