@@ -31,7 +31,8 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["source/*"]
-		}
+		},
+		"rootDir": "."
 	},
 	"include": ["source", "tests"]
 }
