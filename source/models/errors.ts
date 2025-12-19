@@ -29,7 +29,7 @@ export class UrlNormalizationError extends UxlintError {
 	constructor(
 		message: string,
 		public readonly originalInput: string,
-		public readonly cause?: Error,
+		public override readonly cause?: Error,
 	) {
 		super(message, {originalInput, cause: cause?.message});
 		this.name = 'UrlNormalizationError';
@@ -191,7 +191,7 @@ export class NetworkError extends UxlintError {
 		message: string,
 		public readonly url: string,
 		public readonly statusCode?: number,
-		public readonly cause?: Error,
+		public override readonly cause?: Error,
 	) {
 		super(message, {url, statusCode, cause: cause?.message});
 		this.name = 'NetworkError';
