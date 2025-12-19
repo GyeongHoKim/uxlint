@@ -23,19 +23,19 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Dependencies Installation
 
-- [ ] T001 Install authentication dependencies: `npm install keytar open oauth-callback @inkjs/ui`
-- [ ] T002 Install development dependencies: `npm install --save-dev @types/keytar`
-- [ ] T003 Verify MSW is installed (already in project): check package.json includes `msw`
+- [X] T001 Install authentication dependencies: `npm install keytar open oauth-callback @inkjs/ui`
+- [X] T002 Install development dependencies: `npm install --save-dev @types/keytar`
+- [X] T003 Verify MSW is installed (already in project): check package.json includes `msw`
 - [ ] T004 Update .env file with OAuth configuration (UXLINT_CLOUD_CLIENT_ID, UXLINT_CLOUD_API_BASE_URL)
 - [ ] T005 Run quality gates to verify setup: `npm run compile && npm run format && npm run lint`
 
 ### Directory Structure
 
-- [ ] T006 [P] Create auth infrastructure directory: `source/infrastructure/auth/`
-- [ ] T007 [P] Create auth components directory: `source/components/auth/`
-- [ ] T008 [P] Create auth models directory entries in `source/models/` (no new dir needed)
-- [ ] T009 [P] Create auth tests directory: `tests/infrastructure/auth/`
-- [ ] T010 [P] Create auth component tests directory: `tests/components/auth/`
+- [X] T006 [P] Create auth infrastructure directory: `source/infrastructure/auth/`
+- [X] T007 [P] Create auth components directory: `source/components/auth/`
+- [X] T008 [P] Create auth models directory entries in `source/models/` (no new dir needed)
+- [X] T009 [P] Create auth tests directory: `tests/infrastructure/auth/`
+- [X] T010 [P] Create auth component tests directory: `tests/components/auth/`
 
 **Validation**: All directories created, dependencies installed, quality gates pass
 
@@ -49,29 +49,29 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Data Models (Blocking - Required by all user stories)
 
-- [ ] T011 **TEST**: Write unit tests for AuthenticationSession model in `tests/models/auth-session.spec.ts` (validation, expiry check)
-- [ ] T012 Create AuthenticationSession model in `source/models/auth-session.ts` with version, user, tokens, metadata
-- [ ] T013 Implement `isValidSession()` type guard in `source/models/auth-session.ts`
-- [ ] T014 Implement `isSessionExpired()` function in `source/models/auth-session.ts` with buffer parameter
+- [X] T011 **TEST**: Write unit tests for AuthenticationSession model in `tests/models/auth-session.spec.ts` (validation, expiry check)
+- [X] T012 Create AuthenticationSession model in `source/models/auth-session.ts` with version, user, tokens, metadata
+- [X] T013 Implement `isValidSession()` type guard in `source/models/auth-session.ts`
+- [X] T014 Implement `isSessionExpired()` function in `source/models/auth-session.ts` with buffer parameter
 - [ ] T015 **TEST**: Write unit tests for UserProfile model in `tests/models/user-profile.spec.ts`
-- [ ] T016 [P] Create UserProfile interface in `source/models/user-profile.ts` with id, email, name, organization, picture, emailVerified
+- [X] T016 [P] Create UserProfile interface in `source/models/user-profile.ts` with id, email, name, organization, picture, emailVerified
 - [ ] T017 **TEST**: Write unit tests for TokenSet model in `tests/models/token-set.spec.ts`
-- [ ] T018 [P] Create TokenSet interface in `source/models/token-set.ts` with accessToken, tokenType, expiresIn, refreshToken, idToken, scope
+- [X] T018 [P] Create TokenSet interface in `source/models/token-set.ts` with accessToken, tokenType, expiresIn, refreshToken, idToken, scope
 - [ ] T019 **TEST**: Write unit tests for PKCEParameters model in `tests/models/pkce-params.spec.ts`
-- [ ] T020 [P] Create PKCEParameters interface in `source/models/pkce-params.ts` with codeVerifier, codeChallenge, codeChallengeMethod, state
+- [X] T020 [P] Create PKCEParameters interface in `source/models/pkce-params.ts` with codeVerifier, codeChallenge, codeChallengeMethod, state
 - [ ] T021 **TEST**: Write unit tests for AuthenticationError in `tests/models/auth-error.spec.ts`
-- [ ] T022 [P] Create AuthError enum and AuthenticationError class in `source/models/auth-error.ts`
+- [X] T022 [P] Create AuthError enum and AuthenticationError class in `source/models/auth-error.ts`
 
 ### PKCE Utilities (Blocking - Required by US1)
 
-- [ ] T023 **TEST**: Write unit tests for PKCE generator in `tests/infrastructure/auth/pkce-generator.spec.ts` (verify SHA-256, Base64URL encoding, randomness)
-- [ ] T024 Create PKCE generator utility in `source/infrastructure/auth/pkce-generator.ts` with `generatePKCEParameters()` function
-- [ ] T025 Implement `base64URLEncode()` helper function in `source/infrastructure/auth/pkce-generator.ts`
-- [ ] T026 Verify PKCE generation produces 43-128 character code verifier (add assertion in tests)
+- [X] T023 **TEST**: Write unit tests for PKCE generator in `tests/infrastructure/auth/pkce-generator.spec.ts` (verify SHA-256, Base64URL encoding, randomness)
+- [X] T024 Create PKCE generator utility in `source/infrastructure/auth/pkce-generator.ts` with `generatePKCEParameters()` function
+- [X] T025 Implement `base64URLEncode()` helper function in `source/infrastructure/auth/pkce-generator.ts`
+- [X] T026 Verify PKCE generation produces 43-128 character code verifier (add assertion in tests)
 
 ### Export Models
 
-- [ ] T027 [P] Update `source/models/index.ts` to export all auth models (AuthenticationSession, UserProfile, TokenSet, PKCEParameters, AuthenticationError)
+- [X] T027 [P] Update `source/models/index.ts` to export all auth models (AuthenticationSession, UserProfile, TokenSet, PKCEParameters, AuthenticationError)
 
 **Validation**: All model tests pass, PKCE generator verified with cryptographic tests, quality gates pass
 
