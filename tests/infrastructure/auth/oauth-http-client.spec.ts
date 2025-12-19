@@ -1,6 +1,4 @@
 import test from 'ava';
-import {http, HttpResponse} from 'msw';
-import {setupServer} from 'msw/node';
 import {
 	OAuthHttpClient,
 	type TokenExchangeParameters,
@@ -10,65 +8,36 @@ import {
 	AuthErrorCode,
 	AuthenticationError,
 } from '../../../source/models/auth-error.js';
+import {
+	OAUTH_BASE_URL,
+	createValidatingTokenHandler,
+	mockOIDCConfig,
+	mockTokenResponse,
+	oauthEndpoints,
+	oauthErrorHandlers,
+} from '../../mocks/handlers/index.js';
+import {server} from '../../mocks/server.js';
 
-const BASE_URL = 'https://test.uxlint.org';
-const TOKEN_ENDPOINT = `${BASE_URL}/auth/v1/oauth/token`;
-const OIDC_CONFIG_ENDPOINT = `${BASE_URL}/auth/v1/oauth/.well-known/openid-configuration`;
-
-const mockTokenResponse = {
-	access_token: 'mock_access_token_123',
-	token_type: 'Bearer',
-	expires_in: 3600,
-	refresh_token: 'mock_refresh_token_456',
-	id_token: 'mock_id_token_789',
-	scope: 'openid profile email uxlint:api',
-};
-
-const mockOIDCConfig = {
-	issuer: BASE_URL,
-	authorization_endpoint: `${BASE_URL}/auth/v1/oauth/authorize`,
-	token_endpoint: TOKEN_ENDPOINT,
-	userinfo_endpoint: `${BASE_URL}/auth/v1/oauth/userinfo`,
-	jwks_uri: `${BASE_URL}/auth/v1/oauth/.well-known/jwks.json`,
-	response_types_supported: ['code'],
-	grant_types_supported: ['authorization_code', 'refresh_token'],
-	scopes_supported: ['openid', 'profile', 'email', 'uxlint:api'],
-	code_challenge_methods_supported: ['S256'],
-};
-
-const server = setupServer();
-
-test.before(() => {
-	server.listen({onUnhandledRequest: 'error'});
-});
-
-test.after(() => {
-	server.close();
-});
-
+// Reset handlers after each test to ensure test isolation
 test.afterEach(() => {
 	server.resetHandlers();
 });
 
 test('exchangeCodeForTokens returns valid token set', async t => {
+	// Use validating handler to check request parameters
 	server.use(
-		http.post(TOKEN_ENDPOINT, async ({request}) => {
-			const body = await request.text();
-			const urlParameters = new URLSearchParams(body);
-
-			t.is(urlParameters.get('grant_type'), 'authorization_code');
-			t.is(urlParameters.get('client_id'), 'test-client');
-			t.is(urlParameters.get('code'), 'auth_code_123');
-			t.is(urlParameters.get('redirect_uri'), 'http://localhost:8080/callback');
-			t.is(urlParameters.get('code_verifier'), 'test_verifier');
-
-			return HttpResponse.json(mockTokenResponse);
+		createValidatingTokenHandler(parameters => {
+			t.is(parameters.get('grant_type'), 'authorization_code');
+			t.is(parameters.get('client_id'), 'test-client');
+			t.is(parameters.get('code'), 'auth_code_123');
+			t.is(parameters.get('redirect_uri'), 'http://localhost:8080/callback');
+			t.is(parameters.get('code_verifier'), 'test_verifier');
 		}),
 	);
 
 	const client = new OAuthHttpClient();
 	const parameters: TokenExchangeParameters = {
-		tokenEndpoint: TOKEN_ENDPOINT,
+		tokenEndpoint: oauthEndpoints.token,
 		clientId: 'test-client',
 		code: 'auth_code_123',
 		redirectUri: 'http://localhost:8080/callback',
@@ -77,35 +46,32 @@ test('exchangeCodeForTokens returns valid token set', async t => {
 
 	const tokens = await client.exchangeCodeForTokens(parameters);
 
-	t.is(tokens.accessToken, 'mock_access_token_123');
+	t.is(tokens.accessToken, mockTokenResponse.access_token);
 	t.is(tokens.tokenType, 'Bearer');
-	t.is(tokens.expiresIn, 3600);
-	t.is(tokens.refreshToken, 'mock_refresh_token_456');
-	t.is(tokens.idToken, 'mock_id_token_789');
-	t.is(tokens.scope, 'openid profile email uxlint:api');
+	t.is(tokens.expiresIn, mockTokenResponse.expires_in);
+	t.is(tokens.refreshToken, mockTokenResponse.refresh_token);
+	t.is(tokens.idToken, mockTokenResponse.id_token);
+	t.is(tokens.scope, mockTokenResponse.scope);
 });
 
 test('refreshAccessToken returns valid token set', async t => {
 	server.use(
-		http.post(TOKEN_ENDPOINT, async ({request}) => {
-			const body = await request.text();
-			const urlParameters = new URLSearchParams(body);
-
-			t.is(urlParameters.get('grant_type'), 'refresh_token');
-			t.is(urlParameters.get('client_id'), 'test-client');
-			t.is(urlParameters.get('refresh_token'), 'existing_refresh_token');
-
-			return HttpResponse.json({
-				...mockTokenResponse,
+		createValidatingTokenHandler(
+			parameters => {
+				t.is(parameters.get('grant_type'), 'refresh_token');
+				t.is(parameters.get('client_id'), 'test-client');
+				t.is(parameters.get('refresh_token'), 'existing_refresh_token');
+			},
+			{
 				access_token: 'new_access_token',
 				refresh_token: 'new_refresh_token',
-			});
-		}),
+			},
+		),
 	);
 
 	const client = new OAuthHttpClient();
 	const parameters: TokenRefreshParameters = {
-		tokenEndpoint: TOKEN_ENDPOINT,
+		tokenEndpoint: oauthEndpoints.token,
 		clientId: 'test-client',
 		refreshToken: 'existing_refresh_token',
 	};
@@ -118,19 +84,14 @@ test('refreshAccessToken returns valid token set', async t => {
 
 test('refreshAccessToken with scope parameter', async t => {
 	server.use(
-		http.post(TOKEN_ENDPOINT, async ({request}) => {
-			const body = await request.text();
-			const urlParameters = new URLSearchParams(body);
-
-			t.is(urlParameters.get('scope'), 'openid profile');
-
-			return HttpResponse.json(mockTokenResponse);
+		createValidatingTokenHandler(parameters => {
+			t.is(parameters.get('scope'), 'openid profile');
 		}),
 	);
 
 	const client = new OAuthHttpClient();
 	const parameters: TokenRefreshParameters = {
-		tokenEndpoint: TOKEN_ENDPOINT,
+		tokenEndpoint: oauthEndpoints.token,
 		clientId: 'test-client',
 		refreshToken: 'existing_refresh_token',
 		scope: 'openid profile',
@@ -141,31 +102,25 @@ test('refreshAccessToken with scope parameter', async t => {
 });
 
 test('getOpenIDConfiguration returns valid config', async t => {
-	server.use(
-		http.get(OIDC_CONFIG_ENDPOINT, () => {
-			return HttpResponse.json(mockOIDCConfig);
-		}),
-	);
-
+	// Default handler already returns mockOIDCConfig
 	const client = new OAuthHttpClient();
-	const config = await client.getOpenIDConfiguration(BASE_URL);
+	const config = await client.getOpenIDConfiguration(OAUTH_BASE_URL);
 
-	t.is(config.issuer, BASE_URL);
-	t.is(config.authorizationEndpoint, `${BASE_URL}/auth/v1/oauth/authorize`);
-	t.is(config.tokenEndpoint, TOKEN_ENDPOINT);
-	t.deepEqual(config.codeChallengeMethodsSupported, ['S256']);
+	t.is(config.issuer, mockOIDCConfig.issuer);
+	t.is(config.authorizationEndpoint, mockOIDCConfig.authorization_endpoint);
+	t.is(config.tokenEndpoint, mockOIDCConfig.token_endpoint);
+	t.deepEqual(
+		config.codeChallengeMethodsSupported,
+		mockOIDCConfig.code_challenge_methods_supported,
+	);
 });
 
 test('exchangeCodeForTokens throws on network error', async t => {
-	server.use(
-		http.post(TOKEN_ENDPOINT, () => {
-			return HttpResponse.error();
-		}),
-	);
+	server.use(oauthErrorHandlers.tokenNetworkError());
 
 	const client = new OAuthHttpClient();
 	const parameters: TokenExchangeParameters = {
-		tokenEndpoint: TOKEN_ENDPOINT,
+		tokenEndpoint: oauthEndpoints.token,
 		clientId: 'test-client',
 		code: 'auth_code_123',
 		redirectUri: 'http://localhost:8080/callback',
@@ -182,20 +137,12 @@ test('exchangeCodeForTokens throws on network error', async t => {
 
 test('exchangeCodeForTokens throws on OAuth error response', async t => {
 	server.use(
-		http.post(TOKEN_ENDPOINT, () => {
-			return HttpResponse.json(
-				{
-					error: 'invalid_grant',
-					error_description: 'Authorization code is invalid',
-				},
-				{status: 400},
-			);
-		}),
+		oauthErrorHandlers.tokenInvalidGrant('Authorization code is invalid'),
 	);
 
 	const client = new OAuthHttpClient();
 	const parameters: TokenExchangeParameters = {
-		tokenEndpoint: TOKEN_ENDPOINT,
+		tokenEndpoint: oauthEndpoints.token,
 		clientId: 'test-client',
 		code: 'invalid_code',
 		redirectUri: 'http://localhost:8080/callback',
@@ -212,21 +159,11 @@ test('exchangeCodeForTokens throws on OAuth error response', async t => {
 });
 
 test('refreshAccessToken throws REFRESH_FAILED on error', async t => {
-	server.use(
-		http.post(TOKEN_ENDPOINT, () => {
-			return HttpResponse.json(
-				{
-					error: 'invalid_grant',
-					error_description: 'Refresh token expired',
-				},
-				{status: 400},
-			);
-		}),
-	);
+	server.use(oauthErrorHandlers.refreshTokenExpired());
 
 	const client = new OAuthHttpClient();
 	const parameters: TokenRefreshParameters = {
-		tokenEndpoint: TOKEN_ENDPOINT,
+		tokenEndpoint: oauthEndpoints.token,
 		clientId: 'test-client',
 		refreshToken: 'expired_token',
 	};
@@ -240,16 +177,12 @@ test('refreshAccessToken throws REFRESH_FAILED on error', async t => {
 });
 
 test('getOpenIDConfiguration throws on HTTP error', async t => {
-	server.use(
-		http.get(OIDC_CONFIG_ENDPOINT, () => {
-			return HttpResponse.json({error: 'Server error'}, {status: 500});
-		}),
-	);
+	server.use(oauthErrorHandlers.oidcConfigServerError());
 
 	const client = new OAuthHttpClient();
 
 	const error = await t.throwsAsync<AuthenticationError>(
-		async () => client.getOpenIDConfiguration(BASE_URL),
+		async () => client.getOpenIDConfiguration(OAUTH_BASE_URL),
 		{instanceOf: AuthenticationError},
 	);
 
