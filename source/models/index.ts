@@ -24,6 +24,14 @@ export * from './config-builder.js';
 // State machine
 export * from './uxlint-machine.js';
 
+// Authentication models
+export type {AuthenticationSession, SessionMetadata} from './auth-session.js';
+export {isValidSession, isSessionExpired} from './auth-session.js';
+export type {UserProfile} from './user-profile.js';
+export type {TokenSet} from './token-set.js';
+export type {PKCEParameters} from './pkce-params.js';
+export {AuthErrorCode, AuthenticationError} from './auth-error.js';
+
 // Commonly used types for convenience
 export type {Page, Persona, ReportConfig, UxLintConfig} from './config.js';
 export type {
