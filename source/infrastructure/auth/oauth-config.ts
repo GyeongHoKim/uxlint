@@ -54,6 +54,8 @@ export const defaultOAuthConfig: OAuthConfig = {
 		token: '/auth/v1/oauth/token',
 		openidConfiguration: '/auth/v1/oauth/.well-known/openid-configuration',
 	},
-	redirectUri: 'http://localhost:8080/callback',
+	redirectUri:
+		process.env['UXLINT_CLOUD_REDIRECT_URI'] ??
+		'http://localhost:8080/callback',
 	scopes: ['openid', 'profile', 'email', 'uxlint:api'],
 };
