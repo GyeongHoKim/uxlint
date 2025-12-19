@@ -26,8 +26,8 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 - [X] T001 Install authentication dependencies: `npm install keytar open oauth-callback @inkjs/ui`
 - [X] T002 Install development dependencies: `npm install --save-dev @types/keytar`
 - [X] T003 Verify MSW is installed (already in project): check package.json includes `msw`
-- [ ] T004 Update .env file with OAuth configuration (UXLINT_CLOUD_CLIENT_ID, UXLINT_CLOUD_API_BASE_URL)
-- [ ] T005 Run quality gates to verify setup: `npm run compile && npm run format && npm run lint`
+- [X] T004 Update .env file with OAuth configuration (UXLINT_CLOUD_CLIENT_ID, UXLINT_CLOUD_API_BASE_URL)
+- [X] T005 Run quality gates to verify setup: `npm run compile && npm run format && npm run lint`
 
 ### Directory Structure
 
@@ -114,8 +114,8 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Mock Keychain (Testing)
 
-- [X] T039 [P] [US1] Create MockKeychainService class in `source/infrastructure/auth/keychain-mock.ts` with in-memory storage Map
-- [X] T040 [P] [US1] Implement all IKeychainService methods using Map in `source/infrastructure/auth/keychain-mock.ts`
+- [X] T039 [P] [US1] Create MockKeychainService class in `tests/infrastructure/auth/keychain-mock.ts` with in-memory storage Map
+- [X] T040 [P] [US1] Implement all IKeychainService methods using Map in `tests/infrastructure/auth/keychain-mock.ts`
 - [X] T041 [P] [US1] Add `clear()` method to MockKeychainService for test cleanup
 
 ### Browser Service Implementation
@@ -128,30 +128,30 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Mock Browser (Testing)
 
-- [X] T047 [P] [US1] Create MockBrowserService class in `source/infrastructure/auth/browser-mock.ts` with openedUrls array
-- [X] T048 [P] [US1] Implement openUrl method tracking URLs in array in `source/infrastructure/auth/browser-mock.ts`
-- [X] T049 [P] [US1] Add `shouldFail` flag to simulate browser launch failure in `source/infrastructure/auth/browser-mock.ts`
+- [X] T047 [P] [US1] Create MockBrowserService class in `tests/infrastructure/auth/browser-mock.ts` with openedUrls array
+- [X] T048 [P] [US1] Implement openUrl method tracking URLs in array in `tests/infrastructure/auth/browser-mock.ts`
+- [X] T049 [P] [US1] Add `shouldFail` flag to simulate browser launch failure in `tests/infrastructure/auth/browser-mock.ts`
 - [X] T050 [P] [US1] Add `clear()` method to MockBrowserService for test cleanup
 
 ### OAuth HTTP Client
 
-- [ ] T051 **TEST**: Write unit tests for OAuthHttpClient in `tests/infrastructure/auth/oauth-http-client.spec.ts` (use MSW to mock HTTP responses)
-- [ ] T052 [US1] Create OAuthHttpClient class in `source/infrastructure/auth/oauth-http-client.ts`
-- [ ] T053 [US1] Implement exchangeCodeForTokens method in `source/infrastructure/auth/oauth-http-client.ts` (POST /token with authorization_code grant)
-- [ ] T054 [US1] Implement refreshAccessToken method in `source/infrastructure/auth/oauth-http-client.ts` (POST /token with refresh_token grant)
-- [ ] T055 [US1] Implement getOpenIDConfiguration method in `source/infrastructure/auth/oauth-http-client.ts` (GET /.well-known/openid-configuration)
-- [ ] T056 [US1] Add error handling for HTTP failures in `source/infrastructure/auth/oauth-http-client.ts` (parse OAuth error responses, throw AuthenticationError)
-- [ ] T057 [US1] Setup MSW handlers in `tests/mocks/oauth-server.ts` for token endpoint, OIDC config endpoint
+- [X] T051 **TEST**: Write unit tests for OAuthHttpClient in `tests/infrastructure/auth/oauth-http-client.spec.ts` (use MSW to mock HTTP responses)
+- [X] T052 [US1] Create OAuthHttpClient class in `source/infrastructure/auth/oauth-http-client.ts`
+- [X] T053 [US1] Implement exchangeCodeForTokens method in `source/infrastructure/auth/oauth-http-client.ts` (POST /token with authorization_code grant)
+- [X] T054 [US1] Implement refreshAccessToken method in `source/infrastructure/auth/oauth-http-client.ts` (POST /token with refresh_token grant)
+- [X] T055 [US1] Implement getOpenIDConfiguration method in `source/infrastructure/auth/oauth-http-client.ts` (GET /.well-known/openid-configuration)
+- [X] T056 [US1] Add error handling for HTTP failures in `source/infrastructure/auth/oauth-http-client.ts` (parse OAuth error responses, throw AuthenticationError)
+- [X] T057 [US1] Setup MSW handlers in test file for token endpoint, OIDC config endpoint
 
 ### Callback Server
 
-- [ ] T058 **TEST**: Write unit tests for CallbackServer in `tests/infrastructure/auth/callback-server.spec.ts` (mock oauth-callback library)
-- [ ] T059 [US1] Create CallbackServer class in `source/infrastructure/auth/callback-server.ts`
-- [ ] T060 [US1] Implement waitForCallback method using oauth-callback library in `source/infrastructure/auth/callback-server.ts`
-- [ ] T061 [US1] Add state verification in waitForCallback in `source/infrastructure/auth/callback-server.ts` (throw INVALID_RESPONSE if state mismatch)
-- [ ] T062 [US1] Implement stop method in `source/infrastructure/auth/callback-server.ts` (oauth-callback handles cleanup)
-- [ ] T063 [US1] Add timeout handling (default 5 minutes) in `source/infrastructure/auth/callback-server.ts`
-- [ ] T064 [US1] Add error handling for port conflicts in `source/infrastructure/auth/callback-server.ts` (oauth-callback tries multiple ports)
+- [X] T058 **TEST**: Write unit tests for CallbackServer in `tests/infrastructure/auth/callback-server.spec.ts` (6 tests with real fetch calls)
+- [X] T059 [US1] Create CallbackServer class in `source/infrastructure/auth/callback-server.ts`
+- [X] T060 [US1] Implement waitForCallback method using oauth-callback library in `source/infrastructure/auth/callback-server.ts`
+- [X] T061 [US1] Add state verification in waitForCallback in `source/infrastructure/auth/callback-server.ts` (throw INVALID_RESPONSE if state mismatch)
+- [X] T062 [US1] Implement stop method in `source/infrastructure/auth/callback-server.ts` (AbortController cleanup)
+- [X] T063 [US1] Add timeout handling (default 5 minutes) in `source/infrastructure/auth/callback-server.ts`
+- [X] T064 [US1] Add port range support with recursive port-trying in `source/infrastructure/auth/callback-server.ts`
 
 ### OAuth Flow Orchestrator
 
