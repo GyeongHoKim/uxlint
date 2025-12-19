@@ -98,40 +98,40 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 ### Service Interfaces
 
 - [ ] T028 **TEST**: Write unit tests for KeychainService interface in `tests/infrastructure/auth/keychain-service.spec.ts` (mock implementation)
-- [ ] T029 Create IKeychainService interface in `source/infrastructure/auth/keychain-service.ts` with getPassword, setPassword, deletePassword, isAvailable methods
+- [X] T029 Create IKeychainService interface in `source/infrastructure/auth/keychain-service.ts` with getPassword, setPassword, deletePassword, isAvailable methods
 - [ ] T030 **TEST**: Write unit tests for BrowserService interface in `tests/infrastructure/auth/browser-service.spec.ts` (mock implementation)
-- [ ] T031 [P] Create IBrowserService interface in `source/infrastructure/auth/browser-service.ts` with openUrl, isAvailable methods
+- [X] T031 [P] Create IBrowserService interface in `source/infrastructure/auth/browser-service.ts` with openUrl, isAvailable methods
 
 ### Keychain Service Implementation
 
 - [ ] T032 **TEST**: Write unit tests for KeytarKeychainService in `tests/infrastructure/auth/keychain-impl.spec.ts` (test with mock keytar)
-- [ ] T033 Create KeytarKeychainService class in `source/infrastructure/auth/keychain-impl.ts` implementing IKeychainService
-- [ ] T034 Implement getPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
-- [ ] T035 Implement setPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
-- [ ] T036 Implement deletePassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
-- [ ] T037 Implement isAvailable method checking keytar availability in `source/infrastructure/auth/keychain-impl.ts`
-- [ ] T038 Add error handling for keychain access failures in `source/infrastructure/auth/keychain-impl.ts` (throw AuthenticationError with KEYCHAIN_ERROR code)
+- [X] T033 Create KeytarKeychainService class in `source/infrastructure/auth/keychain-impl.ts` implementing IKeychainService
+- [X] T034 Implement getPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
+- [X] T035 Implement setPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
+- [X] T036 Implement deletePassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
+- [X] T037 Implement isAvailable method checking keytar availability in `source/infrastructure/auth/keychain-impl.ts`
+- [X] T038 Add error handling for keychain access failures in `source/infrastructure/auth/keychain-impl.ts` (throw AuthenticationError with KEYCHAIN_ERROR code)
 
 ### Mock Keychain (Testing)
 
-- [ ] T039 [P] [US1] Create MockKeychainService class in `source/infrastructure/auth/keychain-mock.ts` with in-memory storage Map
-- [ ] T040 [P] [US1] Implement all IKeychainService methods using Map in `source/infrastructure/auth/keychain-mock.ts`
-- [ ] T041 [P] [US1] Add `clear()` method to MockKeychainService for test cleanup
+- [X] T039 [P] [US1] Create MockKeychainService class in `source/infrastructure/auth/keychain-mock.ts` with in-memory storage Map
+- [X] T040 [P] [US1] Implement all IKeychainService methods using Map in `source/infrastructure/auth/keychain-mock.ts`
+- [X] T041 [P] [US1] Add `clear()` method to MockKeychainService for test cleanup
 
 ### Browser Service Implementation
 
 - [ ] T042 **TEST**: Write unit tests for OpenBrowserService in `tests/infrastructure/auth/browser-impl.spec.ts`
-- [ ] T043 [P] [US1] Create OpenBrowserService class in `source/infrastructure/auth/browser-impl.ts` implementing IBrowserService
-- [ ] T044 [P] [US1] Implement openUrl method using `open` library in `source/infrastructure/auth/browser-impl.ts`
-- [ ] T045 [P] [US1] Implement isAvailable method in `source/infrastructure/auth/browser-impl.ts` (always true, `open` handles platform detection)
-- [ ] T046 [P] [US1] Add error handling for browser launch failures in `source/infrastructure/auth/browser-impl.ts` (throw AuthenticationError with BROWSER_FAILED code)
+- [X] T043 [P] [US1] Create OpenBrowserService class in `source/infrastructure/auth/browser-impl.ts` implementing IBrowserService
+- [X] T044 [P] [US1] Implement openUrl method using `open` library in `source/infrastructure/auth/browser-impl.ts`
+- [X] T045 [P] [US1] Implement isAvailable method in `source/infrastructure/auth/browser-impl.ts` (always true, `open` handles platform detection)
+- [X] T046 [P] [US1] Add error handling for browser launch failures in `source/infrastructure/auth/browser-impl.ts` (throw AuthenticationError with BROWSER_FAILED code)
 
 ### Mock Browser (Testing)
 
-- [ ] T047 [P] [US1] Create MockBrowserService class in `source/infrastructure/auth/browser-mock.ts` with openedUrls array
-- [ ] T048 [P] [US1] Implement openUrl method tracking URLs in array in `source/infrastructure/auth/browser-mock.ts`
-- [ ] T049 [P] [US1] Add `shouldFail` flag to simulate browser launch failure in `source/infrastructure/auth/browser-mock.ts`
-- [ ] T050 [P] [US1] Add `clear()` method to MockBrowserService for test cleanup
+- [X] T047 [P] [US1] Create MockBrowserService class in `source/infrastructure/auth/browser-mock.ts` with openedUrls array
+- [X] T048 [P] [US1] Implement openUrl method tracking URLs in array in `source/infrastructure/auth/browser-mock.ts`
+- [X] T049 [P] [US1] Add `shouldFail` flag to simulate browser launch failure in `source/infrastructure/auth/browser-mock.ts`
+- [X] T050 [P] [US1] Add `clear()` method to MockBrowserService for test cleanup
 
 ### OAuth HTTP Client
 
@@ -196,13 +196,13 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### OAuth Configuration
 
-- [ ] T097 [P] [US1] Create OAuthConfig interface in `source/infrastructure/auth/oauth-config.ts` with clientId, baseUrl, endpoints, redirectUri, scopes
-- [ ] T098 [P] [US1] Create defaultOAuthConfig constant in `source/infrastructure/auth/oauth-config.ts` reading from environment variables
-- [ ] T099 [P] [US1] Set default baseUrl to 'https://app.uxlint.org' with UXLINT_CLOUD_API_BASE_URL override
-- [ ] T100 [P] [US1] Set default clientId from UXLINT_CLOUD_CLIENT_ID or build-time injection
-- [ ] T101 [P] [US1] Define default OAuth endpoints (/auth/v1/oauth/authorize, /token, /.well-known/openid-configuration)
-- [ ] T102 [P] [US1] Set default redirectUri to 'http://localhost:8080/callback'
-- [ ] T103 [P] [US1] Set default scopes to ['openid', 'profile', 'email', 'uxlint:api']
+- [X] T097 [P] [US1] Create OAuthConfig interface in `source/infrastructure/auth/oauth-config.ts` with clientId, baseUrl, endpoints, redirectUri, scopes
+- [X] T098 [P] [US1] Create defaultOAuthConfig constant in `source/infrastructure/auth/oauth-config.ts` reading from environment variables
+- [X] T099 [P] [US1] Set default baseUrl to 'https://app.uxlint.org' with UXLINT_CLOUD_API_BASE_URL override
+- [X] T100 [P] [US1] Set default clientId from UXLINT_CLOUD_CLIENT_ID or build-time injection
+- [X] T101 [P] [US1] Define default OAuth endpoints (/auth/v1/oauth/authorize, /token, /.well-known/openid-configuration)
+- [X] T102 [P] [US1] Set default redirectUri to 'http://localhost:8080/callback'
+- [X] T103 [P] [US1] Set default scopes to ['openid', 'profile', 'email', 'uxlint:api']
 
 ### Login UI Component
 
