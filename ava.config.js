@@ -8,7 +8,7 @@ export default {
 		extensions: ['ts', 'tsx'],
 	},
 	files: ['tests/**/*.spec.{ts,tsx}'],
-	require: ['./tests/setup.ts', 'global-jsdom/register'],
+	require: ['./dist/tests/setup.js', 'global-jsdom/register'],
 	watchMode: {
 		ignoreChanges: ['dist/**', 'coverage/**'],
 	},
