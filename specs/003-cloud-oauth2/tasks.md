@@ -53,13 +53,13 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 - [X] T012 Create AuthenticationSession model in `source/models/auth-session.ts` with version, user, tokens, metadata
 - [X] T013 Implement `isValidSession()` type guard in `source/models/auth-session.ts`
 - [X] T014 Implement `isSessionExpired()` function in `source/models/auth-session.ts` with buffer parameter
-- [ ] T015 **TEST**: Write unit tests for UserProfile model in `tests/models/user-profile.spec.ts`
+- [X] T015 **TEST**: Write unit tests for UserProfile model in `tests/models/user-profile.spec.ts`
 - [X] T016 [P] Create UserProfile interface in `source/models/user-profile.ts` with id, email, name, organization, picture, emailVerified
-- [ ] T017 **TEST**: Write unit tests for TokenSet model in `tests/models/token-set.spec.ts`
+- [X] T017 **TEST**: Write unit tests for TokenSet model in `tests/models/token-set.spec.ts`
 - [X] T018 [P] Create TokenSet interface in `source/models/token-set.ts` with accessToken, tokenType, expiresIn, refreshToken, idToken, scope
-- [ ] T019 **TEST**: Write unit tests for PKCEParameters model in `tests/models/pkce-params.spec.ts`
+- [X] T019 **TEST**: Write unit tests for PKCEParameters model in `tests/models/pkce-params.spec.ts`
 - [X] T020 [P] Create PKCEParameters interface in `source/models/pkce-params.ts` with codeVerifier, codeChallenge, codeChallengeMethod, state
-- [ ] T021 **TEST**: Write unit tests for AuthenticationError in `tests/models/auth-error.spec.ts`
+- [X] T021 **TEST**: Write unit tests for AuthenticationError in `tests/models/auth-error.spec.ts`
 - [X] T022 [P] Create AuthError enum and AuthenticationError class in `source/models/auth-error.ts`
 
 ### PKCE Utilities (Blocking - Required by US1)
@@ -97,14 +97,14 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Service Interfaces
 
-- [ ] T028 **TEST**: Write unit tests for KeychainService interface in `tests/infrastructure/auth/keychain-service.spec.ts` (mock implementation)
+- [X] T028 **TEST**: Write unit tests for KeychainService interface in `tests/infrastructure/auth/keychain-service.spec.ts` (mock implementation)
 - [X] T029 Create IKeychainService interface in `source/infrastructure/auth/keychain-service.ts` with getPassword, setPassword, deletePassword, isAvailable methods
-- [ ] T030 **TEST**: Write unit tests for BrowserService interface in `tests/infrastructure/auth/browser-service.spec.ts` (mock implementation)
+- [X] T030 **TEST**: Write unit tests for BrowserService interface in `tests/infrastructure/auth/browser-service.spec.ts` (mock implementation)
 - [X] T031 [P] Create IBrowserService interface in `source/infrastructure/auth/browser-service.ts` with openUrl, isAvailable methods
 
 ### Keychain Service Implementation
 
-- [ ] T032 **TEST**: Write unit tests for KeytarKeychainService in `tests/infrastructure/auth/keychain-impl.spec.ts` (test with mock keytar)
+- [X] T032 **TEST**: Write unit tests for KeytarKeychainService in `tests/infrastructure/auth/keychain-impl.spec.ts` (test with mock keytar)
 - [X] T033 Create KeytarKeychainService class in `source/infrastructure/auth/keychain-impl.ts` implementing IKeychainService
 - [X] T034 Implement getPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
 - [X] T035 Implement setPassword method using keytar in `source/infrastructure/auth/keychain-impl.ts`
@@ -120,7 +120,7 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Browser Service Implementation
 
-- [ ] T042 **TEST**: Write unit tests for OpenBrowserService in `tests/infrastructure/auth/browser-impl.spec.ts`
+- [X] T042 **TEST**: Write unit tests for OpenBrowserService in `tests/infrastructure/auth/browser-impl.spec.ts`
 - [X] T043 [P] [US1] Create OpenBrowserService class in `source/infrastructure/auth/browser-impl.ts` implementing IBrowserService
 - [X] T044 [P] [US1] Implement openUrl method using `open` library in `source/infrastructure/auth/browser-impl.ts`
 - [X] T045 [P] [US1] Implement isAvailable method in `source/infrastructure/auth/browser-impl.ts` (always true, `open` handles platform detection)
@@ -155,44 +155,44 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### OAuth Flow Orchestrator
 
-- [ ] T065 **TEST**: Write integration tests for OAuthFlow in `tests/infrastructure/auth/oauth-flow.spec.ts` (mock HTTP client, browser, callback server)
-- [ ] T066 [US1] Create OAuthFlow class in `source/infrastructure/auth/oauth-flow.ts` with constructor injecting httpClient, callbackServer, browserService
-- [ ] T067 [US1] Implement authorize method in `source/infrastructure/auth/oauth-flow.ts` (orchestrates full OAuth flow)
-- [ ] T068 [US1] Implement PKCE parameter generation in authorize method
-- [ ] T069 [US1] Implement authorization URL construction in authorize method with PKCE parameters
-- [ ] T070 [US1] Implement callback server start in authorize method
-- [ ] T071 [US1] Implement browser launch in authorize method with try-catch for BROWSER_FAILED
-- [ ] T072 [US1] Implement callback wait in authorize method
-- [ ] T073 [US1] Implement code-for-tokens exchange in authorize method
-- [ ] T074 [US1] Implement refresh method in `source/infrastructure/auth/oauth-flow.ts` (refresh tokens using refresh token)
-- [ ] T075 [US1] Add `buildAuthorizationUrl` private helper method in `source/infrastructure/auth/oauth-flow.ts`
+- [X] T065 **TEST**: Write integration tests for OAuthFlow in `tests/infrastructure/auth/oauth-flow.spec.ts` (mock HTTP client, browser, callback server)
+- [X] T066 [US1] Create OAuthFlow class in `source/infrastructure/auth/oauth-flow.ts` with constructor injecting httpClient, callbackServer, browserService
+- [X] T067 [US1] Implement authorize method in `source/infrastructure/auth/oauth-flow.ts` (orchestrates full OAuth flow)
+- [X] T068 [US1] Implement PKCE parameter generation in authorize method
+- [X] T069 [US1] Implement authorization URL construction in authorize method with PKCE parameters
+- [X] T070 [US1] Implement callback server start in authorize method
+- [X] T071 [US1] Implement browser launch in authorize method with try-catch for BROWSER_FAILED
+- [X] T072 [US1] Implement callback wait in authorize method
+- [X] T073 [US1] Implement code-for-tokens exchange in authorize method
+- [X] T074 [US1] Implement refresh method in `source/infrastructure/auth/oauth-flow.ts` (refresh tokens using refresh token)
+- [X] T075 [US1] Add `buildAuthorizationUrl` private helper method in `source/infrastructure/auth/oauth-flow.ts`
 
 ### Token Manager
 
-- [ ] T076 **TEST**: Write unit tests for TokenManager in `tests/infrastructure/auth/token-manager.spec.ts` (use MockKeychainService)
-- [ ] T077 [US1] Create TokenManager class in `source/infrastructure/auth/token-manager.ts` with keychain injected
-- [ ] T078 [US1] Implement loadSession method in `source/infrastructure/auth/token-manager.ts` (retrieve from keychain, parse JSON, validate)
-- [ ] T079 [US1] Implement saveSession method in `source/infrastructure/auth/token-manager.ts` (serialize to JSON, store in keychain)
-- [ ] T080 [US1] Implement deleteSession method in `source/infrastructure/auth/token-manager.ts` (remove from keychain)
-- [ ] T081 [US1] Add error handling for corrupted sessions in loadSession (delete corrupted session, return null)
-- [ ] T082 [US1] Use service name 'uxlint-cli' and account 'default' for keychain storage
+- [X] T076 **TEST**: Write unit tests for TokenManager in `tests/infrastructure/auth/token-manager.spec.ts` (use MockKeychainService)
+- [X] T077 [US1] Create TokenManager class in `source/infrastructure/auth/token-manager.ts` with keychain injected
+- [X] T078 [US1] Implement loadSession method in `source/infrastructure/auth/token-manager.ts` (retrieve from keychain, parse JSON, validate)
+- [X] T079 [US1] Implement saveSession method in `source/infrastructure/auth/token-manager.ts` (serialize to JSON, store in keychain)
+- [X] T080 [US1] Implement deleteSession method in `source/infrastructure/auth/token-manager.ts` (remove from keychain)
+- [X] T081 [US1] Add error handling for corrupted sessions in loadSession (delete corrupted session, return null)
+- [X] T082 [US1] Use service name 'uxlint-cli' and account 'default' for keychain storage
 
 ### UXLintClient (Singleton)
 
-- [ ] T083 **TEST**: Write integration tests for UXLintClient in `tests/infrastructure/auth/uxlint-client.spec.ts` (mock all dependencies)
-- [ ] T084 [US1] Create UXLintClient class in `source/infrastructure/auth/uxlint-client.ts` implementing IUXLintClient
-- [ ] T085 [US1] Implement singleton pattern with getInstance static method in `source/infrastructure/auth/uxlint-client.ts`
-- [ ] T086 [US1] Implement private constructor with tokenManager, oauthFlow, config injected in `source/infrastructure/auth/uxlint-client.ts`
-- [ ] T087 [US1] Implement login method in `source/infrastructure/auth/uxlint-client.ts` (check existing session, execute OAuth flow, decode ID token, create session, save to keychain)
-- [ ] T088 [US1] Implement logout method in `source/infrastructure/auth/uxlint-client.ts` (delete session from keychain, clear in-memory session)
-- [ ] T089 [US1] Implement getStatus method in `source/infrastructure/auth/uxlint-client.ts` (load session from keychain if not in memory)
-- [ ] T090 [US1] Implement isAuthenticated method in `source/infrastructure/auth/uxlint-client.ts` (check session exists and not expired)
-- [ ] T091 [US1] Implement getUserProfile method in `source/infrastructure/auth/uxlint-client.ts` (throw NOT_AUTHENTICATED if no session)
-- [ ] T092 [US1] Implement getAccessToken method in `source/infrastructure/auth/uxlint-client.ts` (auto-refresh if expired within 5 minutes)
-- [ ] T093 [US1] Implement refreshToken method in `source/infrastructure/auth/uxlint-client.ts` (use OAuth flow refresh, update session, handle REFRESH_FAILED)
-- [ ] T094 [US1] Implement decodeIdToken private method in `source/infrastructure/auth/uxlint-client.ts` (Base64URL decode JWT payload, map claims to UserProfile)
-- [ ] T095 [US1] Add production dependency creation in getInstance in `source/infrastructure/auth/uxlint-client.ts` (KeytarKeychainService, OpenBrowserService, etc.)
-- [ ] T096 [US1] Export getUXLintClient() singleton accessor function in `source/infrastructure/auth/uxlint-client.ts`
+- [X] T083 **TEST**: Write integration tests for UXLintClient in `tests/infrastructure/auth/uxlint-client.spec.ts` (mock all dependencies)
+- [X] T084 [US1] Create UXLintClient class in `source/infrastructure/auth/uxlint-client.ts` implementing IUXLintClient
+- [X] T085 [US1] Implement singleton pattern with getInstance static method in `source/infrastructure/auth/uxlint-client.ts`
+- [X] T086 [US1] Implement private constructor with tokenManager, oauthFlow, config injected in `source/infrastructure/auth/uxlint-client.ts`
+- [X] T087 [US1] Implement login method in `source/infrastructure/auth/uxlint-client.ts` (check existing session, execute OAuth flow, decode ID token, create session, save to keychain)
+- [X] T088 [US1] Implement logout method in `source/infrastructure/auth/uxlint-client.ts` (delete session from keychain, clear in-memory session)
+- [X] T089 [US1] Implement getStatus method in `source/infrastructure/auth/uxlint-client.ts` (load session from keychain if not in memory)
+- [X] T090 [US1] Implement isAuthenticated method in `source/infrastructure/auth/uxlint-client.ts` (check session exists and not expired)
+- [X] T091 [US1] Implement getUserProfile method in `source/infrastructure/auth/uxlint-client.ts` (throw NOT_AUTHENTICATED if no session)
+- [X] T092 [US1] Implement getAccessToken method in `source/infrastructure/auth/uxlint-client.ts` (auto-refresh if expired within 5 minutes)
+- [X] T093 [US1] Implement refreshToken method in `source/infrastructure/auth/uxlint-client.ts` (use OAuth flow refresh, update session, handle REFRESH_FAILED)
+- [X] T094 [US1] Implement decodeIdToken private method in `source/infrastructure/auth/uxlint-client.ts` (Base64URL decode JWT payload, map claims to UserProfile)
+- [X] T095 [US1] Add production dependency creation in getInstance in `source/infrastructure/auth/uxlint-client.ts` (KeytarKeychainService, OpenBrowserService, etc.)
+- [X] T096 [US1] Export getUXLintClient() singleton accessor function in `source/infrastructure/auth/uxlint-client.ts`
 
 ### OAuth Configuration
 
@@ -207,29 +207,29 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 ### Login UI Component
 
 - [ ] T104 **TEST**: Write visual regression tests for LoginFlow component in `tests/components/auth/login-flow.spec.tsx` (use ink-testing-library)
-- [ ] T105 [US1] Create LoginFlow component in `source/components/auth/login-flow.tsx` with onComplete, onError props
-- [ ] T106 [US1] Implement useEffect hook calling uxlintClient.login() in `source/components/auth/login-flow.tsx`
-- [ ] T107 [US1] Implement status state management (opening-browser, waiting, exchanging, success) in `source/components/auth/login-flow.tsx`
-- [ ] T108 [US1] Render Spinner with "Opening browser..." message in `source/components/auth/login-flow.tsx`
-- [ ] T109 [US1] Render Spinner with "Waiting for authentication..." message in `source/components/auth/login-flow.tsx`
-- [ ] T110 [US1] Render Spinner with "Completing authentication..." message in `source/components/auth/login-flow.tsx`
-- [ ] T111 [US1] Render success message with green checkmark when complete in `source/components/auth/login-flow.tsx`
-- [ ] T112 [US1] Handle BROWSER_FAILED error by displaying manual URL in `source/components/auth/login-flow.tsx`
-- [ ] T113 [US1] Handle other errors by calling onError prop in `source/components/auth/login-flow.tsx`
+- [X] T105 [US1] Create LoginFlow component in `source/components/auth/login-flow.tsx` with onComplete, onError props
+- [X] T106 [US1] Implement useEffect hook calling uxlintClient.login() in `source/components/auth/login-flow.tsx`
+- [X] T107 [US1] Implement status state management (opening-browser, waiting, exchanging, success) in `source/components/auth/login-flow.tsx`
+- [X] T108 [US1] Render Spinner with "Opening browser..." message in `source/components/auth/login-flow.tsx`
+- [X] T109 [US1] Render Spinner with "Waiting for authentication..." message in `source/components/auth/login-flow.tsx`
+- [X] T110 [US1] Render Spinner with "Completing authentication..." message in `source/components/auth/login-flow.tsx`
+- [X] T111 [US1] Render success message with green checkmark when complete in `source/components/auth/login-flow.tsx`
+- [X] T112 [US1] Handle BROWSER_FAILED error by displaying manual URL in `source/components/auth/login-flow.tsx`
+- [X] T113 [US1] Handle other errors by calling onError prop in `source/components/auth/login-flow.tsx`
 
 ### CLI Integration
 
-- [ ] T114 [US1] Update CLI parser in `source/cli.tsx` to recognize 'auth' command with subcommands
-- [ ] T115 [US1] Implement 'auth login' command handler in `source/cli.tsx` rendering LoginFlow component
-- [ ] T116 [US1] Handle LoginFlow onComplete callback exiting with code 0 in `source/cli.tsx`
-- [ ] T117 [US1] Handle LoginFlow onError callback exiting with code 1 in `source/cli.tsx`
-- [ ] T118 [US1] Update help text in `source/cli.tsx` to document 'uxlint auth login' command
-- [ ] T119 [US1] Add usage examples for 'uxlint auth login' in help text
+- [X] T114 [US1] Update CLI parser in `source/cli.tsx` to recognize 'auth' command with subcommands
+- [X] T115 [US1] Implement 'auth login' command handler in `source/cli.tsx` rendering LoginFlow component
+- [X] T116 [US1] Handle LoginFlow onComplete callback exiting with code 0 in `source/cli.tsx`
+- [X] T117 [US1] Handle LoginFlow onError callback exiting with code 1 in `source/cli.tsx`
+- [X] T118 [US1] Update help text in `source/cli.tsx` to document 'uxlint auth login' command
+- [X] T119 [US1] Add usage examples for 'uxlint auth login' in help text
 
 ### Manual Testing & Validation
 
-- [ ] T120 [US1] Run `npm run compile && npm run format && npm run lint` (quality gates)
-- [ ] T121 [US1] Run `npm test` to verify all US1 tests pass with 80%+ coverage
+- [X] T120 [US1] Run `npm run compile && npm run format && npm run lint` (quality gates)
+- [X] T121 [US1] Run `npm test` to verify all US1 tests pass with 80%+ coverage
 - [ ] T122 [US1] **MANUAL**: Test `uxlint auth login` flow end-to-end (browser opens, login, CLI confirms)
 - [ ] T123 [US1] **MANUAL**: Test already-logged-in scenario (run login twice, verify notification)
 - [ ] T124 [US1] **MANUAL**: Verify credentials stored in OS keychain (check keychain app on macOS)
@@ -263,22 +263,22 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 ### Status UI Component
 
 - [ ] T127 **TEST**: Write visual regression tests for AuthStatus component in `tests/components/auth/auth-status.spec.tsx` (test logged in, logged out, expired states)
-- [ ] T128 [US2] Create AuthStatus component in `source/components/auth/auth-status.tsx`
-- [ ] T129 [US2] Implement useEffect hook calling uxlintClient.getStatus() in `source/components/auth/auth-status.tsx`
-- [ ] T130 [US2] Implement loading state with spinner in `source/components/auth/auth-status.tsx`
-- [ ] T131 [US2] Render "Not logged in" Alert with instructions when session is null in `source/components/auth/auth-status.tsx`
-- [ ] T132 [US2] Render Badge with "Authenticated" or "Expired" status in `source/components/auth/auth-status.tsx`
-- [ ] T133 [US2] Display user name and email in bold in `source/components/auth/auth-status.tsx`
-- [ ] T134 [US2] Display organization if present in `source/components/auth/auth-status.tsx`
-- [ ] T135 [US2] Display token expiration time in `source/components/auth/auth-status.tsx` (format with toLocaleString())
-- [ ] T136 [US2] Display available cloud features list in `source/components/auth/auth-status.tsx` (based on scopes)
-- [ ] T137 [US2] Handle expired tokens by showing "Expired" badge with re-auth message in `source/components/auth/auth-status.tsx`
+- [X] T128 [US2] Create AuthStatus component in `source/components/auth/auth-status.tsx`
+- [X] T129 [US2] Implement useEffect hook calling uxlintClient.getStatus() in `source/components/auth/auth-status.tsx`
+- [X] T130 [US2] Implement loading state with spinner in `source/components/auth/auth-status.tsx`
+- [X] T131 [US2] Render "Not logged in" Alert with instructions when session is null in `source/components/auth/auth-status.tsx`
+- [X] T132 [US2] Render Badge with "Authenticated" or "Expired" status in `source/components/auth/auth-status.tsx`
+- [X] T133 [US2] Display user name and email in bold in `source/components/auth/auth-status.tsx`
+- [X] T134 [US2] Display organization if present in `source/components/auth/auth-status.tsx`
+- [X] T135 [US2] Display token expiration time in `source/components/auth/auth-status.tsx` (format with toLocaleString())
+- [X] T136 [US2] Display available cloud features list in `source/components/auth/auth-status.tsx` (based on scopes)
+- [X] T137 [US2] Handle expired tokens by showing "Expired" badge with re-auth message in `source/components/auth/auth-status.tsx`
 
 ### CLI Integration
 
-- [ ] T138 [US2] Implement 'auth status' command handler in `source/cli.tsx` rendering AuthStatus component
-- [ ] T139 [US2] Update help text in `source/cli.tsx` to document 'uxlint auth status' command
-- [ ] T140 [US2] Add usage examples for 'uxlint auth status' in help text
+- [X] T138 [US2] Implement 'auth status' command handler in `source/cli.tsx` rendering AuthStatus component
+- [X] T139 [US2] Update help text in `source/cli.tsx` to document 'uxlint auth status' command
+- [X] T140 [US2] Add usage examples for 'uxlint auth status' in help text
 
 ### Manual Testing & Validation
 
@@ -315,28 +315,28 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 ### Browser Fallback UI Component
 
 - [ ] T147 **TEST**: Write visual regression tests for BrowserFallback component in `tests/components/auth/browser-fallback.spec.tsx`
-- [ ] T148 [P] [US3] Create BrowserFallback component in `source/components/auth/browser-fallback.tsx` with url, onComplete, onCancel props
-- [ ] T149 [P] [US3] Display authorization URL in highlighted box in `source/components/auth/browser-fallback.tsx`
-- [ ] T150 [P] [US3] Render copy-paste instructions in `source/components/auth/browser-fallback.tsx`
-- [ ] T151 [P] [US3] Render Spinner with "Waiting for authentication..." message in `source/components/auth/browser-fallback.tsx`
-- [ ] T152 [P] [US3] Display "Press Ctrl+C to cancel" instruction in `source/components/auth/browser-fallback.tsx`
-- [ ] T153 [P] [US3] Implement useEffect hook for callback waiting logic in `source/components/auth/browser-fallback.tsx`
+- [X] T148 [P] [US3] Create BrowserFallback component in `source/components/auth/browser-fallback.tsx` with url, onComplete, onCancel props
+- [X] T149 [P] [US3] Display authorization URL in highlighted box in `source/components/auth/browser-fallback.tsx`
+- [X] T150 [P] [US3] Render copy-paste instructions in `source/components/auth/browser-fallback.tsx`
+- [X] T151 [P] [US3] Render Spinner with "Waiting for authentication..." message in `source/components/auth/browser-fallback.tsx`
+- [X] T152 [P] [US3] Display "Press Ctrl+C to cancel" instruction in `source/components/auth/browser-fallback.tsx`
+- [X] T153 [P] [US3] Implement useEffect hook for callback waiting logic in `source/components/auth/browser-fallback.tsx`
 
 ### Error UI Component
 
 - [ ] T154 **TEST**: Write visual regression tests for AuthError component in `tests/components/auth/auth-error.spec.tsx`
-- [ ] T155 [P] [US3] Create AuthError component in `source/components/auth/auth-error.tsx` with error, onRetry props
-- [ ] T156 [P] [US3] Display error message in Alert with error variant in `source/components/auth/auth-error.tsx`
-- [ ] T157 [P] [US3] Handle BROWSER_FAILED error code specially (show BrowserFallback) in `source/components/auth/auth-error.tsx`
-- [ ] T158 [P] [US3] Handle NETWORK_ERROR with retry option in `source/components/auth/auth-error.tsx`
-- [ ] T159 [P] [US3] Handle USER_DENIED with friendly message (no retry) in `source/components/auth/auth-error.tsx`
-- [ ] T160 [P] [US3] Display generic error message for unknown errors in `source/components/auth/auth-error.tsx`
+- [X] T155 [P] [US3] Create AuthError component in `source/components/auth/auth-error.tsx` with error, onRetry props
+- [X] T156 [P] [US3] Display error message in Alert with error variant in `source/components/auth/auth-error.tsx`
+- [X] T157 [P] [US3] Handle BROWSER_FAILED error code specially (show BrowserFallback) in `source/components/auth/auth-error.tsx`
+- [X] T158 [P] [US3] Handle NETWORK_ERROR with retry option in `source/components/auth/auth-error.tsx`
+- [X] T159 [P] [US3] Handle USER_DENIED with friendly message (no retry) in `source/components/auth/auth-error.tsx`
+- [X] T160 [P] [US3] Display generic error message for unknown errors in `source/components/auth/auth-error.tsx`
 
 ### LoginFlow Component Updates
 
-- [ ] T161 [US3] Update LoginFlow component in `source/components/auth/login-flow.tsx` to use BrowserFallback on BROWSER_FAILED
-- [ ] T162 [US3] Update LoginFlow component to use AuthError component for all errors
-- [ ] T163 [US3] Implement retry logic in LoginFlow calling uxlintClient.login() again
+- [X] T161 [US3] Update LoginFlow component in `source/components/auth/login-flow.tsx` to use BrowserFallback on BROWSER_FAILED
+- [X] T162 [US3] Update LoginFlow component to use AuthError component for all errors
+- [X] T163 [US3] Implement retry logic in LoginFlow calling uxlintClient.login() again
 
 ### Ctrl+C Handling
 
@@ -363,9 +363,9 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Logout Command
 
-- [ ] T173 [P] Implement 'auth logout' command handler in `source/cli.tsx` calling uxlintClient.logout()
-- [ ] T174 [P] Display confirmation message after logout in `source/cli.tsx`
-- [ ] T175 [P] Update help text to document 'uxlint auth logout' command
+- [X] T173 [P] Implement 'auth logout' command handler in `source/cli.tsx` calling uxlintClient.logout()
+- [X] T174 [P] Display confirmation message after logout in `source/cli.tsx`
+- [X] T175 [P] Update help text to document 'uxlint auth logout' command
 - [ ] T176 [P] **TEST**: Write test for logout command in `tests/cli/auth-logout.spec.ts`
 
 ### Token Auto-Refresh (Silent)
