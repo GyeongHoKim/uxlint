@@ -105,6 +105,15 @@ if (authCommand === 'auth') {
 	const subcommand = cli.input[1];
 	logger.info('Auth command invoked', {subcommand});
 
+	// Handle Ctrl+C (SIGINT) gracefully during auth commands
+	const handleAuthInterrupt = () => {
+		logger.info('Auth command interrupted by user (Ctrl+C)');
+		// Exit with code 130 (128 + 2, where 2 is SIGINT signal number)
+		process.exit(130);
+	};
+
+	process.once('SIGINT', handleAuthInterrupt);
+
 	// eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
 	switch (subcommand) {
 		case 'login': {
@@ -115,12 +124,16 @@ if (authCommand === 'auth') {
 							email: profile.email,
 							name: profile.name,
 						});
+						// Remove SIGINT handler on success
+						process.removeListener('SIGINT', handleAuthInterrupt);
 						process.exit(0);
 					}}
 					onError={error => {
 						logger.error('Login failed', {
 							error: error.message,
 						});
+						// Remove SIGINT handler on error
+						process.removeListener('SIGINT', handleAuthInterrupt);
 						process.exit(1);
 					}}
 				/>,
@@ -132,6 +145,8 @@ if (authCommand === 'auth') {
 			render(
 				<AuthStatus
 					onComplete={() => {
+						// Remove SIGINT handler on complete
+						process.removeListener('SIGINT', handleAuthInterrupt);
 						process.exit(0);
 					}}
 				/>,
@@ -150,6 +165,8 @@ if (authCommand === 'auth') {
 						</Box>,
 					);
 					logger.info('Logout successful');
+					// Remove SIGINT handler on success
+					process.removeListener('SIGINT', handleAuthInterrupt);
 					setTimeout(() => process.exit(0), 100);
 				} catch (error_: unknown) {
 					const errorMessage =
@@ -160,6 +177,8 @@ if (authCommand === 'auth') {
 						</Box>,
 					);
 					logger.error('Logout failed', {error: errorMessage});
+					// Remove SIGINT handler on error
+					process.removeListener('SIGINT', handleAuthInterrupt);
 					setTimeout(() => process.exit(1), 100);
 				}
 			};
