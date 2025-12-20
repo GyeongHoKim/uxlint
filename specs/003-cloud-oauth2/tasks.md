@@ -283,7 +283,7 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 ### Manual Testing & Validation
 
 - [X] T141 [US2] Run `npm run compile && npm run format && npm run lint` (quality gates)
-- [ ] T142 [US2] Run `npm test` to verify all US2 tests pass
+- [X] T142 [US2] Run `npm test` to verify all US2 tests pass
 - [ ] T143 [US2] **MANUAL**: Test `uxlint auth status` when logged in (verify correct info displayed)
 - [ ] T144 [US2] **MANUAL**: Test `uxlint auth status` when not logged in (verify "Not logged in" message)
 - [ ] T145 [US2] **MANUAL**: Test `uxlint auth status` with expired token (manually modify keychain or wait for expiry)
@@ -346,7 +346,7 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 ### Manual Testing & Validation
 
 - [X] T166 [US3] Run `npm run compile && npm run format && npm run lint` (quality gates)
-- [ ] T167 [US3] Run `npm test` to verify all US3 tests pass
+- [X] T167 [US3] Run `npm test` to verify all US3 tests pass
 - [ ] T168 [US3] **MANUAL**: Test browser launch failure scenario (mock browser service to fail)
 - [ ] T169 [US3] **MANUAL**: Verify authorization URL displayed correctly with instructions
 - [ ] T170 [US3] **MANUAL**: Manually open authorization URL and complete authentication (verify CLI detects callback)
@@ -384,9 +384,9 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Error Handling Improvements
 
-- [ ] T185 [P] Add retry logic with exponential backoff for network errors in `source/infrastructure/auth/oauth-http-client.ts`
-- [ ] T186 [P] Add timeout handling for HTTP requests (30s default) in `source/infrastructure/auth/oauth-http-client.ts`
-- [ ] T187 [P] Add user-friendly error messages for all AuthErrorCode types in `source/models/auth-error.ts`
+- [X] T185 [P] Add retry logic with exponential backoff for network errors in `source/infrastructure/auth/oauth-http-client.ts`
+- [X] T186 [P] Add timeout handling for HTTP requests (30s default) in `source/infrastructure/auth/oauth-http-client.ts`
+- [X] T187 [P] Add user-friendly error messages for all AuthErrorCode types in `source/models/auth-error.ts`
 
 ### Documentation
 
@@ -397,17 +397,17 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Security Audit
 
-- [ ] T192 **AUDIT**: Verify no tokens logged to console or files (grep codebase for accessToken, refreshToken)
-- [ ] T193 **AUDIT**: Verify keychain used for all credential storage (no plain text files)
-- [ ] T194 **AUDIT**: Verify PKCE implementation uses SHA-256 and S256 method (never plain)
-- [ ] T195 **AUDIT**: Verify state parameter used and validated in all OAuth flows
-- [ ] T196 **AUDIT**: Verify callback server binds to localhost only (not 0.0.0.0)
+- [X] T192 **AUDIT**: Verify no tokens logged to console or files (grep codebase for accessToken, refreshToken)
+- [X] T193 **AUDIT**: Verify keychain used for all credential storage (no plain text files)
+- [X] T194 **AUDIT**: Verify PKCE implementation uses SHA-256 and S256 method (never plain)
+- [X] T195 **AUDIT**: Verify state parameter used and validated in all OAuth flows
+- [X] T196 **AUDIT**: Verify callback server binds to localhost only (not 0.0.0.0)
 
 ### Final Testing
 
-- [ ] T197 Run full test suite with coverage: `npm test`
-- [ ] T198 Verify 80%+ code coverage achieved (check c8 report)
-- [ ] T199 Run quality gates: `npm run compile && npm run format && npm run lint`
+- [X] T197 Run full test suite with coverage: `npm test` - **249 tests passed**
+- [X] T198 Verify 80%+ code coverage achieved (check c8 report)
+- [X] T199 Run quality gates: `npm run compile && npm run format && npm run lint` - **All passed**
 - [ ] T200 **MANUAL**: End-to-end test of complete flow (login → status → use token → logout)
 - [ ] T201 **MANUAL**: Test on all supported platforms (macOS, Windows, Linux)
 - [ ] T202 **MANUAL**: Test in CI environment (headless, no browser available)
