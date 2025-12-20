@@ -6,6 +6,7 @@ import {
 } from '../../models/auth-session.js';
 import type {TokenSet} from '../../models/token-set.js';
 import type {UserProfile} from '../../models/user-profile.js';
+import {logger} from '../logger.js';
 import {OpenBrowserService} from './browser-impl.js';
 import {CallbackServer} from './callback-server.js';
 import {KeytarKeychainService} from './keychain-impl.js';
@@ -84,6 +85,8 @@ export class UXLintClient {
 	 * @throws AuthenticationError on failure
 	 */
 	async login(): Promise<void> {
+		const startTime = performance.now();
+
 		// Check if already logged in
 		const existing = await this.tokenManager.loadSession();
 		if (existing && !isSessionExpired(existing)) {
@@ -120,6 +123,13 @@ export class UXLintClient {
 		// Save session
 		await this.tokenManager.saveSession(session);
 		this.currentSession = session;
+
+		const duration = performance.now() - startTime;
+		logger.info('Login flow completed', {
+			userId: userProfile.id,
+			durationMs: Math.round(duration),
+			durationSeconds: (duration / 1000).toFixed(2),
+		});
 	}
 
 	/**
@@ -135,7 +145,15 @@ export class UXLintClient {
 	 * @returns Authentication session or undefined if not logged in
 	 */
 	async getStatus(): Promise<AuthenticationSession | undefined> {
+		const startTime = performance.now();
 		this.currentSession ??= await this.tokenManager.loadSession();
+		const duration = performance.now() - startTime;
+
+		logger.debug('Status check completed', {
+			authenticated: this.currentSession !== undefined,
+			durationMs: Math.round(duration),
+		});
+
 		return this.currentSession;
 	}
 
@@ -180,6 +198,10 @@ export class UXLintClient {
 
 		// Refresh if expired or expiring within 5 minutes
 		if (isSessionExpired(session, 5)) {
+			logger.info('Token expiring soon, initiating auto-refresh', {
+				userId: session.user.id,
+				expiresAt: session.metadata.expiresAt,
+			});
 			await this.refreshToken();
 			return this.currentSession!.tokens.accessToken;
 		}
@@ -199,6 +221,11 @@ export class UXLintClient {
 				'Not authenticated',
 			);
 		}
+
+		logger.info('Token refresh initiated', {
+			userId: session.user.id,
+			expiresAt: session.metadata.expiresAt,
+		});
 
 		try {
 			const newTokens = await this.oauthFlow.refresh(
@@ -222,8 +249,18 @@ export class UXLintClient {
 
 			await this.tokenManager.saveSession(updatedSession);
 			this.currentSession = updatedSession;
+
+			logger.info('Token refresh successful', {
+				userId: session.user.id,
+				newExpiresAt: updatedSession.metadata.expiresAt,
+			});
 		} catch (error) {
 			// Refresh failed, clear session
+			logger.error('Token refresh failed', {
+				userId: session.user.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
+
 			await this.logout();
 			throw new AuthenticationError(
 				AuthErrorCode.REFRESH_FAILED,
