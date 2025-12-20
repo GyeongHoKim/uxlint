@@ -55,6 +55,54 @@ type OIDCConfigResponse = {
 	code_challenge_methods_supported: string[];
 };
 
+/**
+ * Retry a function with exponential backoff
+ * @param fn Function to retry
+ * @param maxRetries Maximum number of retries (default: 3)
+ * @param initialDelay Initial delay in ms (default: 1000)
+ * @returns Result of the function
+ */
+async function retryWithBackoff<T>(
+	fn: () => Promise<T>,
+	maxRetries = 3,
+	initialDelay = 1000,
+): Promise<T> {
+	let lastError: Error;
+
+	/* eslint-disable no-await-in-loop */
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			return await fn();
+		} catch (error) {
+			lastError = error as Error;
+
+			// Don't retry on authentication errors (user errors, not transient)
+			if (
+				error instanceof AuthenticationError &&
+				error.code !== AuthErrorCode.NETWORK_ERROR
+			) {
+				throw error;
+			}
+
+			// If this was the last attempt, throw
+			if (attempt === maxRetries) {
+				break;
+			}
+
+			// Calculate delay with exponential backoff
+			const delay = initialDelay * 2 ** attempt;
+
+			// Wait before retrying
+			await new Promise(resolve => {
+				setTimeout(resolve, delay);
+			});
+		}
+	}
+	/* eslint-enable no-await-in-loop */
+
+	throw lastError!;
+}
+
 export class OAuthHttpClient {
 	async exchangeCodeForTokens(
 		parameters: TokenExchangeParameters,
@@ -149,51 +197,72 @@ export class OAuthHttpClient {
 		body: URLSearchParams,
 		operation: string,
 	): Promise<TokenSet> {
-		try {
-			const response = await fetch(endpoint, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-				},
-				body: body.toString(),
-			});
+		return retryWithBackoff(async () => {
+			// Create AbortController for timeout (30s default)
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => {
+				controller.abort();
+			}, 30_000);
 
-			const data = (await response.json()) as
-				| OAuthTokenResponse
-				| OAuthErrorResponse;
+			try {
+				const response = await fetch(endpoint, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+					},
+					body: body.toString(),
+					signal: controller.signal,
+				});
 
-			if (!response.ok) {
-				const errorData = data as OAuthErrorResponse;
-				const message = errorData.error_description
-					? `${errorData.error}: ${errorData.error_description}`
-					: errorData.error;
+				const data = (await response.json()) as
+					| OAuthTokenResponse
+					| OAuthErrorResponse;
+
+				if (!response.ok) {
+					const errorData = data as OAuthErrorResponse;
+					const message = errorData.error_description
+						? `${errorData.error}: ${errorData.error_description}`
+						: errorData.error;
+
+					throw new AuthenticationError(
+						AuthErrorCode.INVALID_RESPONSE,
+						`OAuth ${operation} failed: ${message}`,
+					);
+				}
+
+				const tokenData = data as OAuthTokenResponse;
+
+				return {
+					accessToken: tokenData.access_token,
+					tokenType: tokenData.token_type,
+					expiresIn: tokenData.expires_in,
+					refreshToken: tokenData.refresh_token,
+					idToken: tokenData.id_token,
+					scope: tokenData.scope,
+				};
+			} catch (error) {
+				if (error instanceof AuthenticationError) {
+					throw error;
+				}
+
+				// Handle timeout
+				if (error instanceof Error && error.name === 'AbortError') {
+					throw new AuthenticationError(
+						AuthErrorCode.NETWORK_ERROR,
+						`Request timeout during ${operation}`,
+						error,
+					);
+				}
 
 				throw new AuthenticationError(
-					AuthErrorCode.INVALID_RESPONSE,
-					`OAuth ${operation} failed: ${message}`,
+					AuthErrorCode.NETWORK_ERROR,
+					`Network error during ${operation}`,
+					error as Error,
 				);
+			} finally {
+				// Always clear timeout to prevent hanging timers
+				clearTimeout(timeoutId);
 			}
-
-			const tokenData = data as OAuthTokenResponse;
-
-			return {
-				accessToken: tokenData.access_token,
-				tokenType: tokenData.token_type,
-				expiresIn: tokenData.expires_in,
-				refreshToken: tokenData.refresh_token,
-				idToken: tokenData.id_token,
-				scope: tokenData.scope,
-			};
-		} catch (error) {
-			if (error instanceof AuthenticationError) {
-				throw error;
-			}
-
-			throw new AuthenticationError(
-				AuthErrorCode.NETWORK_ERROR,
-				`Network error during ${operation}`,
-				error as Error,
-			);
-		}
+		});
 	}
 }

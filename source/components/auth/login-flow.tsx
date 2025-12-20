@@ -18,12 +18,21 @@ export type LoginFlowProps = {
 	readonly onComplete: (profile: UserProfile) => void;
 	/** Callback when login fails with an error */
 	readonly onError: (error: Error) => void;
+	/** Optional client for testing (defaults to singleton) */
+	readonly client?: {
+		login: () => Promise<void>;
+		getUserProfile: () => Promise<UserProfile>;
+	};
 };
 
 /**
  * LoginFlow component - Handles the OAuth login flow UI
  */
-export function LoginFlow({onComplete, onError}: LoginFlowProps) {
+export function LoginFlow({
+	onComplete,
+	onError,
+	client: testClient,
+}: LoginFlowProps) {
 	const [status, setStatus] = useState<LoginFlowStatus>('opening-browser');
 	const [fallbackUrl, setFallbackUrl] = useState<string | undefined>(undefined);
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(
@@ -31,7 +40,7 @@ export function LoginFlow({onComplete, onError}: LoginFlowProps) {
 	);
 
 	const handleLogin = useCallback(async () => {
-		const client = getUXLintClient();
+		const client = testClient ?? getUXLintClient();
 
 		try {
 			setStatus('opening-browser');
@@ -74,7 +83,7 @@ export function LoginFlow({onComplete, onError}: LoginFlowProps) {
 			);
 			onError(error instanceof Error ? error : new Error(String(error)));
 		}
-	}, [onComplete, onError]);
+	}, [testClient, onComplete, onError]);
 
 	useEffect(() => {
 		void handleLogin();
@@ -137,12 +146,12 @@ export function LoginFlow({onComplete, onError}: LoginFlowProps) {
 			)}
 			{status === 'waiting' && (
 				<Box>
-					<Spinner label="Waiting for authentication in browser..." />
+					<Spinner label="Waiting for authentication..." />
 				</Box>
 			)}
 			{status === 'exchanging' && (
 				<Box>
-					<Spinner label="Completing authentication..." />
+					<Spinner label="Exchanging authorization code..." />
 				</Box>
 			)}
 		</Box>
