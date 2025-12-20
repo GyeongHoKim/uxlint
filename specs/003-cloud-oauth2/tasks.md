@@ -206,7 +206,7 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Login UI Component
 
-- [ ] T104 **TEST**: Write visual regression tests for LoginFlow component in `tests/components/auth/login-flow.spec.tsx` (use ink-testing-library)
+- [X] T104 **TEST**: Write visual regression tests for LoginFlow component in `tests/components/auth/login-flow.spec.tsx` (use ink-testing-library)
 - [X] T105 [US1] Create LoginFlow component in `source/components/auth/login-flow.tsx` with onComplete, onError props
 - [X] T106 [US1] Implement useEffect hook calling uxlintClient.login() in `source/components/auth/login-flow.tsx`
 - [X] T107 [US1] Implement status state management (opening-browser, waiting, exchanging, success) in `source/components/auth/login-flow.tsx`
@@ -262,7 +262,7 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Status UI Component
 
-- [ ] T127 **TEST**: Write visual regression tests for AuthStatus component in `tests/components/auth/auth-status.spec.tsx` (test logged in, logged out, expired states)
+- [X] T127 **TEST**: Write visual regression tests for AuthStatus component in `tests/components/auth/auth-status.spec.tsx` (test logged in, logged out, expired states)
 - [X] T128 [US2] Create AuthStatus component in `source/components/auth/auth-status.tsx`
 - [X] T129 [US2] Implement useEffect hook calling uxlintClient.getStatus() in `source/components/auth/auth-status.tsx`
 - [X] T130 [US2] Implement loading state with spinner in `source/components/auth/auth-status.tsx`
@@ -282,7 +282,7 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Manual Testing & Validation
 
-- [ ] T141 [US2] Run `npm run compile && npm run format && npm run lint` (quality gates)
+- [X] T141 [US2] Run `npm run compile && npm run format && npm run lint` (quality gates)
 - [ ] T142 [US2] Run `npm test` to verify all US2 tests pass
 - [ ] T143 [US2] **MANUAL**: Test `uxlint auth status` when logged in (verify correct info displayed)
 - [ ] T144 [US2] **MANUAL**: Test `uxlint auth status` when not logged in (verify "Not logged in" message)
@@ -314,7 +314,7 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Browser Fallback UI Component
 
-- [ ] T147 **TEST**: Write visual regression tests for BrowserFallback component in `tests/components/auth/browser-fallback.spec.tsx`
+- [X] T147 **TEST**: Write visual regression tests for BrowserFallback component in `tests/components/auth/browser-fallback.spec.tsx`
 - [X] T148 [P] [US3] Create BrowserFallback component in `source/components/auth/browser-fallback.tsx` with url, onComplete, onCancel props
 - [X] T149 [P] [US3] Display authorization URL in highlighted box in `source/components/auth/browser-fallback.tsx`
 - [X] T150 [P] [US3] Render copy-paste instructions in `source/components/auth/browser-fallback.tsx`
@@ -324,7 +324,7 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Error UI Component
 
-- [ ] T154 **TEST**: Write visual regression tests for AuthError component in `tests/components/auth/auth-error.spec.tsx`
+- [X] T154 **TEST**: Write visual regression tests for AuthError component in `tests/components/auth/auth-error.spec.tsx`
 - [X] T155 [P] [US3] Create AuthError component in `source/components/auth/auth-error.tsx` with error, onRetry props
 - [X] T156 [P] [US3] Display error message in Alert with error variant in `source/components/auth/auth-error.tsx`
 - [X] T157 [P] [US3] Handle BROWSER_FAILED error code specially (show BrowserFallback) in `source/components/auth/auth-error.tsx`
@@ -340,12 +340,12 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Ctrl+C Handling
 
-- [ ] T164 [US3] Add process signal handler for SIGINT in `source/cli.tsx` during auth commands
-- [ ] T165 [US3] Implement clean shutdown on Ctrl+C: stop callback server, clear pending operations, exit with code 130
+- [X] T164 [US3] Add process signal handler for SIGINT in `source/cli.tsx` during auth commands
+- [X] T165 [US3] Implement clean shutdown on Ctrl+C: stop callback server, clear pending operations, exit with code 130
 
 ### Manual Testing & Validation
 
-- [ ] T166 [US3] Run `npm run compile && npm run format && npm run lint` (quality gates)
+- [X] T166 [US3] Run `npm run compile && npm run format && npm run lint` (quality gates)
 - [ ] T167 [US3] Run `npm test` to verify all US3 tests pass
 - [ ] T168 [US3] **MANUAL**: Test browser launch failure scenario (mock browser service to fail)
 - [ ] T169 [US3] **MANUAL**: Verify authorization URL displayed correctly with instructions
