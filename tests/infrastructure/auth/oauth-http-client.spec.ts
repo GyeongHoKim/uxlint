@@ -1,4 +1,5 @@
 import test from 'ava';
+import {http, HttpResponse} from 'msw';
 import {
 	OAuthHttpClient,
 	type TokenExchangeParameters,
@@ -116,7 +117,10 @@ test('getOpenIDConfiguration returns valid config', async t => {
 });
 
 test('exchangeCodeForTokens throws on network error', async t => {
-	server.use(oauthErrorHandlers.tokenNetworkError());
+	// Override all handlers to force network error
+	server.resetHandlers(
+		http.post(oauthEndpoints.token, () => HttpResponse.error()),
+	);
 
 	const client = new OAuthHttpClient();
 	const parameters: TokenExchangeParameters = {
