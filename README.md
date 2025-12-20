@@ -105,6 +105,131 @@ uxlint
 | `uxlint`               | ✅ Yes              | Runs analysis in CI mode (headless) |
 | `uxlint`               | ❌ No               | Shows error and exits               |
 
+## Authentication
+
+uxlint supports cloud-based features through UXLint Cloud authentication. Authentication is optional for local-only usage but required for cloud features like collaborative reports and advanced AI models.
+
+### Authentication commands
+
+#### `uxlint auth login`
+
+Authenticate with UXLint Cloud using OAuth 2.0.
+
+```bash
+uxlint auth login
+```
+
+The CLI will:
+
+1. Open your default browser to the UXLint Cloud authorization page
+2. Wait for you to complete authentication in the browser
+3. Securely store your credentials in your system's keychain
+4. Confirm successful login
+
+**Browser fallback**: If the browser fails to open automatically, the CLI displays the authorization URL for manual copy-paste.
+
+**Already logged in**: If you're already authenticated, the CLI notifies you and offers the option to re-authenticate.
+
+#### `uxlint auth status`
+
+Check your current authentication status and view user information.
+
+```bash
+uxlint auth status
+```
+
+Displays:
+
+- Authentication status (Authenticated/Expired/Not logged in)
+- User name and email
+- Organization (if applicable)
+- Token expiration time
+- Available cloud features based on your scopes
+
+**Example output (authenticated)**:
+
+```
+✓ Authenticated
+
+User: John Doe (john@example.com)
+Organization: Acme Inc
+Token expires: 2025-12-21 14:30:00
+Available features: Cloud Reports, Team Collaboration, Advanced AI Models
+```
+
+**Example output (not logged in)**:
+
+```
+⚠ Not logged in
+
+You are not currently authenticated with UXLint Cloud.
+Run 'uxlint auth login' to authenticate.
+```
+
+#### `uxlint auth logout`
+
+Log out from UXLint Cloud and clear stored credentials.
+
+```bash
+uxlint auth logout
+```
+
+This command:
+
+- Removes your session from the system keychain
+- Clears any cached authentication data
+- Confirms successful logout
+
+### Environment variables
+
+Authentication can be configured using environment variables:
+
+- `UXLINT_CLOUD_CLIENT_ID`: OAuth client ID (optional, uses default if not set)
+- `UXLINT_CLOUD_API_BASE_URL`: UXLint Cloud API base URL (optional, defaults to `https://app.uxlint.org`)
+
+These variables are typically not needed unless you're using a custom UXLint Cloud instance.
+
+### Security
+
+- **Secure storage**: Credentials are stored in your operating system's native keychain:
+  - macOS: Keychain
+  - Windows: Credential Manager
+  - Linux: Secret Service API (e.g., gnome-keyring)
+- **OAuth 2.0 PKCE**: Uses industry-standard OAuth 2.0 with PKCE (Proof Key for Code Exchange) for enhanced security
+- **Automatic token refresh**: Access tokens are automatically refreshed when needed, with no user intervention
+- **Local-only logging**: All authentication events are logged to local files only, never to stdout or external services
+
+### Examples
+
+**Complete authentication flow**:
+
+```bash
+# Login to UXLint Cloud
+uxlint auth login
+# Opens browser, complete authentication, returns to CLI
+
+# Check authentication status
+uxlint auth status
+# Shows: Authenticated, user info, token expiration
+
+# Use cloud features in analysis (coming soon)
+uxlint --cloud
+
+# Logout when done
+uxlint auth logout
+# Confirms: Logged out successfully
+```
+
+**Handling errors**:
+
+If authentication fails, the CLI provides clear error messages:
+
+- **Network errors**: "Network error: Please check your internet connection and try again"
+- **User cancellation**: "Authentication cancelled"
+- **Expired tokens**: "Session expired: Please run 'uxlint auth login' to re-authenticate"
+
+**Ctrl+C cancellation**: Press `Ctrl+C` at any time during authentication to cleanly cancel the operation.
+
 ## Configuration
 
 ### Configuration file
