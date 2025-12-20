@@ -366,19 +366,19 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 - [X] T173 [P] Implement 'auth logout' command handler in `source/cli.tsx` calling uxlintClient.logout()
 - [X] T174 [P] Display confirmation message after logout in `source/cli.tsx`
 - [X] T175 [P] Update help text to document 'uxlint auth logout' command
-- [ ] T176 [P] **TEST**: Write test for logout command in `tests/cli/auth-logout.spec.ts`
+- [X] T176 [P] **TEST**: Write test for logout command in `tests/cli/auth-logout.spec.ts`
 
 ### Token Auto-Refresh (Silent)
 
-- [ ] T177 Verify getAccessToken() auto-refreshes tokens within 5-minute window (already implemented in US1)
-- [ ] T178 Add silent refresh logging to Winston logger (file only, not stdout) in `source/infrastructure/auth/uxlint-client.ts`
-- [ ] T179 **TEST**: Write integration test for automatic token refresh in `tests/infrastructure/auth/token-refresh.spec.ts`
+- [X] T177 Verify getAccessToken() auto-refreshes tokens within 5-minute window (already implemented in US1)
+- [X] T178 Add silent refresh logging to Winston logger (file only, not stdout) in `source/infrastructure/auth/uxlint-client.ts`
+- [X] T179 **TEST**: Write integration test for automatic token refresh in `tests/infrastructure/auth/token-refresh.spec.ts`
 
 ### Performance Optimization
 
-- [ ] T180 Add performance timing to login flow in `source/infrastructure/auth/uxlint-client.ts` (start to finish)
-- [ ] T181 Add performance timing to status check in `source/infrastructure/auth/uxlint-client.ts`
-- [ ] T182 Log performance metrics to Winston logger (file only) for monitoring
+- [X] T180 Add performance timing to login flow in `source/infrastructure/auth/uxlint-client.ts` (start to finish)
+- [X] T181 Add performance timing to status check in `source/infrastructure/auth/uxlint-client.ts`
+- [X] T182 Log performance metrics to Winston logger (file only) for monitoring
 - [ ] T183 **MANUAL**: Measure login flow performance (<60s target) and document results
 - [ ] T184 **MANUAL**: Measure status check performance (<2s target) and document results
 
@@ -390,10 +390,10 @@ This document provides dependency-ordered implementation tasks for the OAuth 2.0
 
 ### Documentation
 
-- [ ] T188 [P] Update README.md with authentication section documenting `auth login`, `auth status`, `auth logout` commands
-- [ ] T189 [P] Add authentication examples to README.md (basic flow, checking status, handling errors)
-- [ ] T190 [P] Document environment variables (UXLINT_CLOUD_CLIENT_ID, UXLINT_CLOUD_API_BASE_URL) in README.md
-- [ ] T191 [P] Update CLAUDE.md if needed with authentication patterns (likely no changes needed)
+- [X] T188 [P] Update README.md with authentication section documenting `auth login`, `auth status`, `auth logout` commands
+- [X] T189 [P] Add authentication examples to README.md (basic flow, checking status, handling errors)
+- [X] T190 [P] Document environment variables (UXLINT_CLOUD_CLIENT_ID, UXLINT_CLOUD_API_BASE_URL) in README.md
+- [X] T191 [P] Update CLAUDE.md if needed with authentication patterns (no changes needed - already documented)
 
 ### Security Audit
 
