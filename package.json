@@ -41,7 +41,7 @@
 		"test": "npm run build && prettier --check . && xo && ava",
 		"test:coverage": "npm run build && prettier --check . && xo && c8 --reporter=html --reporter=text ava",
 		"lint": "xo",
-		"format": "xo --fix",
+		"format": "prettier --write .",
 		"prepare": "husky",
 		"clean": "rimraf dist coverage node_modules",
 		"release": "semantic-release"

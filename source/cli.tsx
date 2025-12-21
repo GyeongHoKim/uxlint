@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import process from 'node:process';
-import {config as dotenvConfig} from 'dotenv';
 import {Box, render, Text} from 'ink';
 import meow from 'meow';
 import App from './app.js';
@@ -11,8 +10,6 @@ import {getUXLintClient} from './infrastructure/auth/uxlint-client.js';
 import {configIO} from './infrastructure/config/config-io.js';
 import {logger} from './infrastructure/logger.js';
 import {isUxLintConfig, type UxLintConfig} from './models/config.js';
-
-dotenvConfig({quiet: true});
 
 const cli = meow(
 	`

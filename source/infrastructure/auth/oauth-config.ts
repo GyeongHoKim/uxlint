@@ -1,4 +1,7 @@
 import process from 'node:process';
+import {config} from 'dotenv';
+
+config({quiet: true});
 
 /**
  * OAuth 2.0 endpoint URLs
@@ -48,7 +51,9 @@ export type OAuthConfig = {
  */
 export const defaultOAuthConfig: OAuthConfig = {
 	clientId: process.env['UXLINT_CLOUD_CLIENT_ID'] ?? 'uxlint-cli',
-	baseUrl: process.env['UXLINT_CLOUD_API_BASE_URL'] ?? 'https://app.uxlint.org',
+	baseUrl:
+		process.env['UXLINT_CLOUD_API_BASE_URL'] ??
+		'https://hyvuqqbpiitcsjwztsyb.supabase.co',
 	endpoints: {
 		authorization: '/auth/v1/oauth/authorize',
 		token: '/auth/v1/oauth/token',
@@ -57,5 +62,5 @@ export const defaultOAuthConfig: OAuthConfig = {
 	redirectUri:
 		process.env['UXLINT_CLOUD_REDIRECT_URI'] ??
 		'http://localhost:8080/callback',
-	scopes: ['openid', 'profile', 'email', 'uxlint:api'],
+	scopes: ['openid', 'profile', 'email'],
 };
