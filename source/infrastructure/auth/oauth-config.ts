@@ -1,7 +1,4 @@
-import process from 'node:process';
-import {config} from 'dotenv';
-
-config({quiet: true});
+import {envIO, type EnvIO} from '../config/env-io.js';
 
 /**
  * OAuth 2.0 endpoint URLs
@@ -44,23 +41,29 @@ export type OAuthConfig = {
 };
 
 /**
- * Default OAuth configuration for UXLint Cloud
- * Uses environment variables for overrides:
- * - UXLINT_CLOUD_CLIENT_ID: Override client ID (for development)
- * - UXLINT_CLOUD_API_BASE_URL: Override base URL (for staging/local testing)
+ * Get OAuth configuration from environment
+ *
+ * @param envIoInstance - EnvIO instance for dependency injection (defaults to singleton)
+ * @returns OAuthConfig with environment variables applied
  */
-export const defaultOAuthConfig: OAuthConfig = {
-	clientId: process.env['UXLINT_CLOUD_CLIENT_ID'] ?? 'uxlint-cli',
-	baseUrl:
-		process.env['UXLINT_CLOUD_API_BASE_URL'] ??
-		'https://hyvuqqbpiitcsjwztsyb.supabase.co',
-	endpoints: {
-		authorization: '/auth/v1/oauth/authorize',
-		token: '/auth/v1/oauth/token',
-		openidConfiguration: '/auth/v1/oauth/.well-known/openid-configuration',
-	},
-	redirectUri:
-		process.env['UXLINT_CLOUD_REDIRECT_URI'] ??
-		'http://localhost:8080/callback',
-	scopes: ['openid', 'profile', 'email'],
-};
+export function getOAuthConfig(envIoInstance: EnvIO = envIO): OAuthConfig {
+	const cloudConfig = envIoInstance.loadCloudConfig();
+
+	return {
+		clientId: cloudConfig.clientId,
+		baseUrl: cloudConfig.apiBaseUrl,
+		endpoints: {
+			authorization: '/auth/v1/oauth/authorize',
+			token: '/auth/v1/oauth/token',
+			openidConfiguration: '/auth/v1/oauth/.well-known/openid-configuration',
+		},
+		redirectUri: cloudConfig.redirectUri,
+		scopes: ['openid', 'profile', 'email'],
+	};
+}
+
+/**
+ * Default OAuth configuration for UXLint Cloud
+ * @deprecated Use getOAuthConfig() instead for better testability
+ */
+export const defaultOAuthConfig: OAuthConfig = getOAuthConfig();

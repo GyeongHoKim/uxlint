@@ -10,7 +10,7 @@ import {logger} from '../logger.js';
 import {OpenBrowserService} from './browser-impl.js';
 import {CallbackServer} from './callback-server.js';
 import {KeytarKeychainService} from './keychain-impl.js';
-import {defaultOAuthConfig, type OAuthConfig} from './oauth-config.js';
+import {getOAuthConfig, type OAuthConfig} from './oauth-config.js';
 import {OAuthFlow} from './oauth-flow.js';
 import {OAuthHttpClient} from './oauth-http-client.js';
 import {TokenManager} from './token-manager.js';
@@ -46,7 +46,7 @@ export class UXLintClient {
 			const oauthFlow = new OAuthFlow(httpClient, callbackServer, browser);
 			const tokenManager = new TokenManager(keychain);
 
-			return new UXLintClient(tokenManager, oauthFlow, defaultOAuthConfig);
+			return new UXLintClient(tokenManager, oauthFlow, getOAuthConfig());
 		})();
 
 		return UXLintClient.instance;

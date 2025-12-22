@@ -408,10 +408,12 @@ const aiServiceInstances = new Map<string, AIService>();
  * Get or create AIService instance for a given configuration
  */
 export async function getAIService(config: UxLintConfig): Promise<AIService> {
-	// Create a cache key from config (using AI config as key)
-	const cacheKey = config.ai
-		? `${config.ai.provider}-${config.ai.model ?? 'default'}`
-		: 'default';
+	// Import envIO dynamically to get AI config for cache key
+	const {envIO} = await import('../infrastructure/config/env-io.js');
+	const aiConfig = envIO.loadAiConfig();
+
+	// Create a cache key from AI environment config
+	const cacheKey = `${aiConfig.provider}-${aiConfig.model ?? 'default'}`;
 
 	if (!aiServiceInstances.has(cacheKey)) {
 		const model = await getLanguageModel(config);
