@@ -175,6 +175,8 @@ test('ConfigIO.readConfigFile() throws ConfigurationError for non-existent file'
 
 test('ConfigIO with sinon stubs: findConfigFile returns path when mocked file exists', t => {
 	const sandbox = sinon.createSandbox();
+	const testDir = '/test/dir';
+	const expectedPath = join(testDir, '.uxlintrc.json');
 
 	const existsStub = sandbox.stub().callsFake((path: fs.PathLike) => {
 		return String(path).includes('.uxlintrc.json');
@@ -194,8 +196,8 @@ test('ConfigIO with sinon stubs: findConfigFile returns path when mocked file ex
 	const configIO = new ConfigIO(mockFsSync, mockFsAsync);
 
 	try {
-		const found = configIO.findConfigFile('/test/dir');
-		t.is(found, '/test/dir/.uxlintrc.json');
+		const found = configIO.findConfigFile(testDir);
+		t.is(found, expectedPath);
 	} finally {
 		sandbox.restore();
 	}
