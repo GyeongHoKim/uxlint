@@ -42,10 +42,5 @@
 	"persona": "You are a developer who wants to contribute to the React open-source project. Your goal is to find a good first issue to work on, understand the codebase structure, and create a pull request. Your approach: First, navigate to the React repository on GitHub. Next, browse the Issues page and filter for 'good first issue' labeled issues. Then, select an issue that interests you and read its description and comments. Finally, explore the repository code structure to understand where you need to make changes, and create a new branch to start working on the fix.",
 	"report": {
 		"output": "./ux-report.md"
-	},
-	"ai": {
-		"provider": "anthropic",
-		"apiKey": "your_anthropic_api_key_here",
-		"model": "claude-sonnet-4-5-20250929"
 	}
 }
