@@ -68,6 +68,7 @@ function createTestClient() {
 	const client = UXLintClient.createWithDependencies(
 		tokenManager,
 		oauthFlow,
+		httpClient,
 		config,
 	);
 
