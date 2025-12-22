@@ -12,7 +12,7 @@ export const oauthEndpoints = {
 	token: `${OAUTH_BASE_URL}/auth/v1/oauth/token`,
 	authorize: `${OAUTH_BASE_URL}/auth/v1/oauth/authorize`,
 	userinfo: `${OAUTH_BASE_URL}/auth/v1/oauth/userinfo`,
-	openidConfig: `${OAUTH_BASE_URL}/auth/v1/oauth/.well-known/openid-configuration`,
+	openidConfig: `${OAUTH_BASE_URL}/auth/v1/.well-known/openid-configuration`,
 	jwks: `${OAUTH_BASE_URL}/auth/v1/oauth/.well-known/jwks.json`,
 };
 
@@ -88,6 +88,14 @@ export const oauthHandlers = [
 	// User info endpoint
 	http.get(oauthEndpoints.userinfo, () => {
 		return HttpResponse.json(mockUserInfo);
+	}),
+
+	// JWKS endpoint - returns empty keyset for testing
+	// Note: Tests use mock ID tokens that don't require real JWT verification
+	http.get(oauthEndpoints.jwks, () => {
+		return HttpResponse.json({
+			keys: [],
+		});
 	}),
 ];
 
