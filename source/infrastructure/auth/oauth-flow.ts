@@ -5,6 +5,7 @@ import type {OAuthHttpClient} from './oauth-http-client.js';
 import type {CallbackServer} from './callback-server.js';
 import type {IBrowserService} from './browser-service.js';
 import {generatePKCEParameters} from './pkce-generator.js';
+import {OAUTH_FLOW_TIMEOUT_MS} from './auth-constants.js';
 
 export type OAuthFlowOptions = {
 	/** OAuth client ID */
@@ -57,7 +58,7 @@ export class OAuthFlow {
 		const callbackPromise = this.callbackServer.waitForCallback({
 			port: options.callbackPortRange ?? port,
 			expectedState: pkce.state,
-			timeoutMs: options.timeoutMs ?? 300_000, // 5 minutes default
+			timeoutMs: options.timeoutMs ?? OAUTH_FLOW_TIMEOUT_MS,
 		});
 
 		// 5. Open browser for authorization

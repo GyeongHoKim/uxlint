@@ -7,6 +7,7 @@ import {
 import type {TokenSet} from '../../models/token-set.js';
 import type {UserProfile} from '../../models/user-profile.js';
 import {logger} from '../logger.js';
+import {TOKEN_REFRESH_BUFFER_MINUTES} from './auth-constants.js';
 import {OpenBrowserService} from './browser-impl.js';
 import {CallbackServer} from './callback-server.js';
 import {KeytarKeychainService} from './keychain-impl.js';
@@ -37,17 +38,26 @@ export class UXLintClient {
 	 * Creates production dependencies on first call
 	 */
 	static getInstance(): UXLintClient {
-		UXLintClient.instance ??= (() => {
-			// Create production dependencies
-			const keychain = new KeytarKeychainService();
-			const browser = new OpenBrowserService();
-			const httpClient = new OAuthHttpClient();
-			const callbackServer = new CallbackServer();
-			const oauthFlow = new OAuthFlow(httpClient, callbackServer, browser);
-			const tokenManager = new TokenManager(keychain);
+		if (!UXLintClient.instance) {
+			try {
+				// Create production dependencies
+				const keychain = new KeytarKeychainService();
+				const browser = new OpenBrowserService();
+				const httpClient = new OAuthHttpClient();
+				const callbackServer = new CallbackServer();
+				const oauthFlow = new OAuthFlow(httpClient, callbackServer, browser);
+				const tokenManager = new TokenManager(keychain);
 
-			return new UXLintClient(tokenManager, oauthFlow, getOAuthConfig());
-		})();
+				UXLintClient.instance = new UXLintClient(
+					tokenManager,
+					oauthFlow,
+					getOAuthConfig(),
+				);
+			} catch (error) {
+				UXLintClient.instance = undefined;
+				throw error;
+			}
+		}
 
 		return UXLintClient.instance;
 	}
@@ -196,14 +206,22 @@ export class UXLintClient {
 			);
 		}
 
-		// Refresh if expired or expiring within 5 minutes
-		if (isSessionExpired(session, 5)) {
+		// Refresh if expired or expiring soon
+		if (isSessionExpired(session, TOKEN_REFRESH_BUFFER_MINUTES)) {
 			logger.info('Token expiring soon, initiating auto-refresh', {
 				userId: session.user.id,
 				expiresAt: session.metadata.expiresAt,
 			});
 			await this.refreshToken();
-			return this.currentSession!.tokens.accessToken;
+
+			if (!this.currentSession) {
+				throw new AuthenticationError(
+					AuthErrorCode.REFRESH_FAILED,
+					'Session lost after token refresh',
+				);
+			}
+
+			return this.currentSession.tokens.accessToken;
 		}
 
 		return session.tokens.accessToken;
@@ -272,10 +290,20 @@ export class UXLintClient {
 
 	/**
 	 * Decode the ID token to extract user profile
+	 *
+	 * WARNING: This method does NOT verify the JWT signature.
+	 * The ID token is decoded for informational purposes only.
+	 * Security is ensured by the OAuth server validating the access token
+	 * on subsequent API calls.
+	 *
+	 * TODO: Add JWT signature verification using JWKS endpoint from OIDC discovery
+	 * TODO: Validate standard JWT claims (iss, aud, exp, nbf)
+	 * TODO: Consider using the 'jose' library for proper JWT validation
 	 */
 	private decodeIdToken(tokens: TokenSet): UserProfile {
 		if (!tokens.idToken) {
 			// If no ID token, create minimal profile from tokens
+			logger.warn('No ID token provided, using minimal profile');
 			return {
 				id: 'unknown',
 				email: 'unknown@uxlint.org',
@@ -286,6 +314,7 @@ export class UXLintClient {
 
 		try {
 			// Decode JWT (base64URL decode payload)
+			// NOTE: This does NOT verify the signature
 			const parts = tokens.idToken.split('.');
 			if (parts.length !== 3) {
 				throw new Error('Invalid JWT format');
@@ -300,6 +329,17 @@ export class UXLintClient {
 				Buffer.from(payloadPart, 'base64url').toString('utf8'),
 			) as JWTPayload;
 
+			// Basic claim validation
+			if (!payload.sub) {
+				throw new Error('Missing required "sub" claim');
+			}
+
+			// Log warning about unverified token
+			logger.warn('ID token decoded without signature verification', {
+				sub: payload.sub,
+				email: payload.email,
+			});
+
 			return {
 				id: payload.sub,
 				email: payload.email ?? 'unknown@uxlint.org',
@@ -308,8 +348,11 @@ export class UXLintClient {
 				picture: payload.picture,
 				emailVerified: payload.email_verified ?? false,
 			};
-		} catch {
+		} catch (error) {
 			// Fallback to minimal profile on decode error
+			logger.error('Failed to decode ID token', {
+				error: error instanceof Error ? error.message : String(error),
+			});
 			return {
 				id: 'unknown',
 				email: 'unknown@uxlint.org',

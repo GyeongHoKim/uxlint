@@ -1,5 +1,6 @@
 import {AuthErrorCode, AuthenticationError} from '../../models/auth-error.js';
 import type {TokenSet} from '../../models/token-set.js';
+import {HTTP_REQUEST_TIMEOUT_MS} from './auth-constants.js';
 
 export type TokenExchangeParameters = {
 	tokenEndpoint: string;
@@ -67,7 +68,7 @@ async function retryWithBackoff<T>(
 	maxRetries = 3,
 	initialDelay = 1000,
 ): Promise<T> {
-	let lastError: Error;
+	let lastError: Error = new Error('Max retries exceeded');
 
 	/* eslint-disable no-await-in-loop */
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -100,7 +101,7 @@ async function retryWithBackoff<T>(
 	}
 	/* eslint-enable no-await-in-loop */
 
-	throw lastError!;
+	throw lastError;
 }
 
 export class OAuthHttpClient {
@@ -198,11 +199,11 @@ export class OAuthHttpClient {
 		operation: string,
 	): Promise<TokenSet> {
 		return retryWithBackoff(async () => {
-			// Create AbortController for timeout (30s default)
+			// Create AbortController for timeout
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => {
 				controller.abort();
-			}, 30_000);
+			}, HTTP_REQUEST_TIMEOUT_MS);
 
 			try {
 				const response = await fetch(endpoint, {
