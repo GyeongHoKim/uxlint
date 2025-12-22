@@ -180,15 +180,6 @@ This command:
 - Clears any cached authentication data
 - Confirms successful logout
 
-### Environment variables
-
-Authentication can be configured using environment variables:
-
-- `UXLINT_CLOUD_CLIENT_ID`: OAuth client ID (optional, uses default if not set)
-- `UXLINT_CLOUD_API_BASE_URL`: UXLint Cloud API base URL (optional, defaults to `https://app.uxlint.org`)
-
-These variables are typically not needed unless you're using a custom UXLint Cloud instance.
-
 ### Security
 
 - **Secure storage**: Credentials are stored in your operating system's native keychain:
@@ -263,37 +254,43 @@ Required fields are marked as required. All text fields accept natural language.
 - `persona` (string, required): Can be a short paragraph describing goals, motives, accessibility needs, devices, constraints, etc.
 - `report` (object, required): Report output configuration.
   - `output` (string, required): File path where the report will be written (e.g., `./ux-report.md`).
-- `ai` (object, optional): AI service configuration. If not provided, defaults to Anthropic with `UXLINT_ANTHROPIC_API_KEY` environment variable.
-  - `provider` (string, required): AI provider to use. One of: `anthropic`, `openai`, `ollama`, `xai`, `google`.
-  - `apiKey` (string, required for all providers except `ollama`): API key for the selected provider.
-  - `model` (string, optional): AI model name. Defaults vary by provider:
-    - `anthropic`: `claude-sonnet-4-5-20250929`
-    - `openai`: `gpt-5`
-    - `ollama`: `qwen3-vl`
-    - `xai`: `grok-4`
-    - `google`: `gemini-2.5-pro`
-  - `baseUrl` (string, optional, only for `ollama`): Ollama server base URL. Defaults to `http://localhost:11434/api`.
 
-### AI Provider Configuration
+**Note**: AI configuration has been moved to environment variables for security. See [Environment Variables](#environment-variables) section below.
 
-Choose one of the following providers:
+### Environment Variables
 
-- **Anthropic** (default if `ai` is not specified):
+uxlint uses environment variables for sensitive configuration like API keys. Create a `.env` file in your project root (see [`.env.example`](./.env.example) for reference).
 
-  - Requires `apiKey`
+#### AI Provider Configuration (Required)
+
+All AI configuration is done via environment variables to keep sensitive data out of version control:
+
+- `UXLINT_AI_PROVIDER` (required): AI provider to use. One of: `anthropic`, `openai`, `ollama`, `xai`, `google`.
+- `UXLINT_AI_API_KEY` (required for all providers except `ollama`): API key for the selected provider.
+- `UXLINT_AI_MODEL` (optional): AI model name. Defaults vary by provider (see below).
+- `UXLINT_AI_BASE_URL` (optional, only for `ollama`): Ollama server base URL. Defaults to `http://localhost:11434/api`.
+
+**Supported providers:**
+
+- **Anthropic** (default):
+
+  - Set `UXLINT_AI_PROVIDER=anthropic`
+  - Requires `UXLINT_AI_API_KEY`
   - Default model: `claude-sonnet-4-5-20250929`
   - Get your API key from https://console.anthropic.com/
 
 - **OpenAI**:
 
-  - Requires `apiKey`
+  - Set `UXLINT_AI_PROVIDER=openai`
+  - Requires `UXLINT_AI_API_KEY`
   - Default model: `gpt-5`
   - Get your API key from https://platform.openai.com/api-keys
 
 - **Ollama** (local):
 
-  - Does not require `apiKey`
-  - Optional `baseUrl` (default: `http://localhost:11434/api`)
+  - Set `UXLINT_AI_PROVIDER=ollama`
+  - Does not require `UXLINT_AI_API_KEY`
+  - Optional `UXLINT_AI_BASE_URL` (default: `http://localhost:11434/api`)
   - Default model: `qwen3-vl`
   - Requires [Ollama](https://ollama.ai/) to be installed and running locally
   - **⚠️ Important**: The model must support **both vision (multimodal) and tool calling**
@@ -302,14 +299,35 @@ Choose one of the following providers:
 
 - **xAI (Grok)**:
 
-  - Requires `apiKey`
+  - Set `UXLINT_AI_PROVIDER=xai`
+  - Requires `UXLINT_AI_API_KEY`
   - Default model: `grok-4`
   - Get your API key from https://x.ai/
 
 - **Google (Gemini)**:
-  - Requires `apiKey`
+  - Set `UXLINT_AI_PROVIDER=google`
+  - Requires `UXLINT_AI_API_KEY`
   - Default model: `gemini-2.5-pro`
   - Get your API key from https://ai.google.dev/
+
+**Example `.env` file:**
+
+```bash
+# AI Provider Configuration
+UXLINT_AI_PROVIDER=anthropic
+UXLINT_AI_API_KEY=sk-ant-your-api-key-here
+UXLINT_AI_MODEL=claude-sonnet-4-5-20250929  # optional
+```
+
+#### Cloud/OAuth Configuration (Optional)
+
+Authentication can be configured using environment variables:
+
+- `UXLINT_CLOUD_CLIENT_ID`: OAuth client ID (optional, uses default if not set)
+- `UXLINT_CLOUD_API_BASE_URL`: UXLint Cloud API base URL (optional, defaults to production URL)
+- `UXLINT_CLOUD_REDIRECT_URI`: OAuth redirect URI (optional, defaults to `http://localhost:8080/callback`)
+
+These variables are typically not needed unless you're using a custom UXLint Cloud instance.
 
 ### Example: YAML
 
@@ -390,10 +408,6 @@ persona: >-
   log in to access your dashboard and create your first repository.
 report:
   output: './ux-report.md'
-ai:
-  provider: anthropic
-  apiKey: your_anthropic_api_key_here
-  model: claude-sonnet-4-5-20250929
 ```
 
 ### Example: JSON
@@ -432,11 +446,6 @@ ai:
 	"persona": "You are a developer looking to host your open source project on GitHub. You want to understand how easy it is to get started, explore existing projects, and set up your repository. Your approach: First, visit the pricing page to understand what features are available in the free plan. Next, explore the Explore page to see what kinds of projects are popular and get inspiration. Then, sign up for a free account to start hosting your own projects. Finally, log in to access your dashboard and create your first repository.",
 	"report": {
 		"output": "./ux-report.md"
-	},
-	"ai": {
-		"provider": "anthropic",
-		"apiKey": "your_anthropic_api_key_here",
-		"model": "claude-sonnet-4-5-20250929"
 	}
 }
 ```
