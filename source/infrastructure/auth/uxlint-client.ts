@@ -1,4 +1,8 @@
-import {Buffer} from 'node:buffer';
+import {
+	createRemoteJWKSet,
+	jwtVerify,
+	type JWTPayload as JoseJWTPayload,
+} from 'jose';
 import {AuthErrorCode, AuthenticationError} from '../../models/auth-error.js';
 import {
 	isSessionExpired,
@@ -21,6 +25,11 @@ import {TokenManager} from './token-manager.js';
  */
 type JWTPayload = {
 	sub: string;
+	iss?: string;
+	aud?: string | string[];
+	exp?: number;
+	nbf?: number;
+	iat?: number;
 	email?: string;
 	name?: string;
 	org?: string;
@@ -51,6 +60,7 @@ export class UXLintClient {
 				UXLintClient.instance = new UXLintClient(
 					tokenManager,
 					oauthFlow,
+					httpClient,
 					getOAuthConfig(),
 				);
 			} catch (error) {
@@ -68,9 +78,10 @@ export class UXLintClient {
 	static createWithDependencies(
 		tokenManager: TokenManager,
 		oauthFlow: OAuthFlow,
+		httpClient: OAuthHttpClient,
 		config: OAuthConfig,
 	): UXLintClient {
-		return new UXLintClient(tokenManager, oauthFlow, config);
+		return new UXLintClient(tokenManager, oauthFlow, httpClient, config);
 	}
 
 	/**
@@ -87,6 +98,7 @@ export class UXLintClient {
 	private constructor(
 		private readonly tokenManager: TokenManager,
 		private readonly oauthFlow: OAuthFlow,
+		private readonly httpClient: OAuthHttpClient,
 		private readonly config: OAuthConfig,
 	) {}
 
@@ -114,8 +126,8 @@ export class UXLintClient {
 			scopes: this.config.scopes,
 		});
 
-		// Decode ID token to get user profile
-		const userProfile = this.decodeIdToken(tokens);
+		// Decode and verify ID token to get user profile
+		const userProfile = await this.decodeIdToken(tokens);
 
 		// Create session
 		const session: AuthenticationSession = {
@@ -289,18 +301,11 @@ export class UXLintClient {
 	}
 
 	/**
-	 * Decode the ID token to extract user profile
-	 *
-	 * WARNING: This method does NOT verify the JWT signature.
-	 * The ID token is decoded for informational purposes only.
-	 * Security is ensured by the OAuth server validating the access token
-	 * on subsequent API calls.
-	 *
-	 * TODO: Add JWT signature verification using JWKS endpoint from OIDC discovery
-	 * TODO: Validate standard JWT claims (iss, aud, exp, nbf)
-	 * TODO: Consider using the 'jose' library for proper JWT validation
+	 * Decode and verify the ID token to extract user profile
+	 * Verifies JWT signature using JWKS from OIDC discovery
+	 * Validates standard JWT claims (iss, aud, exp, nbf)
 	 */
-	private decodeIdToken(tokens: TokenSet): UserProfile {
+	private async decodeIdToken(tokens: TokenSet): Promise<UserProfile> {
 		if (!tokens.idToken) {
 			// If no ID token, create minimal profile from tokens
 			logger.warn('No ID token provided, using minimal profile');
@@ -313,52 +318,81 @@ export class UXLintClient {
 		}
 
 		try {
-			// Decode JWT (base64URL decode payload)
-			// NOTE: This does NOT verify the signature
-			const parts = tokens.idToken.split('.');
-			if (parts.length !== 3) {
-				throw new Error('Invalid JWT format');
+			// Fetch OIDC configuration to get JWKS URI
+			const oidcConfig = await this.httpClient.getOpenIDConfiguration(
+				this.config.baseUrl,
+			);
+
+			// Create remote JWKS set for signature verification
+			const jwks = createRemoteJWKSet(new URL(oidcConfig.jwksUri));
+
+			// Verify JWT signature and validate claims
+			const {payload} = await jwtVerify(tokens.idToken, jwks, {
+				issuer: oidcConfig.issuer,
+				audience: this.config.clientId,
+			});
+
+			const jwtPayload = payload as JoseJWTPayload & JWTPayload;
+
+			// Validate required claims
+			if (!jwtPayload.sub) {
+				throw new AuthenticationError(
+					AuthErrorCode.INVALID_RESPONSE,
+					'Missing required "sub" claim in ID token',
+				);
 			}
 
-			const payloadPart = parts[1];
-			if (!payloadPart) {
-				throw new Error('Missing JWT payload');
+			// Validate expiration (jwtVerify already checks exp, but we log it)
+			if (jwtPayload.exp) {
+				const expDate = new Date(jwtPayload.exp * 1000);
+				if (expDate <= new Date()) {
+					throw new AuthenticationError(
+						AuthErrorCode.INVALID_RESPONSE,
+						'ID token has expired',
+					);
+				}
 			}
 
-			const payload = JSON.parse(
-				Buffer.from(payloadPart, 'base64url').toString('utf8'),
-			) as JWTPayload;
-
-			// Basic claim validation
-			if (!payload.sub) {
-				throw new Error('Missing required "sub" claim');
+			// Validate not-before (nbf)
+			if (jwtPayload.nbf) {
+				const nbfDate = new Date(jwtPayload.nbf * 1000);
+				if (nbfDate > new Date()) {
+					throw new AuthenticationError(
+						AuthErrorCode.INVALID_RESPONSE,
+						'ID token is not yet valid (nbf claim)',
+					);
+				}
 			}
 
-			// Log warning about unverified token
-			logger.warn('ID token decoded without signature verification', {
-				sub: payload.sub,
-				email: payload.email,
+			logger.info('ID token verified successfully', {
+				sub: jwtPayload.sub,
+				email: jwtPayload.email,
+				iss: jwtPayload.iss,
 			});
 
 			return {
-				id: payload.sub,
-				email: payload.email ?? 'unknown@uxlint.org',
-				name: payload.name ?? 'UXLint User',
-				organization: payload.org,
-				picture: payload.picture,
-				emailVerified: payload.email_verified ?? false,
+				id: jwtPayload.sub,
+				email: jwtPayload.email ?? 'unknown@uxlint.org',
+				name: jwtPayload.name ?? 'UXLint User',
+				organization: jwtPayload.org,
+				picture: jwtPayload.picture,
+				emailVerified: jwtPayload.email_verified ?? false,
 			};
 		} catch (error) {
-			// Fallback to minimal profile on decode error
-			logger.error('Failed to decode ID token', {
+			// If verification fails, throw authentication error
+			if (error instanceof AuthenticationError) {
+				throw error;
+			}
+
+			logger.error('Failed to verify ID token', {
 				error: error instanceof Error ? error.message : String(error),
 			});
-			return {
-				id: 'unknown',
-				email: 'unknown@uxlint.org',
-				name: 'UXLint User',
-				emailVerified: false,
-			};
+
+			throw new AuthenticationError(
+				AuthErrorCode.INVALID_RESPONSE,
+				'Failed to verify ID token',
+				error instanceof Error ? error : undefined,
+			);
 		}
 	}
 }

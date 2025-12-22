@@ -155,7 +155,7 @@ export class OAuthHttpClient {
 	}
 
 	async getOpenIDConfiguration(baseUrl: string): Promise<OIDCConfiguration> {
-		const url = `${baseUrl}/auth/v1/oauth/.well-known/openid-configuration`;
+		const url = `${baseUrl}/auth/v1/.well-known/openid-configuration`;
 
 		try {
 			const response = await fetch(url);
