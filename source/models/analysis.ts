@@ -242,7 +242,7 @@ export type AnalysisState = {
  * @example
  * ```typescript
  * if (isPageAnalysisComplete(analysis)) {
- *   console.log(`Found ${analysis.findings.length} issues`);
+ *   logger.info(`Found ${analysis.findings.length} issues`);
  * }
  * ```
  */
@@ -259,7 +259,7 @@ export function isPageAnalysisComplete(analysis: PageAnalysis): boolean {
  * @example
  * ```typescript
  * if (isPageAnalysisFailed(analysis)) {
- *   console.error(`Analysis failed: ${analysis.error}`);
+ *   logger.error(`Analysis failed: ${analysis.error}`);
  * }
  * ```
  */

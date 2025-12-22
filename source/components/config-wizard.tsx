@@ -321,7 +321,7 @@ function SavePhase({
  * ```tsx
  * <ConfigWizard
  *   theme={theme}
- *   onComplete={(config) => console.log('Config created:', config)}
+ *   onComplete={(config) => logger.info('Config created', {config})}
  *   onCancel={() => process.exit(0)}
  * />
  * ```

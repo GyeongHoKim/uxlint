@@ -1,5 +1,10 @@
 import {getAuthCode, type OAuthError} from 'oauth-callback';
 import {AuthErrorCode, AuthenticationError} from '../../models/auth-error.js';
+import {
+	MAX_AUTH_CODE_LENGTH,
+	MAX_PORT_RANGE_SIZE,
+	MAX_STATE_LENGTH,
+} from './auth-constants.js';
 
 export type CallbackServerOptions = {
 	port: number | [number, number];
@@ -24,7 +29,7 @@ export class CallbackServer {
 		this.abortController = new AbortController();
 
 		const ports = Array.isArray(options.port)
-			? this.generatePortRange(options.port[0], options.port[1])
+			? [...this.generatePortRange(options.port[0], options.port[1])]
 			: [options.port];
 		const callbackPath = options.path ?? '/callback';
 		const timeout = options.timeoutMs ?? 300_000;
@@ -38,6 +43,10 @@ export class CallbackServer {
 		});
 	}
 
+	/**
+	 * Stop the callback server
+	 * Aborts any pending callback operations
+	 */
 	async stop(): Promise<void> {
 		if (this.abortController) {
 			this.abortController.abort();
@@ -123,13 +132,11 @@ export class CallbackServer {
 		}
 	}
 
-	private generatePortRange(start: number, end: number): number[] {
-		const ports: number[] = [];
-		for (let port = start; port <= end; port++) {
-			ports.push(port);
+	private *generatePortRange(start: number, end: number): Generator<number> {
+		const actualEnd = Math.min(end, start + MAX_PORT_RANGE_SIZE - 1);
+		for (let port = start; port <= actualEnd; port++) {
+			yield port;
 		}
-
-		return ports;
 	}
 
 	private validateCallbackResult(result: unknown): {
@@ -145,6 +152,22 @@ export class CallbackServer {
 			typeof (result as {code: unknown}).code === 'string' &&
 			typeof (result as {state: unknown}).state === 'string'
 		) {
+			const {code, state} = result as {code: string; state: string};
+
+			if (code.length === 0 || code.length > MAX_AUTH_CODE_LENGTH) {
+				throw new AuthenticationError(
+					AuthErrorCode.INVALID_RESPONSE,
+					'Invalid authorization code format',
+				);
+			}
+
+			if (state.length === 0 || state.length > MAX_STATE_LENGTH) {
+				throw new AuthenticationError(
+					AuthErrorCode.INVALID_RESPONSE,
+					'Invalid state parameter format',
+				);
+			}
+
 			return result as {code: string; state: string; error?: string};
 		}
 
@@ -175,17 +198,19 @@ export class CallbackServer {
 		const description = error.error_description
 			? String(error.error_description)
 			: undefined;
+		const errorMessage = this.formatOAuthErrorMessage(errorCode, description);
 
 		if (errorCode === 'access_denied') {
-			throw new AuthenticationError(
-				AuthErrorCode.USER_DENIED,
-				`OAuth error: ${errorCode}${description ? `: ${description}` : ''}`,
-			);
+			throw new AuthenticationError(AuthErrorCode.USER_DENIED, errorMessage);
 		}
 
-		throw new AuthenticationError(
-			AuthErrorCode.INVALID_RESPONSE,
-			`OAuth error: ${errorCode}${description ? `: ${description}` : ''}`,
-		);
+		throw new AuthenticationError(AuthErrorCode.INVALID_RESPONSE, errorMessage);
+	}
+
+	private formatOAuthErrorMessage(
+		errorCode: string,
+		description?: string,
+	): string {
+		return `OAuth error: ${errorCode}${description ? `: ${description}` : ''}`;
 	}
 }

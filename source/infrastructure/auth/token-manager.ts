@@ -66,6 +66,7 @@ export class TokenManager {
 
 	/**
 	 * Check if keychain is available
+	 * @returns true if the OS keychain service is available and functional
 	 */
 	async isKeychainAvailable(): Promise<boolean> {
 		return this.keychain.isAvailable();
