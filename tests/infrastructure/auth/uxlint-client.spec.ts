@@ -6,10 +6,7 @@ import type {OAuthConfig} from '../../../source/infrastructure/auth/oauth-config
 import {OAuthFlow} from '../../../source/infrastructure/auth/oauth-flow.js';
 import {OAuthHttpClient} from '../../../source/infrastructure/auth/oauth-http-client.js';
 import {TokenManager} from '../../../source/infrastructure/auth/token-manager.js';
-import {
-	UXLintClient,
-	getUXLintClient,
-} from '../../../source/infrastructure/auth/uxlint-client.js';
+import {UXLintClient} from '../../../source/infrastructure/auth/uxlint-client.js';
 import {
 	AuthErrorCode,
 	AuthenticationError,
@@ -195,31 +192,10 @@ async function createTestClient() {
 		scopes: ['openid', 'profile', 'email'],
 	};
 
-	const client = UXLintClient.createWithDependencies(
-		tokenManager,
-		oauthFlow,
-		httpClient,
-		config,
-	);
+	const client = new UXLintClient(tokenManager, oauthFlow, httpClient, config);
 
 	return {client, keychain, browser, httpClient, tokenManager, sandbox};
 }
-
-test.afterEach(() => {
-	// Reset singleton between tests
-	UXLintClient.resetInstance();
-});
-
-// T083: Integration tests for UXLintClient
-test('UXLintClient.getInstance returns singleton', t => {
-	// This test would require mocking the production dependencies
-	// Just verify the static method exists
-	t.is(typeof UXLintClient.getInstance, 'function');
-});
-
-test('getUXLintClient returns singleton instance', t => {
-	t.is(typeof getUXLintClient, 'function');
-});
 
 test('UXLintClient.login throws ALREADY_AUTHENTICATED when logged in', async t => {
 	const {client, keychain} = await createTestClient();
@@ -458,85 +434,4 @@ test('UXLintClient.login stores session after successful auth', async t => {
 
 	const stored = await keychain.getPassword('uxlint-cli', 'default');
 	t.truthy(stored);
-});
-
-test('UXLintClient.createWithDependencies allows custom dependencies', async t => {
-	const sandbox = sinon.createSandbox();
-	const keychain = new MockKeychainService();
-	const browser = new MockBrowserService();
-
-	// Create stub instances using SinonJS
-	const httpClient = sandbox.createStubInstance(OAuthHttpClient);
-	const callbackServer = sandbox.createStubInstance(CallbackServer);
-
-	// Create a real signed JWT for testing
-	const signedIdToken = await createSignedJWT({
-		issuer: 'https://custom.uxlint.org',
-		audience: 'custom-client',
-		subject: 'user_123',
-		email: 'test@example.com',
-		name: 'Test User',
-		org: 'Test Org',
-		emailVerified: true,
-	});
-
-	// Set up JWKS endpoint mock for custom issuer
-	const jwksUri = 'https://custom.uxlint.org/.well-known/jwks.json';
-	const jwks = await getTestJWKS();
-	server.use(
-		http.get(jwksUri, () => {
-			return HttpResponse.json(jwks);
-		}),
-	);
-
-	// Set up default return values
-	const mockTokenSet: TokenSet = {
-		accessToken: 'mock_access_token',
-		tokenType: 'Bearer',
-		expiresIn: 3600,
-		refreshToken: 'mock_refresh_token',
-		idToken: signedIdToken,
-		scope: 'openid profile email',
-	};
-
-	httpClient.exchangeCodeForTokens.resolves(mockTokenSet);
-	httpClient.refreshAccessToken.resolves(mockTokenSet);
-	httpClient.getOpenIDConfiguration.resolves({
-		issuer: 'https://custom.uxlint.org',
-		authorizationEndpoint: 'https://custom.uxlint.org/auth',
-		tokenEndpoint: 'https://custom.uxlint.org/token',
-		jwksUri,
-		responseTypesSupported: ['code'],
-		grantTypesSupported: ['authorization_code', 'refresh_token'],
-		scopesSupported: ['custom:scope'],
-		codeChallengeMethodsSupported: ['S256'],
-	});
-	callbackServer.waitForCallback.callsFake(async options => ({
-		code: 'mock_auth_code',
-		state: options.expectedState,
-	}));
-
-	const oauthFlow = new OAuthFlow(httpClient, callbackServer, browser);
-	const tokenManager = new TokenManager(keychain);
-
-	const config: OAuthConfig = {
-		clientId: 'custom-client',
-		baseUrl: 'https://custom.uxlint.org',
-		endpoints: {
-			authorization: '/auth',
-			token: '/token',
-			openidConfiguration: '/config',
-		},
-		redirectUri: 'http://localhost:9000/callback',
-		scopes: ['custom:scope'],
-	};
-
-	const client = UXLintClient.createWithDependencies(
-		tokenManager,
-		oauthFlow,
-		httpClient,
-		config,
-	);
-
-	t.truthy(client);
 });

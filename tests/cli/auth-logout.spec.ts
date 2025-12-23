@@ -5,17 +5,17 @@
 
 import test from 'ava';
 import sinon from 'sinon';
+import {CallbackServer} from '../../source/infrastructure/auth/callback-server.js';
+import type {OAuthConfig} from '../../source/infrastructure/auth/oauth-config.js';
+import {OAuthFlow} from '../../source/infrastructure/auth/oauth-flow.js';
+import {OAuthHttpClient} from '../../source/infrastructure/auth/oauth-http-client.js';
+import {TokenManager} from '../../source/infrastructure/auth/token-manager.js';
 import {UXLintClient} from '../../source/infrastructure/auth/uxlint-client.js';
 import type {AuthenticationSession} from '../../source/models/auth-session.js';
 import {
-	MockKeychainService,
 	MockBrowserService,
+	MockKeychainService,
 } from '../mocks/services/index.js';
-import {TokenManager} from '../../source/infrastructure/auth/token-manager.js';
-import {OAuthFlow} from '../../source/infrastructure/auth/oauth-flow.js';
-import type {OAuthConfig} from '../../source/infrastructure/auth/oauth-config.js';
-import {OAuthHttpClient} from '../../source/infrastructure/auth/oauth-http-client.js';
-import {CallbackServer} from '../../source/infrastructure/auth/callback-server.js';
 
 function createValidSession(): AuthenticationSession {
 	return {
@@ -65,19 +65,10 @@ function createTestClient() {
 		scopes: ['openid', 'profile', 'email'],
 	};
 
-	const client = UXLintClient.createWithDependencies(
-		tokenManager,
-		oauthFlow,
-		httpClient,
-		config,
-	);
+	const client = new UXLintClient(tokenManager, oauthFlow, httpClient, config);
 
 	return {client, keychain, browser, httpClient, tokenManager, sandbox};
 }
-
-test.afterEach(() => {
-	UXLintClient.resetInstance();
-});
 
 test('logout removes session from keychain', async t => {
 	const {client, keychain} = createTestClient();
