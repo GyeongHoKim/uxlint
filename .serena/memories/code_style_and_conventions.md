@@ -9,7 +9,6 @@
 - Extends `@sindresorhus/tsconfig`
 - Strict mode enabled with comprehensive type checking
 - Output directory: `dist/`
-- Path alias: `@/*` maps to `source/*`
 - React JSX transform (no need for React import)
 
 ## Code Formatting
