@@ -28,11 +28,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"skipLibCheck": true,
 		"types": ["node"],
-		"baseUrl": ".",
-		"paths": {
-			"@/*": ["source/*"]
-		},
-		"rootDir": "."
+		"baseUrl": "."
 	},
 	"include": ["source", "tests"]
 }
