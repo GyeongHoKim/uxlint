@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 import process from 'node:process';
-import {Box, render, Text} from 'ink';
+import {render} from 'ink';
 import meow from 'meow';
 import App from './app.js';
 import {runCIAnalysis} from './ci-runner.js';
-import {AuthStatus, LoginFlow} from './components/auth/index.js';
-import {UxlintMachineContext} from './contexts/uxlint-context.js';
-import {getUXLintClient} from './infrastructure/auth/uxlint-client.js';
+import {AuthFlow} from './components/auth/auth-flow.js';
+import {UXLintClientProvider} from './components/providers/uxlint-client-provider.js';
+import {UXLintMachineProvider} from './components/providers/uxlint-machine-provider.js';
+import {uxlintClient} from './infrastructure/auth/uxlint-client-base.js';
 import {configIO} from './infrastructure/config/config-io.js';
 import {logger} from './infrastructure/logger.js';
-import {isUxLintConfig, type UxLintConfig} from './models/config.js';
+import {isUxLintConfig} from './models/config.js';
+import {getConfigFormat} from './utils/get-config-format.js';
 
 const cli = meow(
 	`
@@ -45,21 +47,6 @@ const cli = meow(
 		},
 	},
 );
-
-/**
- * Detect config file format from path
- */
-function getConfigFormat(path: string): 'json' | 'yaml' | 'yml' {
-	if (path.endsWith('.json')) {
-		return 'json';
-	}
-
-	if (path.endsWith('.yaml')) {
-		return 'yaml';
-	}
-
-	return 'yml';
-}
 
 // Check for existing config file
 const configPath = configIO.findConfigFile(process.cwd());
@@ -111,142 +98,17 @@ if (authCommand === 'auth') {
 
 	process.once('SIGINT', handleAuthInterrupt);
 
-	// eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
-	switch (subcommand) {
-		case 'login': {
-			render(
-				<LoginFlow
-					onComplete={profile => {
-						logger.info('Login successful', {
-							email: profile.email,
-							name: profile.name,
-						});
-						// Remove SIGINT handler on success
-						process.removeListener('SIGINT', handleAuthInterrupt);
-						process.exit(0);
-					}}
-					onError={error => {
-						logger.error('Login failed', {
-							error: error.message,
-						});
-						// Remove SIGINT handler on error
-						process.removeListener('SIGINT', handleAuthInterrupt);
-						process.exit(1);
-					}}
-				/>,
-			);
-			break;
-		}
-
-		case 'status': {
-			render(
-				<AuthStatus
-					onComplete={() => {
-						// Remove SIGINT handler on complete
-						process.removeListener('SIGINT', handleAuthInterrupt);
-						process.exit(0);
-					}}
-				/>,
-			);
-			break;
-		}
-
-		case 'logout': {
-			const handleLogout = async () => {
-				try {
-					const client = getUXLintClient();
-					await client.logout();
-					render(
-						<Box>
-							<Text color="green">✓ Logged out successfully</Text>
-						</Box>,
-					);
-					logger.info('Logout successful');
-					// Remove SIGINT handler on success
-					process.removeListener('SIGINT', handleAuthInterrupt);
-					setTimeout(() => process.exit(0), 100);
-				} catch (error_: unknown) {
-					const errorMessage =
-						error_ instanceof Error ? error_.message : 'Unknown error';
-					render(
-						<Box>
-							<Text color="red">✗ Logout failed: {errorMessage}</Text>
-						</Box>,
-					);
-					logger.error('Logout failed', {error: errorMessage});
-					// Remove SIGINT handler on error
-					process.removeListener('SIGINT', handleAuthInterrupt);
-					setTimeout(() => process.exit(1), 100);
-				}
-			};
-
-			void handleLogout();
-			break;
-		}
-
-		default: {
-			render(
-				<Box flexDirection="column">
-					<Text color="red">
-						Unknown auth command: {subcommand ?? '(none)'}
-					</Text>
-					<Text>Available commands: login, logout, status</Text>
-				</Box>,
-			);
-			process.exit(1);
-		}
-	}
-} else if (cli.flags.interactive) {
-	// Interactive Mode: Use Ink UI
-	logger.info('Interactive mode selected');
-	let preloadedConfig: UxLintConfig | undefined;
-
-	if (configExists && configPath) {
-		logger.debug('Loading existing config for interactive mode', {configPath});
-		try {
-			const configContent = configIO.readConfigFile(configPath);
-			const format = getConfigFormat(configPath);
-			const parsed = configIO.parseConfigFile(configContent, format);
-
-			if (isUxLintConfig(parsed)) {
-				preloadedConfig = parsed;
-				logger.info('Config preloaded for interactive mode', {
-					configPath,
-					mainPageUrl: parsed.mainPageUrl,
-					pagesCount: parsed.pages.length,
-				});
-			} else {
-				logger.error('Invalid configuration file format', {configPath});
-				render(
-					<Text color="red">Error: Invalid configuration file format</Text>,
-				);
-				process.exit(1);
-			}
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : 'Unknown error';
-			logger.error('Failed to load config', {error: errorMessage, configPath});
-			render(<Text color="red">Error: {errorMessage}</Text>);
-			process.exit(1);
-		}
-	} else {
-		logger.info('No existing config found, starting wizard');
-	}
-
-	// Render App with XState machine context (Interactive mode only)
-	logger.debug('Rendering interactive UI');
 	render(
-		<UxlintMachineContext.Provider
-			options={{
-				input: {
-					interactive: true,
-					configExists,
-					config: preloadedConfig,
-				},
-			}}
-		>
+		<UXLintClientProvider uxlintClientImpl={uxlintClient}>
+			<AuthFlow command={subcommand} onAuthError={handleAuthInterrupt} />
+		</UXLintClientProvider>,
+	);
+} else if (cli.flags.interactive) {
+	logger.info('Interactive mode selected');
+	render(
+		<UXLintMachineProvider>
 			<App />
-		</UxlintMachineContext.Provider>,
+		</UXLintMachineProvider>,
 	);
 } else {
 	// CI Mode: Run without UI

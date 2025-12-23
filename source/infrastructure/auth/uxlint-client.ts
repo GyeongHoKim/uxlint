@@ -12,13 +12,10 @@ import type {TokenSet} from '../../models/token-set.js';
 import type {UserProfile} from '../../models/user-profile.js';
 import {logger} from '../logger.js';
 import {TOKEN_REFRESH_BUFFER_MINUTES} from './auth-constants.js';
-import {OpenBrowserService} from './browser-impl.js';
-import {CallbackServer} from './callback-server.js';
-import {KeytarKeychainService} from './keychain-impl.js';
-import {getOAuthConfig, type OAuthConfig} from './oauth-config.js';
-import {OAuthFlow} from './oauth-flow.js';
-import {OAuthHttpClient} from './oauth-http-client.js';
-import {TokenManager} from './token-manager.js';
+import {type OAuthConfig} from './oauth-config.js';
+import {type OAuthFlow} from './oauth-flow.js';
+import {type OAuthHttpClient} from './oauth-http-client.js';
+import {type TokenManager} from './token-manager.js';
 
 /**
  * JWT payload structure from ID token
@@ -42,60 +39,9 @@ type JWTPayload = {
  * Singleton pattern for managing global authentication state
  */
 export class UXLintClient {
-	/**
-	 * Get the singleton instance of UXLintClient
-	 * Creates production dependencies on first call
-	 */
-	static getInstance(): UXLintClient {
-		if (!UXLintClient.instance) {
-			try {
-				// Create production dependencies
-				const keychain = new KeytarKeychainService();
-				const browser = new OpenBrowserService();
-				const httpClient = new OAuthHttpClient();
-				const callbackServer = new CallbackServer();
-				const oauthFlow = new OAuthFlow(httpClient, callbackServer, browser);
-				const tokenManager = new TokenManager(keychain);
-
-				UXLintClient.instance = new UXLintClient(
-					tokenManager,
-					oauthFlow,
-					httpClient,
-					getOAuthConfig(),
-				);
-			} catch (error) {
-				UXLintClient.instance = undefined;
-				throw error;
-			}
-		}
-
-		return UXLintClient.instance;
-	}
-
-	/**
-	 * Create a UXLintClient with custom dependencies (for testing)
-	 */
-	static createWithDependencies(
-		tokenManager: TokenManager,
-		oauthFlow: OAuthFlow,
-		httpClient: OAuthHttpClient,
-		config: OAuthConfig,
-	): UXLintClient {
-		return new UXLintClient(tokenManager, oauthFlow, httpClient, config);
-	}
-
-	/**
-	 * Reset the singleton instance (for testing)
-	 */
-	static resetInstance(): void {
-		UXLintClient.instance = undefined;
-	}
-
-	private static instance: UXLintClient | undefined;
-
 	private currentSession: AuthenticationSession | undefined;
 
-	private constructor(
+	constructor(
 		private readonly tokenManager: TokenManager,
 		private readonly oauthFlow: OAuthFlow,
 		private readonly httpClient: OAuthHttpClient,
@@ -395,11 +341,4 @@ export class UXLintClient {
 			);
 		}
 	}
-}
-
-/**
- * Get the singleton UXLintClient instance
- */
-export function getUXLintClient(): UXLintClient {
-	return UXLintClient.getInstance();
 }

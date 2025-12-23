@@ -11,7 +11,7 @@ import {
 	UxlintMachineContext,
 	matchesStatePath,
 	useUxlintContext,
-} from './contexts/uxlint-context.js';
+} from './components/providers/uxlint-machine-context.js';
 import type {UxReport} from './models/analysis.js';
 import type {UxLintConfig} from './models/config.js';
 import {defaultTheme} from './models/theme.js';

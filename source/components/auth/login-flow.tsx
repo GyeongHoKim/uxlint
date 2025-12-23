@@ -1,9 +1,9 @@
-import {useState, useEffect, useCallback} from 'react';
-import {Text, Box} from 'ink';
 import {Spinner} from '@inkjs/ui';
-import type {UserProfile} from '../../models/user-profile.js';
+import {Box, Text} from 'ink';
+import {useCallback, useEffect, useState} from 'react';
 import {AuthErrorCode, AuthenticationError} from '../../models/auth-error.js';
-import {getUXLintClient} from '../../infrastructure/auth/uxlint-client.js';
+import type {UserProfile} from '../../models/user-profile.js';
+import {useUXLintClient} from '../providers/uxlint-client-context.js';
 import {BrowserFallback} from './browser-fallback.js';
 
 export type LoginFlowStatus =
@@ -18,35 +18,25 @@ export type LoginFlowProps = {
 	readonly onComplete: (profile: UserProfile) => void;
 	/** Callback when login fails with an error */
 	readonly onError: (error: Error) => void;
-	/** Optional client for testing (defaults to singleton) */
-	readonly client?: {
-		login: () => Promise<void>;
-		getUserProfile: () => Promise<UserProfile>;
-	};
 };
 
 /**
  * LoginFlow component - Handles the OAuth login flow UI
  */
-export function LoginFlow({
-	onComplete,
-	onError,
-	client: testClient,
-}: LoginFlowProps) {
+export function LoginFlow({onComplete, onError}: LoginFlowProps) {
 	const [status, setStatus] = useState<LoginFlowStatus>('opening-browser');
 	const [fallbackUrl, setFallbackUrl] = useState<string | undefined>(undefined);
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(
 		undefined,
 	);
+	const uxlintClient = useUXLintClient();
 
 	const handleLogin = useCallback(async () => {
-		const client = testClient ?? getUXLintClient();
-
 		try {
 			setStatus('opening-browser');
-			await client.login();
+			await uxlintClient.login();
 			setStatus('success');
-			const profile = await client.getUserProfile();
+			const profile = await uxlintClient.getUserProfile();
 			onComplete(profile);
 		} catch (error) {
 			if (
@@ -68,7 +58,7 @@ export function LoginFlow({
 			) {
 				// Already logged in, get profile and complete
 				try {
-					const profile = await client.getUserProfile();
+					const profile = await uxlintClient.getUserProfile();
 					setStatus('success');
 					onComplete(profile);
 					return;
@@ -83,7 +73,7 @@ export function LoginFlow({
 			);
 			onError(error instanceof Error ? error : new Error(String(error)));
 		}
-	}, [testClient, onComplete, onError]);
+	}, [onComplete, onError, uxlintClient]);
 
 	useEffect(() => {
 		void handleLogin();
