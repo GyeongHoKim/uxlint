@@ -10,3 +10,5 @@ export * from './use-config-wizard.js';
 export type {UseConfigWizardResult} from './use-config-wizard.js';
 
 export * from './use-analysis.js';
+
+export * from './use-logout.js';
