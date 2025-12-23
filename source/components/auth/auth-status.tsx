@@ -1,11 +1,11 @@
-import {useState, useEffect} from 'react';
-import {Text, Box} from 'ink';
-import {Spinner, Badge, Alert} from '@inkjs/ui';
+import {Alert, Badge, Spinner} from '@inkjs/ui';
+import {Box, Text} from 'ink';
+import {useEffect, useState} from 'react';
 import {
 	isSessionExpired,
 	type AuthenticationSession,
 } from '../../models/auth-session.js';
-import {getUXLintClient} from '../../infrastructure/auth/uxlint-client.js';
+import {useUXLintClient} from '../providers/uxlint-client-context.js';
 
 export type AuthStatusProps = {
 	/** Callback when status check is complete */
@@ -21,12 +21,12 @@ export function AuthStatus({onComplete}: AuthStatusProps) {
 	);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | undefined>(undefined);
+	const uxlintClient = useUXLintClient();
 
 	useEffect(() => {
 		const checkStatus = async () => {
 			try {
-				const client = getUXLintClient();
-				const status = await client.getStatus();
+				const status = await uxlintClient.getStatus();
 				setSession(status);
 			} catch (error_) {
 				setError(
@@ -39,7 +39,7 @@ export function AuthStatus({onComplete}: AuthStatusProps) {
 		};
 
 		void checkStatus();
-	}, [onComplete]);
+	}, [onComplete, uxlintClient]);
 
 	if (loading) {
 		return (

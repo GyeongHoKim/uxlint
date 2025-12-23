@@ -1,8 +1,8 @@
-import {useState, useEffect} from 'react';
-import {Text, Box} from 'ink';
-import {Spinner, Alert} from '@inkjs/ui';
+import {Alert, Spinner} from '@inkjs/ui';
+import {Box, Text} from 'ink';
+import {useEffect, useState} from 'react';
 import type {UserProfile} from '../../models/user-profile.js';
-import {getUXLintClient} from '../../infrastructure/auth/uxlint-client.js';
+import {useUXLintClient} from '../providers/uxlint-client-context.js';
 
 export type BrowserFallbackProps = {
 	/** Authorization URL to display */
@@ -22,18 +22,18 @@ export function BrowserFallback({
 	onError,
 }: BrowserFallbackProps) {
 	const [waiting, setWaiting] = useState(true);
+	const uxlintClient = useUXLintClient();
 
 	useEffect(() => {
 		// Poll for authentication completion
 		const pollInterval = setInterval(async () => {
 			try {
-				const client = getUXLintClient();
-				const isAuth = await client.isAuthenticated();
+				const isAuth = await uxlintClient.isAuthenticated();
 
 				if (isAuth) {
 					clearInterval(pollInterval);
 					setWaiting(false);
-					const profile = await client.getUserProfile();
+					const profile = await uxlintClient.getUserProfile();
 					onComplete(profile);
 				}
 			} catch {
@@ -52,7 +52,7 @@ export function BrowserFallback({
 			clearInterval(pollInterval);
 			clearTimeout(timeout);
 		};
-	}, [onComplete, onError]);
+	}, [onComplete, onError, uxlintClient]);
 
 	return (
 		<Box flexDirection="column" gap={1}>
