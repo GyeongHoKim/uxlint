@@ -11,8 +11,8 @@
 		"url": "https://github.com/GyeongHoKim/uxlint.git"
 	},
 	"publishConfig": {
-		"registry": "https://registry.npmjs.org",
-		"access": "public",
+		"registry": "https://registry.npmjs.org/",
+		"tag": "latest",
 		"provenance": true
 	},
 	"keywords": [
