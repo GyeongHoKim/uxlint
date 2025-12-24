@@ -1,5 +1,6 @@
 import {AuthErrorCode, AuthenticationError} from '../../models/auth-error.js';
 import type {TokenSet} from '../../models/token-set.js';
+import {logger} from '../logger.js';
 import {HTTP_REQUEST_TIMEOUT_MS} from './auth-constants.js';
 
 export type TokenExchangeParameters = {
@@ -93,6 +94,13 @@ async function retryWithBackoff<T>(
 			// Calculate delay with exponential backoff
 			const delay = initialDelay * 2 ** attempt;
 
+			logger.warn('Retrying operation after error', {
+				attempt: attempt + 1,
+				maxRetries,
+				backoffDelay: delay,
+				error: lastError.message,
+			});
+
 			// Wait before retrying
 			await new Promise(resolve => {
 				setTimeout(resolve, delay);
@@ -101,6 +109,11 @@ async function retryWithBackoff<T>(
 	}
 	/* eslint-enable no-await-in-loop */
 
+	logger.error('All retry attempts failed', {
+		attempts: maxRetries + 1,
+		lastError: lastError.message,
+	});
+
 	throw lastError;
 }
 
@@ -108,6 +121,11 @@ export class OAuthHttpClient {
 	async exchangeCodeForTokens(
 		parameters: TokenExchangeParameters,
 	): Promise<TokenSet> {
+		logger.info('Exchanging authorization code for tokens', {
+			endpoint: parameters.tokenEndpoint,
+			operation: 'code exchange',
+		});
+
 		const body = new URLSearchParams({
 			grant_type: 'authorization_code',
 			client_id: parameters.clientId,
@@ -122,6 +140,12 @@ export class OAuthHttpClient {
 	async refreshAccessToken(
 		parameters: TokenRefreshParameters,
 	): Promise<TokenSet> {
+		logger.info('Refreshing access token', {
+			endpoint: parameters.tokenEndpoint,
+			operation: 'token refresh',
+			hasScope: Boolean(parameters.scope),
+		});
+
 		const body = new URLSearchParams({
 			grant_type: 'refresh_token',
 			client_id: parameters.clientId,
@@ -143,6 +167,9 @@ export class OAuthHttpClient {
 				error instanceof AuthenticationError &&
 				error.code === AuthErrorCode.INVALID_RESPONSE
 			) {
+				logger.error('Token refresh failed', {
+					error: error.message,
+				});
 				throw new AuthenticationError(
 					AuthErrorCode.REFRESH_FAILED,
 					error.message,
@@ -157,10 +184,16 @@ export class OAuthHttpClient {
 	async getOpenIDConfiguration(baseUrl: string): Promise<OIDCConfiguration> {
 		const url = `${baseUrl}/auth/v1/.well-known/openid-configuration`;
 
+		logger.info('Fetching OIDC configuration', {url});
+
 		try {
 			const response = await fetch(url);
 
 			if (!response.ok) {
+				logger.error('Failed to fetch OIDC config', {
+					url,
+					error: `HTTP ${response.status}`,
+				});
 				throw new AuthenticationError(
 					AuthErrorCode.NETWORK_ERROR,
 					`Failed to fetch OIDC configuration: HTTP ${response.status}`,
@@ -168,6 +201,8 @@ export class OAuthHttpClient {
 			}
 
 			const data = (await response.json()) as OIDCConfigResponse;
+
+			logger.info('OIDC configuration fetched', {issuer: data.issuer});
 
 			return {
 				issuer: data.issuer,
@@ -185,6 +220,10 @@ export class OAuthHttpClient {
 				throw error;
 			}
 
+			logger.error('Failed to fetch OIDC config', {
+				url,
+				error: error instanceof Error ? error.message : String(error),
+			});
 			throw new AuthenticationError(
 				AuthErrorCode.NETWORK_ERROR,
 				'Failed to fetch OIDC configuration',
@@ -199,6 +238,8 @@ export class OAuthHttpClient {
 		operation: string,
 	): Promise<TokenSet> {
 		return retryWithBackoff(async () => {
+			logger.debug('Fetching tokens', {endpoint, operation});
+
 			// Create AbortController for timeout
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => {
@@ -232,6 +273,14 @@ export class OAuthHttpClient {
 				}
 
 				const tokenData = data as OAuthTokenResponse;
+
+				logger.info('Tokens fetched successfully', {
+					operation,
+					tokenType: tokenData.token_type,
+					expiresIn: tokenData.expires_in,
+					hasRefreshToken: Boolean(tokenData.refresh_token),
+					hasIdToken: Boolean(tokenData.id_token),
+				});
 
 				return {
 					accessToken: tokenData.access_token,
