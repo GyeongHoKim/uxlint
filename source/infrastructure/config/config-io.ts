@@ -10,6 +10,7 @@ import {load as parseYaml, dump as yamlDump} from 'js-yaml';
 import type {UxLintConfig} from '../../models/config.js';
 import {ConfigurationError} from '../../models/errors.js';
 import type {SaveOptions} from '../../models/wizard-state.js';
+import {logger} from '../logger.js';
 
 type FsSyncMethods = Pick<
 	typeof fs,
@@ -54,12 +55,23 @@ export class ConfigIO {
 	findConfigFile(baseDirectory: string): string | undefined {
 		const {existsSync} = this.fsSync;
 
+		logger.debug('Searching for config file', {
+			directory: baseDirectory,
+			candidates: ConfigIO.configFiles,
+		});
+
 		for (const configFile of ConfigIO.configFiles) {
 			const configPath = join(baseDirectory, configFile);
 			if (existsSync(configPath)) {
+				logger.info('Config file found', {path: configPath});
 				return configPath;
 			}
 		}
+
+		logger.warn('No config file found', {
+			directory: baseDirectory,
+			searched: ConfigIO.configFiles,
+		});
 
 		return undefined;
 	}
@@ -73,10 +85,17 @@ export class ConfigIO {
 	readConfigFile(filePath: string): string {
 		const {statSync, readFileSync} = this.fsSync;
 
+		logger.debug('Reading config file', {path: filePath});
+
 		try {
 			// Check file size before reading
 			const stats = statSync(filePath);
 			if (stats.size > ConfigIO.maxFileSize) {
+				logger.error('Config file too large', {
+					path: filePath,
+					size: stats.size,
+					maxSize: ConfigIO.maxFileSize,
+				});
 				throw new ConfigurationError(
 					`Configuration file is too large (${stats.size} bytes, maximum ${ConfigIO.maxFileSize} bytes)`,
 					filePath,
@@ -84,7 +103,14 @@ export class ConfigIO {
 			}
 
 			// Read file content
-			return readFileSync(filePath, 'utf8');
+			const content = readFileSync(filePath, 'utf8');
+
+			logger.info('Config file read successfully', {
+				path: filePath,
+				size: stats.size,
+			});
+
+			return content;
 		} catch (error) {
 			// If it's already a ConfigurationError, re-throw it
 			if (error instanceof ConfigurationError) {
@@ -92,6 +118,10 @@ export class ConfigIO {
 			}
 
 			// Otherwise, wrap in ConfigurationError
+			logger.error('Failed to read config file', {
+				path: filePath,
+				error: error instanceof Error ? error.message : String(error),
+			});
 			throw new ConfigurationError(
 				`Cannot read configuration file: ${
 					error instanceof Error ? error.message : String(error)
@@ -109,15 +139,21 @@ export class ConfigIO {
 	 * @throws ConfigurationError if parsing fails
 	 */
 	parseConfigFile(content: string, format: 'json' | 'yaml' | 'yml'): unknown {
-		try {
-			if (format === 'json') {
-				return JSON.parse(content);
-			}
+		logger.debug('Parsing config file', {format});
 
-			// Parse YAML
-			return parseYaml(content);
+		try {
+			// Parse JSON or YAML based on format
+			const parsed: unknown =
+				format === 'json' ? JSON.parse(content) : parseYaml(content);
+
+			logger.info('Config file parsed successfully', {format});
+			return parsed;
 		} catch (error) {
 			const formatName = format.toUpperCase();
+			logger.error('Config parsing failed', {
+				format,
+				error: error instanceof Error ? error.message : String(error),
+			});
 			throw new ConfigurationError(
 				`Invalid ${formatName} syntax: ${
 					error instanceof Error ? error.message : String(error)
@@ -167,6 +203,8 @@ export class ConfigIO {
 	 * @throws ConfigurationError if validation fails
 	 */
 	validateConfig(data: unknown, filePath: string): UxLintConfig {
+		logger.debug('Validating config', {filePath});
+
 		// Check if data is an object
 		if (!data || typeof data !== 'object') {
 			throw new ConfigurationError('Configuration must be an object', filePath);
@@ -234,6 +272,10 @@ export class ConfigIO {
 		}
 
 		// Return the validated config (TypeScript now knows it's valid)
+		logger.info('Config validation successful', {
+			filePath,
+			pagesCount: (config['pages'] as unknown[]).length,
+		});
 		return config as UxLintConfig;
 	}
 
@@ -309,16 +351,35 @@ export class ConfigIO {
 		const format = saveOptions.format ?? 'yaml';
 		const filePath = this.determineFilePath({...saveOptions, format});
 
-		// Serialize based on format
-		const content =
-			format === 'json'
-				? this.serializeToJson(config)
-				: this.serializeToYaml(config);
+		logger.info('Saving config file', {
+			format,
+			filePath: saveOptions.filePath ?? 'default',
+		});
 
-		// Write to file
-		await this.fsAsync.writeFile(filePath, content, 'utf8');
+		try {
+			// Serialize based on format
+			const content =
+				format === 'json'
+					? this.serializeToJson(config)
+					: this.serializeToYaml(config);
 
-		return filePath;
+			// Write to file
+			await this.fsAsync.writeFile(filePath, content, 'utf8');
+
+			logger.info('Config file saved successfully', {
+				path: filePath,
+				format,
+				size: content.length,
+			});
+
+			return filePath;
+		} catch (error) {
+			logger.error('Failed to save config file', {
+				path: filePath,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			throw error;
+		}
 	}
 
 	/**
@@ -374,6 +435,9 @@ export class ConfigIO {
 				fileSize,
 			};
 		} catch (error) {
+			logger.error('Config save failed', {
+				error: error instanceof Error ? error.message : String(error),
+			});
 			return {
 				success: false,
 				error: error instanceof Error ? error.message : String(error),
