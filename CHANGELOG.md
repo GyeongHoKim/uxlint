@@ -1,3 +1,65 @@
+# [3.0.0](https://github.com/GyeongHoKim/uxlint/compare/v2.3.0...v3.0.0) (2025-12-24)
+
+
+### Bug Fixes
+
+* dotenv import error ([150257b](https://github.com/GyeongHoKim/uxlint/commit/150257b8ff4ff8c54511e15bd3b6f4a1f687ed9b))
+* logger, JWT token validation, constants ([ab413c4](https://github.com/GyeongHoKim/uxlint/commit/ab413c4677b79b75a0a2e72a8ecef9c8059ce61f))
+
+
+### Code Refactoring
+
+* move AI config from .uxlintrc to environment variables ([890b266](https://github.com/GyeongHoKim/uxlint/commit/890b266cbc776f752346246c4055ac174bcb8b72))
+
+
+### Features
+
+* add logout hook ([c367f47](https://github.com/GyeongHoKim/uxlint/commit/c367f47373f10019fe056b80af02ac40109cc6b5))
+* add logs for uxlint client auth ([abef8ec](https://github.com/GyeongHoKim/uxlint/commit/abef8ec505ae128c153bc6b453f6116f01d0e718))
+* add redirect uri to .env.example for customization ([7707315](https://github.com/GyeongHoKim/uxlint/commit/7707315ad6b6ec3a1a15db332b3ade422de31ce6))
+* auth error code and message improvement ([290fee5](https://github.com/GyeongHoKim/uxlint/commit/290fee5cd09c929cbc4559cfdfa79fd7c9234148))
+* auth error ui ([f6d96ca](https://github.com/GyeongHoKim/uxlint/commit/f6d96ca081630acea8dc4038e6f60bdbf1fc49d5))
+* auth releated models ([2ba1102](https://github.com/GyeongHoKim/uxlint/commit/2ba1102a3d0043b8324a30ebf8a735203fe3674c))
+* auth-status ui ([45c00ac](https://github.com/GyeongHoKim/uxlint/commit/45c00accd310704c53fb393c1446b375fc27d28e))
+* browserfallback ui ([a51a5b2](https://github.com/GyeongHoKim/uxlint/commit/a51a5b2e49d3f32b69c2309d622a5c2b3f35d6d8))
+* callback server ([c6e1c96](https://github.com/GyeongHoKim/uxlint/commit/c6e1c9680919b19c7ddbf46e3a80b5429ff1d384))
+* cli help update and add auth components ui ([0218432](https://github.com/GyeongHoKim/uxlint/commit/021843213f771af0b2c0d157e70555fd67f70e04))
+* define BrowserService, KeychainService interface ([5bd3fbb](https://github.com/GyeongHoKim/uxlint/commit/5bd3fbb08bf90d9784e11529d0bffd3d164889aa))
+* genrating PKCE params ([ee71007](https://github.com/GyeongHoKim/uxlint/commit/ee710078a65311c3a13f4330048e39cce3ac5ac3))
+* implement BrowserService, KeychainService ([a2e3207](https://github.com/GyeongHoKim/uxlint/commit/a2e32075a479a2bb6bd6014cb439f3a6cfdb758f))
+* implement token-manager ([36bb7b7](https://github.com/GyeongHoKim/uxlint/commit/36bb7b7d9dffb56d30a0b15a65eb6d998dc9eb6e))
+* implementation of oauth orchastration ([476f992](https://github.com/GyeongHoKim/uxlint/commit/476f9923ec5285cdabf91adab07bbf9be50db6b4))
+* implementation of uxlint-client ([1f9c293](https://github.com/GyeongHoKim/uxlint/commit/1f9c293d859f9071b6037a4e779e561c6fa17ed3))
+* login-flow ui ([8a7a860](https://github.com/GyeongHoKim/uxlint/commit/8a7a860ed412fb9600e042ee227871e3f175b7e7))
+* oauth client implementation ([521276a](https://github.com/GyeongHoKim/uxlint/commit/521276af737d777664cec3066022e659e38e3885))
+* oidc discovery path, jwt verification ([179745e](https://github.com/GyeongHoKim/uxlint/commit/179745e9717d3df74276c50fa9f886185b7a7d77))
+* read .env for client id and redirect url ([173ad3d](https://github.com/GyeongHoKim/uxlint/commit/173ad3d2cc0329e2970cb309d06260e23598374d))
+* sigint handler in cli.tsx ([551a712](https://github.com/GyeongHoKim/uxlint/commit/551a712df34c58b0ab32f020f4fff51fbe2917a6))
+* types related to OAuth defined ([c4c76d4](https://github.com/GyeongHoKim/uxlint/commit/c4c76d476e0c3752ae94df040f0666253d4f13cd))
+
+
+### BREAKING CHANGES
+
+* AI configuration has been moved from .uxlintrc files to environment variables for security.
+
+- Create env-io.ts module to handle all environment variable loading
+- Add comprehensive validation for AI and Cloud configuration
+- Remove ai field from UxLintConfig type (breaking change)
+- Update .env.example with AI provider configuration examples
+- Refactor llm-provider.ts to use env-io instead of direct process.env access
+- Refactor oauth-config.ts to use env-io for cloud configuration
+- Add 23 comprehensive tests for env-io module
+
+Migration guide:
+1. Remove 'ai' section from .uxlintrc files
+2. Set environment variables in .env:
+   - UXLINT_AI_PROVIDER (required: anthropic, openai, ollama, xai, google)
+   - UXLINT_AI_API_KEY (required for all except ollama)
+   - UXLINT_AI_MODEL (optional, provider-specific defaults)
+   - UXLINT_AI_BASE_URL (optional, ollama only)
+
+This change ensures sensitive API keys are not committed to version control.
+
 # [2.3.0](https://github.com/GyeongHoKim/uxlint/compare/v2.2.1...v2.3.0) (2025-12-03)
 
 
