@@ -49,6 +49,96 @@ test('loadCloudConfig allows partial override of defaults', t => {
 });
 
 /**
+ * Logging Configuration Tests
+ */
+
+test('loadLoggingConfig returns default values when no env vars set', t => {
+	const envIO = new EnvIO(createMockEnv());
+	const config = envIO.loadLoggingConfig();
+
+	t.is(config.debugMode, false);
+	t.is(config.logDirectory, undefined);
+});
+
+test('loadLoggingConfig sets debugMode to true when DEBUG_MODE is "true"', t => {
+	const env = createMockEnv({
+		DEBUG_MODE: 'true',
+	});
+	const envIO = new EnvIO(env);
+	const config = envIO.loadLoggingConfig();
+
+	t.is(config.debugMode, true);
+	t.is(config.logDirectory, undefined);
+});
+
+test('loadLoggingConfig sets debugMode to false when DEBUG_MODE is "false"', t => {
+	const env = createMockEnv({
+		DEBUG_MODE: 'false',
+	});
+	const envIO = new EnvIO(env);
+	const config = envIO.loadLoggingConfig();
+
+	t.is(config.debugMode, false);
+	t.is(config.logDirectory, undefined);
+});
+
+test('loadLoggingConfig sets debugMode to false when DEBUG_MODE is not "true"', t => {
+	const env = createMockEnv({
+		DEBUG_MODE: '1',
+	});
+	const envIO = new EnvIO(env);
+	const config = envIO.loadLoggingConfig();
+
+	t.is(config.debugMode, false);
+	t.is(config.logDirectory, undefined);
+});
+
+test('loadLoggingConfig uses LOG_DIRECTORY when set', t => {
+	const env = createMockEnv({
+		LOG_DIRECTORY: '/custom/log/path',
+	});
+	const envIO = new EnvIO(env);
+	const config = envIO.loadLoggingConfig();
+
+	t.is(config.debugMode, false);
+	t.is(config.logDirectory, '/custom/log/path');
+});
+
+test('loadLoggingConfig sets logDirectory to undefined when LOG_DIRECTORY is empty string', t => {
+	const env = createMockEnv({
+		LOG_DIRECTORY: '',
+	});
+	const envIO = new EnvIO(env);
+	const config = envIO.loadLoggingConfig();
+
+	t.is(config.debugMode, false);
+	t.is(config.logDirectory, undefined);
+});
+
+test('loadLoggingConfig sets logDirectory to undefined when LOG_DIRECTORY is whitespace only', t => {
+	const env = createMockEnv({
+		LOG_DIRECTORY: '   ',
+	});
+	const envIO = new EnvIO(env);
+	const config = envIO.loadLoggingConfig();
+
+	t.is(config.debugMode, false);
+	t.is(config.logDirectory, undefined);
+});
+
+test('loadLoggingConfig handles both DEBUG_MODE and LOG_DIRECTORY together', t => {
+	const env = createMockEnv({
+		DEBUG_MODE: 'true',
+		LOG_DIRECTORY: '/var/log/uxlint',
+	});
+	const envIO = new EnvIO(env);
+	const config = envIO.loadLoggingConfig();
+
+	t.is(config.debugMode, true);
+	t.is(config.logDirectory, '/var/log/uxlint');
+});
+
+/**
  * AI Configuration Tests - Anthropic
  */
 
