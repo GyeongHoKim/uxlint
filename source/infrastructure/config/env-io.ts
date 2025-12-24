@@ -11,7 +11,6 @@ import process from 'node:process';
 import {config} from 'dotenv';
 import {ConfigurationError} from '../../models/errors.js';
 
-// Load .env file (quiet mode - don't throw if .env doesn't exist)
 config({quiet: true});
 
 /**
@@ -87,6 +86,16 @@ export type CloudEnvConfig = {
 };
 
 /**
+ * Logging environment configuration
+ */
+export type LoggingEnvConfig = {
+	/** Enable debug-level logging */
+	readonly debugMode: boolean;
+	/** Custom log directory path (optional) */
+	readonly logDirectory?: string;
+};
+
+/**
  * Complete environment configuration
  */
 export type EnvConfig = {
@@ -94,6 +103,8 @@ export type EnvConfig = {
 	readonly ai: AiEnvConfig;
 	/** Cloud/OAuth configuration */
 	readonly cloud: CloudEnvConfig;
+	/** Logging configuration */
+	readonly logging: LoggingEnvConfig;
 };
 
 /**
@@ -140,6 +151,28 @@ export class EnvIO {
 				this.env['UXLINT_CLOUD_API_BASE_URL'] ?? defaults.cloud.apiBaseUrl,
 			redirectUri:
 				this.env['UXLINT_CLOUD_REDIRECT_URI'] ?? defaults.cloud.redirectUri,
+		};
+	}
+
+	/**
+	 * Load logging configuration from environment
+	 *
+	 * @returns LoggingEnvConfig with debugMode and optional logDirectory
+	 *
+	 * @example
+	 * const envIO = new EnvIO();
+	 * const loggingConfig = envIO.loadLoggingConfig();
+	 * // loggingConfig.debugMode, loggingConfig.logDirectory
+	 */
+	loadLoggingConfig(): LoggingEnvConfig {
+		const logDirectory = this.env['LOG_DIRECTORY'];
+
+		return {
+			debugMode: this.env['DEBUG_MODE'] === 'true',
+			logDirectory:
+				logDirectory && logDirectory.trim().length > 0
+					? logDirectory
+					: undefined,
 		};
 	}
 
@@ -216,18 +249,19 @@ export class EnvIO {
 	/**
 	 * Load complete environment configuration
 	 *
-	 * @returns EnvConfig with AI and Cloud configurations
+	 * @returns EnvConfig with AI, Cloud, and Logging configurations
 	 * @throws ConfigurationError if required variables are missing or invalid
 	 *
 	 * @example
 	 * const envIO = new EnvIO();
 	 * const config = envIO.loadConfig();
-	 * // config.ai, config.cloud
+	 * // config.ai, config.cloud, config.logging
 	 */
 	loadConfig(): EnvConfig {
 		return {
 			ai: this.loadAiConfig(),
 			cloud: this.loadCloudConfig(),
+			logging: this.loadLoggingConfig(),
 		};
 	}
 
