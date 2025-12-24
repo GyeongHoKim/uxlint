@@ -4,7 +4,13 @@ AI-powered UX review CLI for web apps — guided by your product personas and ke
 
 ## Demo
 
-![uxlint demo](./uxlint-demo.gif)
+UI components while analysis
+
+![uxlint analysis image](./uxlint-analysis.png)
+
+Reports using xAI provider, grok-4-1-fast-reasoning model
+
+![uxlint report](./uxlint-report.png)
 
 ## Overview
 
