@@ -4,6 +4,7 @@ import process from 'node:process';
 import fs from 'node:fs';
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
+import {envIO} from './config/env-io.js';
 
 // Type definitions for fs dependency injection
 type FsSyncMethods = Pick<typeof fs, 'existsSync' | 'mkdirSync'>;
@@ -114,8 +115,14 @@ function getLogDirectory(): string {
  * because stdout is reserved for MCP protocol communication.
  *
  * Log level defaults to 'info' (logs info, warn, error only).
+ * Set DEBUG_MODE=true in .env to enable debug logging.
+ * Set LOG_DIRECTORY in .env to customize log directory path.
  */
-export const logger: ILogger = new WinstonLogger(getLogDirectory(), false);
+const loggingConfig = envIO.loadLoggingConfig();
+export const logger: ILogger = new WinstonLogger(
+	loggingConfig.logDirectory ?? getLogDirectory(),
+	loggingConfig.debugMode,
+);
 
 /**
  * Get log file path for user reference
