@@ -1,3 +1,10 @@
+# [3.1.0](https://github.com/GyeongHoKim/uxlint/compare/v3.0.0...v3.1.0) (2025-12-24)
+
+
+### Features
+
+* env-io handles log directory and debug mode ([c7eb51b](https://github.com/GyeongHoKim/uxlint/commit/c7eb51b4d2ee6897ea7badc86691992f2c46f534))
+
 # [3.0.0](https://github.com/GyeongHoKim/uxlint/compare/v2.3.0...v3.0.0) (2025-12-24)
 
 
