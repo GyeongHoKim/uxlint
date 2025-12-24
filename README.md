@@ -31,6 +31,21 @@ Or use directly with npx (no installation required):
 npx @gyeonghokim/uxlint
 ```
 
+### On Linux
+
+For using UXLint Cloud features, uxlint currently uses libsecret to store your OAuth credentials, so you may need to install it.
+
+Depending on your distribution, you will need to run the following command:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install libsecret-1-dev
+# Red Hat-based
+sudo yum install libsecret-devel
+# Arch Linux
+sudo pacman -S libsecret
+```
+
 ## Quick start
 
 ```bash
