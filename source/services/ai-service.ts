@@ -205,6 +205,14 @@ export class AIService {
 			const errorMessage =
 				error instanceof Error ? error.message : 'Unknown error';
 
+			// Log the error for debugging
+			logger.error('Page analysis failed', {
+				pageUrl: page.url,
+				error: errorMessage,
+				errorName: error instanceof Error ? error.name : 'Unknown',
+				stack: error instanceof Error ? error.stack : undefined,
+			});
+
 			// Reset current page analysis on error
 			this.reportBuilder.reset();
 			this.reportBuilder.setPersona(config.persona);
