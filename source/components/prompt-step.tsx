@@ -3,6 +3,7 @@
  * Provides progress indicator and consistent layout for wizard steps
  */
 
+import type {ReactNode} from 'react';
 import {Box, Text} from 'ink';
 import type {ThemeConfig} from '../models/index.js';
 import {UserInputLabel} from './user-input-label.js';
@@ -16,7 +17,7 @@ export type PromptStepProps = {
 	readonly label: string;
 	readonly isRequired?: boolean;
 	readonly theme: ThemeConfig;
-	readonly children: React.ReactNode;
+	readonly children: ReactNode;
 };
 
 /**
