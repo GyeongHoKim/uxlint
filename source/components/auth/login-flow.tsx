@@ -7,11 +7,7 @@ import {useUXLintClient} from '../providers/uxlint-client-context.js';
 import {BrowserFallback} from './browser-fallback.js';
 
 export type LoginFlowStatus =
-	| 'opening-browser'
-	| 'waiting'
-	| 'exchanging'
-	| 'success'
-	| 'error';
+	'opening-browser' | 'waiting' | 'exchanging' | 'success' | 'error';
 
 export type LoginFlowProps = {
 	/** Callback when login completes successfully */

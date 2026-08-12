@@ -476,9 +476,8 @@ test('loadConfig throws when AI config is invalid', t => {
  */
 
 test('envIO singleton instance is exported', async t => {
-	const {envIO} = await import(
-		'../../../source/infrastructure/config/env-io.js'
-	);
+	const {envIO} =
+		await import('../../../source/infrastructure/config/env-io.js');
 	t.truthy(envIO);
 	t.is(typeof envIO.loadCloudConfig, 'function');
 	t.is(typeof envIO.loadAiConfig, 'function');

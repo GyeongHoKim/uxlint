@@ -67,10 +67,7 @@ export class UrlValidationError extends ValidationError {
 		message: string,
 		public readonly originalUrl: string,
 		public readonly validationStep:
-			| 'format'
-			| 'protocol'
-			| 'hostname'
-			| 'reachability',
+			'format' | 'protocol' | 'hostname' | 'reachability',
 	) {
 		super(message, 'url', originalUrl, 'url');
 		this.name = 'UrlValidationError';
