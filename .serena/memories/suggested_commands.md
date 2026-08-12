@@ -12,7 +12,7 @@
 - `npm run lint` - Check linting rules with XO (zero violations required)
 
 ## Testing Commands
-- `npm test` - Run full test suite (prettier, xo, ava with coverage)
+- `npm test` - Run full test suite (build, prettier --check, xo, ava)
 - `npm run test:coverage` - Run tests with coverage report
 - `npm run lint` - Run XO linter only
 - `npm run format` - Format code with Prettier

@@ -6,7 +6,7 @@ uxlint is an AI-powered UX review CLI tool built with TypeScript and React (Ink)
 ## Tech Stack
 - **TypeScript** with ES modules
 - **React** via Ink (terminal UI framework)
-- **Ava** for testing with tsimp for TS support
+- **Ava** for testing, running against precompiled `dist/` via `@ava/typescript`
 - **XO** for linting (with React config)
 - **Prettier** for formatting
 - **Husky** for git hooks

@@ -3,10 +3,10 @@
 ## Language and Module System
 - **TypeScript** with ES modules only (`"type": "module"`)
 - **React** via Ink (terminal UI framework)
-- Node version: >=18.18.0
+- Node version: >=22.22.2
 
 ## TypeScript Configuration
-- Extends `@sindresorhus/tsconfig`
+- Self-contained tsconfig.json (no `extends`)
 - Strict mode enabled with comprehensive type checking
 - Output directory: `dist/`
 - React JSX transform (no need for React import)
@@ -33,7 +33,7 @@
   - `@typescript-eslint/naming-convention`: off
 
 ## Testing
-- **Ava** for testing with tsimp for TS support
+- **Ava** for testing, running against precompiled `dist/` via `@ava/typescript`
 - **ink-testing-library** for component testing
 - **c8** for coverage reporting (80% threshold)
 - Test files: `tests/**/*.spec.{ts,tsx}`

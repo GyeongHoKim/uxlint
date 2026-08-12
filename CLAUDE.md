@@ -14,14 +14,14 @@ This application uses the MCP (Model Context Protocol) for communication. **NEVE
 
 - TypeScript with ES modules
 - React via Ink (terminal UI framework)
-- Ava for testing with tsimp for TS support
+- Ava for testing, running against the precompiled `dist/` output via `@ava/typescript`
 - XO for linting (with React config)
 - Prettier for formatting
 - Husky for git hooks
 - Semantic release for versioning
 - Winston for file-only logging (MCP-safe)
 
-**Constitutional Principles** (see `.specify/memory/constitution.md` v1.2.0):
+**Constitutional Principles** (see `.specify/memory/constitution.md` v1.2.1):
 1. Code Quality Gates (compile → format → lint sequence) — NON-NEGOTIABLE
 2. Test-First Development (Unit tests for models, visual regression for components, mock-based tests for LLM integrations) — NON-NEGOTIABLE
 3. UX Consistency via Persona-First Design (with Ink ecosystem library discovery via GitHub MCP)
@@ -41,7 +41,8 @@ npm run compile        # Type-check without emitting files
 ### Testing
 
 ```bash
-npm test              # Run full test suite (prettier, xo, ava with coverage)
+npm test              # Run full test suite (build, prettier --check, xo, ava)
+npm run test:coverage # Same, but with c8 coverage reporting
 npm run lint          # Run XO linter only
 npm run format        # Format code with Prettier
 ```
@@ -68,7 +69,7 @@ npm run lint          # Check linting rules (zero violations required)
 
 **Execution Order**: compile → format → lint. Running format before lint prevents formatting-related linting violations.
 
-These quality gates are enforced by the project constitution (v1.2.0) and prevent commits with type errors, linting violations, or formatting inconsistencies. Do not bypass linting by using `// eslint-disable-next-line` or modifying the linting rules.
+These quality gates are enforced by the project constitution (v1.2.1) and prevent commits with type errors, linting violations, or formatting inconsistencies. Do not bypass linting by using `// eslint-disable-next-line`. Changing a linting rule is allowed only when the rule is genuinely wrong for this codebase, and the change must carry a comment explaining why.
 
 ### Local Testing
 
@@ -120,13 +121,13 @@ stateDiagram-v2
 **Testing Strategy** (Constitution II: Test-First Development):
 - **Models** (pure TypeScript classes/functions): Unit tests using Ava
 - **Components** (React/Ink UI): Visual regression tests using ink-testing-library
-- **Language Model Integrations**: Mock-based tests using AI SDK test helpers (`MockLanguageModelV3` from `ai/test`)
+- **Language Model Integrations**: Mock-based tests using AI SDK test helpers (`MockLanguageModelV2` from `ai/test`)
 - Tests MUST be written and approved BEFORE implementation
 - Tests MUST fail initially (red phase) before implementation begins
 - Coverage threshold: 80% via c8
 
 **Technical Setup**:
-- Ava configured in `ava.config.js` to use tsimp for TS/TSX support
+- Ava configured in `ava.config.js` to run against the precompiled `dist/` output (`@ava/typescript` with `compile: false` + `rewritePaths`), so `npm test` builds first
 - ink-testing-library used to render components and assert on terminal output
 - c8 for coverage reporting
 
@@ -135,14 +136,13 @@ stateDiagram-v2
 - XO with Prettier integration
 - EditorConfig enforces consistent formatting
 
-**CRITICAL - DO NOT MODIFY THESE FILES:**
+**Deliberately maintained configuration:**
 
-The following configuration files control the project's code quality tooling and MUST NOT be modified:
 - `xo.config.js` - XO linting configuration
 - `.prettierrc` - Prettier formatting configuration
 - `.prettierignore` - Prettier ignore patterns
 
-These files are carefully configured to work together. Modifying them can break the tooling integration and cause conflicts between formatters and linters. If you encounter linting or formatting issues, fix the source code to comply with the existing rules, do not modify the configuration files.
+These files are tuned to work together, and formatter/linter conflicts are easy to reintroduce. The default response to a lint or format failure is to fix the source, not the config. Change them only when the tooling itself requires it (a major upgrade, a rule that is genuinely wrong for this codebase), and state the reason in the commit message.
 
 ### Code Patterns
 
@@ -194,9 +194,9 @@ See README.md for full schema and examples.
 
 ## Important Constraints
 
-- **Node version:** >=18.18.0
+- **Node version:** >=22.22.2 (development and CI are pinned to Node 24 via `.nvmrc`)
 - **Module system:** ES modules only (`"type": "module"`)
-- **TSConfig:** Extends `@sindresorhus/tsconfig`, outputs to `dist/`, uses React JSX transform
+- **TSConfig:** self-contained (no `extends`), `module`/`moduleResolution: node16`, outputs to `dist/`, uses React JSX transform
 - **Git hooks:** Husky enforces commitlint (conventional commits)
 
 ## Release Process
@@ -204,8 +204,8 @@ See README.md for full schema and examples.
 Uses semantic-release configured in `.releaserc.json`. Release workflow runs on main branch pushes.
 
 ## Active Technologies
-- TypeScript (ES modules) with Node.js >=18.18.0 (003-cloud-oauth2)
+- TypeScript (ES modules) with Node.js >=22.22.2 (003-cloud-oauth2)
 - OS-native secure storage (keychain on macOS, credential manager on Windows, keyring on Linux) for tokens (003-cloud-oauth2)
 
 ## Recent Changes
-- 003-cloud-oauth2: Added TypeScript (ES modules) with Node.js >=18.18.0
+- 003-cloud-oauth2: Added TypeScript (ES modules) with Node.js >=22.22.2
