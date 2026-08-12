@@ -28,17 +28,17 @@ test.before(async () => {
 	const jwks = await getTestJWKS();
 
 	server.use(
-		http.get('https://app.uxlint.org/.well-known/jwks.json', () => {
+		http.get('https://app.uxlint.org/.well-known/jwks.json', () =>
 			// Return JWKS with proper content type
-			return HttpResponse.json(jwks, {
+			HttpResponse.json(jwks, {
 				headers: {
 					'Content-Type': 'application/json',
 					'Cache-Control': 'no-cache, no-store, must-revalidate',
 					Pragma: 'no-cache',
 					Expires: '0',
 				},
-			});
-		}),
+			}),
+		),
 		// Also handle with wildcard pattern to catch any variations
 		http.get('https://app.uxlint.org/.well-known/*', ({request}) => {
 			const url = new URL(request.url);
@@ -65,17 +65,17 @@ test.beforeEach(async () => {
 	const jwks = await getTestJWKS();
 
 	server.use(
-		http.get('https://app.uxlint.org/.well-known/jwks.json', () => {
+		http.get('https://app.uxlint.org/.well-known/jwks.json', () =>
 			// Return JWKS with proper content type
-			return HttpResponse.json(jwks, {
+			HttpResponse.json(jwks, {
 				headers: {
 					'Content-Type': 'application/json',
 					'Cache-Control': 'no-cache, no-store, must-revalidate',
 					Pragma: 'no-cache',
 					Expires: '0',
 				},
-			});
-		}),
+			}),
+		),
 		// Also handle with wildcard pattern to catch any variations
 		http.get('https://app.uxlint.org/.well-known/*', ({request}) => {
 			const url = new URL(request.url);
@@ -401,16 +401,16 @@ test('UXLintClient.login decodes ID token correctly', async t => {
 
 	server.resetHandlers();
 	server.use(
-		http.get('https://app.uxlint.org/.well-known/jwks.json', () => {
-			return HttpResponse.json(jwks, {
+		http.get('https://app.uxlint.org/.well-known/jwks.json', () =>
+			HttpResponse.json(jwks, {
 				headers: {
 					'Content-Type': 'application/json',
 					'Cache-Control': 'no-cache, no-store, must-revalidate',
 					Pragma: 'no-cache',
 					Expires: '0',
 				},
-			});
-		}),
+			}),
+		),
 	);
 
 	const {client} = await createTestClient();

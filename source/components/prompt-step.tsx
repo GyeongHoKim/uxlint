@@ -26,11 +26,11 @@ export type PromptStepProps = {
  * @example
  * ```tsx
  * <PromptStep
- *   stepNumber={1}
- *   totalSteps={7}
- *   label="Enter main page URL"
- *   required={true}
- *   theme={theme}
+ * stepNumber={1}
+ * totalSteps={7}
+ * label="Enter main page URL"
+ * required={true}
+ * theme={theme}
  * >
  *   <UserInput ... />
  * </PromptStep>

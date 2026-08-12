@@ -229,9 +229,9 @@ export class ReportBuilder {
 	private prioritizeFindings(findings: UxFinding[]): UxFinding[] {
 		const severityOrder = {critical: 0, high: 1, medium: 2, low: 3};
 
-		return [...findings].sort((a, b) => {
-			return severityOrder[a.severity] - severityOrder[b.severity];
-		});
+		return [...findings].sort(
+			(a, b) => severityOrder[a.severity] - severityOrder[b.severity],
+		);
 	}
 
 	/**

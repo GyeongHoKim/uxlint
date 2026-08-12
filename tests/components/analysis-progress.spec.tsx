@@ -128,7 +128,7 @@ test('waiting message displays with spinner when isWaitingForLLM is true', t => 
 	// Should show waiting message
 	t.true(output?.includes('AI is pondering'));
 	// Should show spinner (dots animation starts with braille char)
-	t.regex(output ?? '', /⠋|⠙|⠚|⠞|⠖|⠦|⠴|⠲|⠳|⠓/u);
+	t.regex(output ?? '', /[⠋⠓⠖⠙⠚⠞⠦⠲⠳⠴]/u);
 });
 
 test('waiting message has distinct styling from LLM response', t => {

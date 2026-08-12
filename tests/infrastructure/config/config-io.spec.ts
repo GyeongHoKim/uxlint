@@ -13,9 +13,9 @@ test('ConfigIO.findConfigFile() returns path when config exists', t => {
 	const configPath = join(testDir, '.uxlintrc.json');
 
 	// Create stubs for fs methods
-	const existsStub = sandbox.stub().callsFake((path: fs.PathLike) => {
-		return String(path) === configPath;
-	});
+	const existsStub = sandbox
+		.stub()
+		.callsFake((path: fs.PathLike) => String(path) === configPath);
 
 	const mockFsSync = {
 		existsSync: existsStub,
@@ -178,9 +178,9 @@ test('ConfigIO with sinon stubs: findConfigFile returns path when mocked file ex
 	const testDir = '/test/dir';
 	const expectedPath = join(testDir, '.uxlintrc.json');
 
-	const existsStub = sandbox.stub().callsFake((path: fs.PathLike) => {
-		return String(path).includes('.uxlintrc.json');
-	});
+	const existsStub = sandbox
+		.stub()
+		.callsFake((path: fs.PathLike) => String(path).includes('.uxlintrc.json'));
 
 	const mockFsSync = {
 		existsSync: existsStub,

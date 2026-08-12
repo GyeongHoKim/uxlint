@@ -30,10 +30,10 @@ test('useConfigWizard.validateAndSetMainUrl validates correct URL', t => {
 	});
 
 	act(() => {
-		const success = result.current.validateAndSetMainUrl(
+		const isSuccess = result.current.validateAndSetMainUrl(
 			result.current.currentInput,
 		);
-		t.true(success);
+		t.true(isSuccess);
 	});
 
 	t.is(result.current.state.phase, 'sub-urls');
@@ -47,8 +47,8 @@ test('useConfigWizard.validateAndSetMainUrl adds https:// prefix when missing', 
 	);
 
 	act(() => {
-		const success = result.current.validateAndSetMainUrl('example.com');
-		t.true(success);
+		const isSuccess = result.current.validateAndSetMainUrl('example.com');
+		t.true(isSuccess);
 	});
 
 	t.is(result.current.state.phase, 'sub-urls');
@@ -64,8 +64,8 @@ test('useConfigWizard.validateAndSetMainUrl throws RequiredFieldError for empty 
 	);
 
 	act(() => {
-		const success = result.current.validateAndSetMainUrl('');
-		t.false(success);
+		const isSuccess = result.current.validateAndSetMainUrl('');
+		t.false(isSuccess);
 	});
 
 	t.true(result.current.error instanceof RequiredFieldError);
@@ -77,8 +77,8 @@ test('useConfigWizard.validateAndSetMainUrl throws UrlValidationError for invali
 	);
 
 	act(() => {
-		const success = result.current.validateAndSetMainUrl('http://');
-		t.false(success);
+		const isSuccess = result.current.validateAndSetMainUrl('http://');
+		t.false(isSuccess);
 	});
 
 	t.true(result.current.error instanceof UrlValidationError);
@@ -94,10 +94,10 @@ test('useConfigWizard.validateAndAddSubUrl validates and adds sub URL', t => {
 	});
 
 	act(() => {
-		const success = result.current.validateAndAddSubUrl(
+		const isSuccess = result.current.validateAndAddSubUrl(
 			'https://example.com/about',
 		);
-		t.true(success);
+		t.true(isSuccess);
 	});
 
 	if (result.current.state.phase === 'sub-urls') {
@@ -116,8 +116,8 @@ test('useConfigWizard.validateAndAddSubUrl handles empty input as done', t => {
 	});
 
 	act(() => {
-		const success = result.current.validateAndAddSubUrl('');
-		t.true(success);
+		const isSuccess = result.current.validateAndAddSubUrl('');
+		t.true(isSuccess);
 	});
 
 	t.is(result.current.state.phase, 'pages');
@@ -133,11 +133,11 @@ test('useConfigWizard.validateAndAddPage validates feature description', t => {
 	});
 
 	act(() => {
-		const success = result.current.validateAndAddPage(
+		const isSuccess = result.current.validateAndAddPage(
 			'https://example.com',
 			'This is a valid feature description with more than 10 characters',
 		);
-		t.true(success);
+		t.true(isSuccess);
 	});
 
 	if (result.current.state.phase === 'pages') {
@@ -151,11 +151,11 @@ test('useConfigWizard.validateAndAddPage throws for too short feature descriptio
 	);
 
 	act(() => {
-		const success = result.current.validateAndAddPage(
+		const isSuccess = result.current.validateAndAddPage(
 			'https://example.com',
 			'short',
 		);
-		t.false(success);
+		t.false(isSuccess);
 	});
 
 	t.true(result.current.error instanceof LengthValidationError);
@@ -186,10 +186,10 @@ test('useConfigWizard.validateAndSetPersona validates persona description', t =>
 	});
 
 	act(() => {
-		const success = result.current.validateAndSetPersona(
+		const isSuccess = result.current.validateAndSetPersona(
 			'This is a valid persona description with more than 20 characters',
 		);
-		t.true(success);
+		t.true(isSuccess);
 	});
 
 	t.is(result.current.state.phase, 'report');
@@ -201,8 +201,8 @@ test('useConfigWizard.validateAndSetPersona throws for too short persona', t => 
 	);
 
 	act(() => {
-		const success = result.current.validateAndSetPersona('short');
-		t.false(success);
+		const isSuccess = result.current.validateAndSetPersona('short');
+		t.false(isSuccess);
 	});
 
 	t.true(result.current.error instanceof LengthValidationError);
@@ -239,11 +239,11 @@ test('useConfigWizard.validateAndSetReportPath validates report path', t => {
 	});
 
 	act(() => {
-		const success = result.current.validateAndSetReportPath(
+		const isSuccess = result.current.validateAndSetReportPath(
 			'./report.json',
 			'./default.json',
 		);
-		t.true(success);
+		t.true(isSuccess);
 	});
 
 	t.is(result.current.state.phase, 'summary');
@@ -280,11 +280,11 @@ test('useConfigWizard.validateAndSetReportPath uses default path when empty', t 
 	});
 
 	act(() => {
-		const success = result.current.validateAndSetReportPath(
+		const isSuccess = result.current.validateAndSetReportPath(
 			'',
 			'./default.json',
 		);
-		t.true(success);
+		t.true(isSuccess);
 	});
 
 	t.is(result.current.state.phase, 'summary');

@@ -81,22 +81,20 @@ export const oauthHandlers = [
 	}),
 
 	// OpenID Configuration endpoint
-	http.get(oauthEndpoints.openidConfig, () => {
-		return HttpResponse.json(mockOIDCConfig);
-	}),
+	http.get(oauthEndpoints.openidConfig, () =>
+		HttpResponse.json(mockOIDCConfig),
+	),
 
 	// User info endpoint
-	http.get(oauthEndpoints.userinfo, () => {
-		return HttpResponse.json(mockUserInfo);
-	}),
+	http.get(oauthEndpoints.userinfo, () => HttpResponse.json(mockUserInfo)),
 
 	// JWKS endpoint - returns empty keyset for testing
 	// Note: Tests use mock ID tokens that don't require real JWT verification
-	http.get(oauthEndpoints.jwks, () => {
-		return HttpResponse.json({
+	http.get(oauthEndpoints.jwks, () =>
+		HttpResponse.json({
 			keys: [],
-		});
-	}),
+		}),
+	),
 ];
 
 /**
@@ -107,39 +105,37 @@ export const oauthErrorHandlers = {
 	 * Returns a handler that simulates a network error on token endpoint.
 	 */
 	tokenNetworkError: () =>
-		http.post(oauthEndpoints.token, () => {
-			return HttpResponse.error();
-		}),
+		http.post(oauthEndpoints.token, () => HttpResponse.error()),
 
 	/**
 	 * Returns a handler that simulates an invalid grant error.
 	 */
 	tokenInvalidGrant: (description = 'Authorization code is invalid') =>
-		http.post(oauthEndpoints.token, () => {
-			return HttpResponse.json(
+		http.post(oauthEndpoints.token, () =>
+			HttpResponse.json(
 				{error: 'invalid_grant', error_description: description},
 				{status: 400},
-			);
-		}),
+			),
+		),
 
 	/**
 	 * Returns a handler that simulates a server error on OIDC config endpoint.
 	 */
 	oidcConfigServerError: () =>
-		http.get(oauthEndpoints.openidConfig, () => {
-			return HttpResponse.json({error: 'Server error'}, {status: 500});
-		}),
+		http.get(oauthEndpoints.openidConfig, () =>
+			HttpResponse.json({error: 'Server error'}, {status: 500}),
+		),
 
 	/**
 	 * Returns a handler that simulates an expired refresh token.
 	 */
 	refreshTokenExpired: () =>
-		http.post(oauthEndpoints.token, () => {
-			return HttpResponse.json(
+		http.post(oauthEndpoints.token, () =>
+			HttpResponse.json(
 				{error: 'invalid_grant', error_description: 'Refresh token expired'},
 				{status: 400},
-			);
-		}),
+			),
+		),
 };
 
 /**
@@ -148,9 +144,9 @@ export const oauthErrorHandlers = {
 export function createTokenHandler(
 	customResponse: Partial<typeof mockTokenResponse>,
 ) {
-	return http.post(oauthEndpoints.token, () => {
-		return HttpResponse.json({...mockTokenResponse, ...customResponse});
-	});
+	return http.post(oauthEndpoints.token, () =>
+		HttpResponse.json({...mockTokenResponse, ...customResponse}),
+	);
 }
 
 /**

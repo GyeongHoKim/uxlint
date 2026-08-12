@@ -334,7 +334,7 @@ export class ConfigIO {
 	 *
 	 * @example
 	 * const filePath = await configIO.saveConfigToFile(config, {
-	 *   shouldSave: true,
+	 * shouldSave: true,
 	 *   format: 'yaml',
 	 *   filePath: '.uxlintrc.yaml'
 	 * });

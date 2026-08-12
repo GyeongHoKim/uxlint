@@ -282,9 +282,6 @@ export function wizardReducer(
 		'REMOVE_SUB_URL',
 		'DONE_SUB_URLS',
 	];
-	const pageActions = ['ADD_PAGE', 'DONE_PAGES'];
-	const personaActions = ['SET_PERSONA'];
-
 	if (urlActions.includes(action.type)) {
 		return handleUrlActions(
 			state,
@@ -292,12 +289,16 @@ export function wizardReducer(
 		);
 	}
 
+	const pageActions = ['ADD_PAGE', 'DONE_PAGES'];
+
 	if (pageActions.includes(action.type)) {
 		return handlePageActions(
 			state,
 			action as Parameters<typeof handlePageActions>[1],
 		);
 	}
+
+	const personaActions = ['SET_PERSONA'];
 
 	if (personaActions.includes(action.type)) {
 		return handlePersonaActions(
@@ -329,7 +330,7 @@ export type UseWizardResult = {
  * @example
  * ```tsx
  * function ConfigWizard() {
- *   const {state, dispatch} = useWizard();
+ * const {state, dispatch} = useWizard();
  *
  *   if (state.phase === 'intro') {
  *     return <IntroScreen onStart={() => dispatch({type: 'START_WIZARD'})} />;

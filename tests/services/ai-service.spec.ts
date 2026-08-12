@@ -24,10 +24,12 @@ test('onProgress callback type accepts llmResponse parameter', t => {
 		llmResponse,
 	) => {
 		// Verify callback accepts llmResponse parameter
-		if (llmResponse) {
-			t.truthy(llmResponse.iteration);
-			t.truthy(llmResponse.timestamp);
+		if (!llmResponse) {
+			return;
 		}
+
+		t.truthy(llmResponse.iteration);
+		t.truthy(llmResponse.timestamp);
 	};
 
 	t.truthy(onProgress);
@@ -321,10 +323,12 @@ test('AIService calls onProgress with increasing iteration numbers for multiple 
 		_message,
 		llmResponse,
 	) => {
-		if (llmResponse) {
-			receivedIterations.push(llmResponse.iteration);
-			receivedLLMResponses.push(llmResponse);
+		if (!llmResponse) {
+			return;
 		}
+
+		receivedIterations.push(llmResponse.iteration);
+		receivedLLMResponses.push(llmResponse);
 	};
 
 	// Initialize page analysis before calling analyzePage
@@ -452,13 +456,13 @@ test('AIService surfaces tool call arguments in the LLM response sent to the UI'
 	reportBuilder.initializePageAnalysis(page.url, page.features);
 	await aiService.analyzePage(config, page, onProgress);
 
-	const addFindingCall = receivedLLMResponses
+	const findingToolCall = receivedLLMResponses
 		.flatMap(response => response.toolCalls ?? [])
 		.find(toolCall => toolCall.toolName === 'addFinding');
 
-	t.truthy(addFindingCall, 'Should report the addFinding tool call to the UI');
+	t.truthy(findingToolCall, 'Should report the addFinding tool call to the UI');
 	t.deepEqual(
-		addFindingCall?.args,
+		findingToolCall?.args,
 		finding,
 		'Tool call arguments should reach the UI instead of an empty object',
 	);

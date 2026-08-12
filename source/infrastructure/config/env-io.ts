@@ -11,6 +11,7 @@ import process from 'node:process';
 import {config} from 'dotenv';
 import {ConfigurationError} from '../../models/errors.js';
 
+// eslint-disable-next-line unicorn/no-top-level-side-effects -- .env must be loaded before any config getter reads process.env
 config({quiet: true});
 
 /**

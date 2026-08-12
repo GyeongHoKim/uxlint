@@ -38,8 +38,8 @@ test('machine context is initialized from input', t => {
 		configExists: true,
 	});
 	const context = getContext(actor);
-	t.is(context.interactive, true);
-	t.is(context.configExists, true);
+	t.true(context.interactive);
+	t.true(context.configExists);
 	t.is(context.exitCode, 0);
 });
 

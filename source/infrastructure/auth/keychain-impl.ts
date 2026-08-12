@@ -69,15 +69,15 @@ export class KeytarKeychainService implements IKeychainService {
 		logger.debug('Deleting password from keychain', {service, account});
 
 		try {
-			const result = await keytar.deletePassword(service, account);
+			const isResult = await keytar.deletePassword(service, account);
 
 			logger.info('Password deleted from keychain', {
 				service,
 				account,
-				deleted: result,
+				deleted: isResult,
 			});
 
-			return result;
+			return isResult;
 		} catch (error) {
 			logger.error('Keychain deletePassword failed', {
 				service,
@@ -96,11 +96,11 @@ export class KeytarKeychainService implements IKeychainService {
 		try {
 			// Test keychain availability by attempting a safe operation
 			// Just check if keytar module loaded successfully
-			const available = typeof keytar.getPassword === 'function';
+			const isAvailable = typeof keytar.getPassword === 'function';
 
-			logger.debug('Checking keychain availability', {available});
+			logger.debug('Checking keychain availability', {available: isAvailable});
 
-			return available;
+			return isAvailable;
 		} catch {
 			logger.debug('Keychain not available', {
 				error: 'keytar module not loaded',

@@ -3,8 +3,8 @@
  * Implements the state machine defined in README.md
  */
 import {assign, setup} from 'xstate';
-import type {UxLintConfig} from '../models/config.js';
-import {MissingConfigError} from '../models/errors.js';
+import type {UxLintConfig} from './config.js';
+import {MissingConfigError} from './errors.js';
 import type {UxReport} from './analysis.js';
 
 /**

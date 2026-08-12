@@ -14,6 +14,8 @@ import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
  *
  * @param predicate Condition to wait for
  * @param options Timeout and poll interval in milliseconds
+ * @param options.timeout Milliseconds to wait before giving up
+ * @param options.interval Milliseconds between polls
  */
 export async function waitFor(
 	predicate: () => boolean,
@@ -38,7 +40,7 @@ export async function waitFor(
  *
  * Only `tools()` and `close()` are implemented, because those are the only
  * members AIService ever calls. Spelling out the full MCPClient interface is
- * what made the previous version of this helper break on every @ai-sdk/mcp
+ * what made the previous version of this helper break on every `@ai-sdk/mcp`
  * release -- v2 alone added listTools, callTool, toolsFromDefinitions,
  * complete and onElicitationRequest, and renamed listPrompts/getPrompt to
  * experimental_*.

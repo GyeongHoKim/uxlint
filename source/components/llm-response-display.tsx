@@ -56,8 +56,7 @@ export function LLMResponseDisplay({
 	const remainingCount = toolCalls.length - maxToolCalls;
 
 	// Build header with iteration, page info, and URL
-	const headerParts: string[] = [];
-	headerParts.push(`Iteration ${response.iteration}`);
+	const headerParts: string[] = [`Iteration ${response.iteration}`];
 
 	if (currentPage && totalPages) {
 		headerParts.push(`Page ${currentPage}/${totalPages}`);

@@ -141,18 +141,20 @@ test('logout handles keychain errors gracefully', async t => {
 		throw new Error('Keychain access denied');
 	};
 
-	// Logout should handle the error (implementation may throw or swallow)
-	try {
-		await client.logout();
-		// If it doesn't throw, that's acceptable behavior
-		t.pass();
-	} catch (error: unknown) {
-		// If it throws, verify it's an appropriate error
-		t.true(error instanceof Error);
-		t.true(
-			(error as Error).message.includes('Keychain') ||
-				(error as Error).message.includes('denied'),
+	// Logout may either swallow the keychain failure or surface it, but it must
+	// not reject with an unrelated error.
+	const thrown = await t.throwsAsync(client.logout()).catch(() => undefined);
+
+	if (thrown) {
+		t.true(thrown instanceof Error, 'Should reject with an Error');
+		t.regex(
+			thrown.message,
+			/keychain|denied/i,
+			'Rejection should describe the keychain failure',
 		);
+	} else {
+		// Swallowing the keychain failure is acceptable behavior.
+		t.is(thrown, undefined);
 	}
 
 	// Restore original function

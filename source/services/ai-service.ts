@@ -58,11 +58,11 @@ export class AIService {
 	constructor(
 		model: LanguageModelV4,
 		mcpClient: MCPClient,
-		reportBuilder: ReportBuilder,
+		builder: ReportBuilder,
 	) {
 		this.model = model;
 		this.mcpClient = mcpClient;
-		this.reportBuilder = reportBuilder;
+		this.reportBuilder = builder;
 	}
 
 	/**
@@ -122,10 +122,10 @@ export class AIService {
 			];
 
 			let iterations = 0;
-			let analysisCompleted = false;
+			let isAnalysisCompleted = false;
 
 			// Manual Agent Loop - await in loop is intentional for sequential LLM calls
-			while (iterations < MAX_AGENT_ITERATIONS && !analysisCompleted) {
+			while (iterations < MAX_AGENT_ITERATIONS && !isAnalysisCompleted) {
 				iterations++;
 
 				// Show waiting message before LLM call
@@ -185,12 +185,12 @@ export class AIService {
 				}
 
 				if (shouldContinue === 'completed') {
-					analysisCompleted = true;
+					isAnalysisCompleted = true;
 				}
 			}
 
 			// If analysis was not completed properly, complete it now
-			if (!analysisCompleted) {
+			if (!isAnalysisCompleted) {
 				const state = this.reportBuilder.getCurrentState();
 				if (state.currentPageAnalysis) {
 					this.reportBuilder.completePageAnalysis();
@@ -287,11 +287,11 @@ export class AIService {
 		iterations: number,
 	): boolean | 'completed' {
 		if (result.finishReason === 'tool-calls' && result.toolCalls) {
-			const completeCall = result.toolCalls.find(
+			const isComplete = result.toolCalls.some(
 				tc => tc.toolName === 'completePageAnalysis',
 			);
 
-			if (completeCall) {
+			if (isComplete) {
 				return 'completed';
 			}
 
@@ -320,7 +320,7 @@ export class AIService {
 	 * Create report building tools for LLM
 	 */
 	private createReportTools() {
-		const {reportBuilder} = this;
+		const builder = this.reportBuilder;
 
 		return {
 			addFinding: tool({
@@ -329,13 +329,13 @@ export class AIService {
 Usage: Call this tool multiple times, once per issue. Do not batch findings together.`,
 				inputSchema: UxFindingSchema,
 				async execute(input) {
-					reportBuilder.addFinding(input);
+					builder.addFinding(input);
 					return {
 						success: true,
 						message: 'Finding added successfully',
 						currentFindingsCount:
-							reportBuilder.getCurrentState().currentPageAnalysis?.findings
-								?.length ?? 0,
+							builder.getCurrentState().currentPageAnalysis?.findings?.length ??
+							0,
 					};
 				},
 			}),
@@ -347,7 +347,7 @@ Usage: Call this tool multiple times, once per issue. Do not batch findings toge
 					snapshot: z.string(),
 				}),
 				async execute({snapshot}) {
-					reportBuilder.setPageSnapshot(snapshot);
+					builder.setPageSnapshot(snapshot);
 					return {
 						success: true,
 						message: 'Snapshot saved successfully',
@@ -360,7 +360,7 @@ Usage: Call this tool multiple times, once per issue. Do not batch findings toge
 					'Mark the current page analysis as complete. REQUIRED: You MUST call this tool when you have finished analyzing all UX aspects and reporting findings. The analysis is not complete until you call this.',
 				inputSchema: z.object({}),
 				async execute() {
-					const completedAnalysis = reportBuilder.completePageAnalysis();
+					const completedAnalysis = builder.completePageAnalysis();
 					return {
 						success: true,
 						message: 'Page analysis completed',

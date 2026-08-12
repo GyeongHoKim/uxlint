@@ -42,24 +42,23 @@ export function AnalysisRunner({
 }: AnalysisRunnerProps) {
 	// Use analysis orchestration hook
 	const {analysisState, runAnalysis, getCurrentPageUrl} = useAnalysis(config);
-	const [showExitPrompt, setShowExitPrompt] = useState(false);
 	const [hasNotified, setHasNotified] = useState(false);
+
+	// Derived, not state: the exit prompt is a pure function of the stage, and
+	// setting it from an effect would trigger an extra render pass.
+	const isTerminalStage =
+		analysisState.currentStage === 'complete' ||
+		analysisState.currentStage === 'error';
 
 	useEffect(() => {
 		void runAnalysis();
 	}, [runAnalysis]);
 
-	// Show exit prompt and notify when complete or error
+	// Notify the caller once the analysis reaches a terminal stage
 	useEffect(() => {
-		const isTerminalStage =
-			analysisState.currentStage === 'complete' ||
-			analysisState.currentStage === 'error';
-
 		if (!isTerminalStage) {
 			return;
 		}
-
-		setShowExitPrompt(true);
 
 		if (hasNotified) {
 			return;
@@ -70,6 +69,7 @@ export function AnalysisRunner({
 				return;
 			}
 
+			// eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot guard so the caller is notified exactly once; there is no render-time equivalent
 			setHasNotified(true);
 			onComplete(analysisState.finalReport);
 			return;
@@ -80,6 +80,7 @@ export function AnalysisRunner({
 			onError(analysisState.error ?? new Error('Unknown analysis error'));
 		}
 	}, [
+		isTerminalStage,
 		analysisState.currentStage,
 		analysisState.error,
 		analysisState.finalReport,
@@ -103,19 +104,19 @@ export function AnalysisRunner({
 			/>
 
 			{/* Show completion message and exit prompt */}
-			{Boolean(showExitPrompt && analysisState.currentStage === 'complete') && (
+			{isTerminalStage && analysisState.currentStage === 'complete' ? (
 				<Box flexDirection="column" gap={1} marginTop={1}>
 					<Text color="green">✓ Report saved to: {config.report.output}</Text>
 					{!onComplete && <Text dimColor>Press any key to exit</Text>}
 				</Box>
-			)}
+			) : null}
 
 			{/* Show error message and exit prompt */}
-			{Boolean(showExitPrompt && analysisState.currentStage === 'error') && (
+			{isTerminalStage && analysisState.currentStage === 'error' ? (
 				<Box flexDirection="column" gap={1} marginTop={1}>
 					{!onError && <Text dimColor>Press any key to exit</Text>}
 				</Box>
-			)}
+			) : null}
 		</Box>
 	);
 }

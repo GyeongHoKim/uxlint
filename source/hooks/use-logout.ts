@@ -12,8 +12,8 @@ export const useLogout = () => {
 		try {
 			await uxlintClient.logout();
 			setIsSuccess(true);
-		} catch (error) {
-			setError(error instanceof Error ? error : new Error(String(error)));
+		} catch (error_) {
+			setError(error_ instanceof Error ? error_ : new Error(String(error_)));
 		} finally {
 			setIsLoading(false);
 		}
