@@ -114,12 +114,15 @@ export class CallbackServer {
 				throw error;
 			}
 
+			// Narrow to Error before the OAuth check: handleOAuthError returns
+			// `never`, so TypeScript treats everything after the check as
+			// "unknown minus OAuthError", which excludes all object types.
+			const currentError =
+				error instanceof Error ? error : new Error(String(error));
+
 			if (this.isOAuthError(error)) {
 				this.handleOAuthError(error);
 			}
-
-			const currentError =
-				error instanceof Error ? error : new Error(String(error));
 
 			return this.tryPorts({
 				ports,
@@ -189,7 +192,7 @@ export class CallbackServer {
 			typeof error === 'object' &&
 			error !== null &&
 			'error' in error &&
-			typeof (error as {error: unknown}).error === 'string'
+			typeof error.error === 'string'
 		);
 	}
 

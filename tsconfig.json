@@ -27,8 +27,7 @@
 		"useDefineForClassFields": true,
 		"forceConsistentCasingInFileNames": true,
 		"skipLibCheck": true,
-		"types": ["node"],
-		"baseUrl": "."
+		"types": ["node"]
 	},
 	"include": ["source", "tests"]
 }

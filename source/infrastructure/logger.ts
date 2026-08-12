@@ -56,7 +56,7 @@ export class WinstonLogger implements ILogger {
 					maxSize: '10m', // 10MB per file
 					maxFiles: '14d', // Keep logs for 14 days
 					zippedArchive: true,
-				}) as winston.transport,
+				}),
 			],
 			// Explicitly disable console/stdout output to prevent MCP protocol interference
 			silent: false,
