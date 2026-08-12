@@ -5,7 +5,7 @@
 
 import {promises as fsPromises} from 'node:fs';
 import {act, renderHook, type RenderHookResult} from '@testing-library/react';
-import {MockLanguageModelV2} from 'ai/test';
+import {MockLanguageModelV4} from 'ai/test';
 import test from 'ava';
 import sinon from 'sinon';
 import {
@@ -27,15 +27,23 @@ test('useAnalysis updates iteration number within same page', async t => {
 
 	// Create mock language model that requires multiple iterations
 	let callCount = 0;
-	const mockModel = new MockLanguageModelV2({
+	const mockModel = new MockLanguageModelV4({
 		async doGenerate() {
 			callCount++;
 			if (callCount === 1) {
 				// First iteration: stop without tool calls (triggers reminder)
 				return {
 					content: [],
-					finishReason: 'stop',
-					usage: {inputTokens: 10, outputTokens: 20, totalTokens: 30},
+					finishReason: {unified: 'stop', raw: undefined},
+					usage: {
+						inputTokens: {
+							total: 10,
+							noCache: 10,
+							cacheRead: undefined,
+							cacheWrite: undefined,
+						},
+						outputTokens: {total: 20, text: 20, reasoning: undefined},
+					},
 					warnings: [],
 				};
 			}
@@ -45,15 +53,21 @@ test('useAnalysis updates iteration number within same page', async t => {
 				content: [
 					{
 						type: 'tool-call',
-						toolCallType: 'function',
 						toolCallId: 'call-1',
 						toolName: 'completePageAnalysis',
-						args: '{}',
 						input: '{}',
 					},
 				],
-				finishReason: 'tool-calls',
-				usage: {inputTokens: 10, outputTokens: 20, totalTokens: 30},
+				finishReason: {unified: 'tool-calls', raw: undefined},
+				usage: {
+					inputTokens: {
+						total: 10,
+						noCache: 10,
+						cacheRead: undefined,
+						cacheWrite: undefined,
+					},
+					outputTokens: {total: 20, text: 20, reasoning: undefined},
+				},
 				warnings: [],
 			};
 		},
