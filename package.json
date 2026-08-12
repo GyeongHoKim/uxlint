@@ -33,7 +33,7 @@
 	},
 	"homepage": "https://github.com/GyeongHoKim/uxlint#readme",
 	"engines": {
-		"node": ">=18.18.0"
+		"node": ">=22.22.2"
 	},
 	"scripts": {
 		"build": "tsc",

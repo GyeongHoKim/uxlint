@@ -35,7 +35,7 @@ There are many ways to contribute to uxlint:
 
 ### Prerequisites
 
-- Node.js >= 18.18.0
+- Node.js >= 22.22.2 (development and CI use Node 24; see `.nvmrc`)
 - npm (comes with Node.js)
 - Git
 - A code editor (VS Code recommended)
@@ -232,7 +232,7 @@ uxlint enforces strict code quality standards through automated tooling.
 
 - All code must be valid TypeScript with zero type errors
 - Use strict type checking (no `any` types unless absolutely necessary)
-- Extend `@sindresorhus/tsconfig` for consistent configuration
+- Keep `tsconfig.json` self-contained (no `extends`) so compiler options stay explicit
 - Use ES modules (`import`/`export`, not `require`)
 
 ### Formatting
@@ -320,7 +320,7 @@ uxlint follows **Test-First Development** (Constitution II).
 ### Running Tests
 
 ```bash
-npm test                    # Run full test suite with coverage
+npm test                    # Run full test suite (build, prettier --check, xo, ava)
 npm run test:coverage       # Generate HTML coverage report
 npm test tests/test.spec.tsx    # Run a single test file
 npm run test --watch        # Watch mode (if configured)
@@ -495,7 +495,7 @@ For questions about using uxlint:
 
 ### Constitutional Principles
 
-uxlint is governed by constitutional principles documented in `.specify/memory/constitution.md` v1.2.0:
+uxlint is governed by constitutional principles documented in `.specify/memory/constitution.md` v1.2.1:
 
 1. **Code Quality Gates** (compile → format → lint sequence) — NON-NEGOTIABLE
 2. **Test-First Development** — NON-NEGOTIABLE

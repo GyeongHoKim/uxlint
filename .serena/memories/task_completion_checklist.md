@@ -10,7 +10,7 @@
 
 **Execution Order**: compile → format → lint
 
-These quality gates are enforced by the project constitution (v1.2.0) and prevent commits with type errors, linting violations, or formatting inconsistencies.
+These quality gates are enforced by the project constitution (v1.2.1) and prevent commits with type errors, linting violations, or formatting inconsistencies.
 
 ## Testing Requirements (Constitution II: Test-First Development)
 
