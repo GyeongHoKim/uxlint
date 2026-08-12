@@ -13,11 +13,6 @@ export default [
 	},
 	{
 		files: ['source/**/*.{ts,tsx}'],
-		languageOptions: {
-			parserOptions: {
-				project: ['./tsconfig.json'],
-			},
-		},
 		react: true,
 		prettier: true,
 		rules: {
@@ -32,11 +27,6 @@ export default [
 	},
 	{
 		files: ['tests/**/*.{ts,tsx}'],
-		languageOptions: {
-			parserOptions: {
-				project: ['./tsconfig.json'],
-			},
-		},
 		react: true,
 		prettier: true,
 		rules: {
