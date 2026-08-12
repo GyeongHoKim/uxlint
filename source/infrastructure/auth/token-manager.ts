@@ -115,10 +115,12 @@ export class TokenManager {
 	async isKeychainAvailable(): Promise<boolean> {
 		logger.debug('Checking keychain availability');
 
-		const isResult = await this.keychain.isAvailable();
+		const isKeychainAvailable = await this.keychain.isAvailable();
 
-		logger.debug('Keychain availability check complete', {available: isResult});
+		logger.debug('Keychain availability check complete', {
+			available: isKeychainAvailable,
+		});
 
-		return isResult;
+		return isKeychainAvailable;
 	}
 }
