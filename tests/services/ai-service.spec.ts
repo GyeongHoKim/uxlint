@@ -1,10 +1,10 @@
 /**
  * Mock-based tests for AIService LLM response callback and ReportBuilder
- * Uses MockLanguageModelV2 from ai/test as required by Constitution II (Test-First Development)
+ * Uses MockLanguageModelV4 from ai/test as required by Constitution II (Test-First Development)
  */
 
 import {promises as fsPromises} from 'node:fs';
-import {MockLanguageModelV2} from 'ai/test';
+import {MockLanguageModelV4} from 'ai/test';
 import test from 'ava';
 import sinon from 'sinon';
 import type {UxFinding} from '../../source/models/analysis.js';
@@ -137,25 +137,31 @@ test('generateFinalReport creates empty report when no page analysis is complete
 	sandbox.restore();
 });
 
-test('AIService generates valid report when LLM completes page analysis using MockLanguageModelV2', async t => {
+test('AIService generates valid report when LLM completes page analysis using MockLanguageModelV4', async t => {
 	const sandbox = sinon.createSandbox();
 
 	// Create mock MCP client
 	const mockMCPClient = createMockMCPClient();
 
-	// Create mock language model using MockLanguageModelV2 (Constitution requirement)
+	// Create mock language model using MockLanguageModelV4 (Constitution requirement)
 	// Reference: https://ai-sdk.dev/docs/ai-sdk-core/testing#testing
-	const mockModel = new MockLanguageModelV2({
+	const mockModel = new MockLanguageModelV4({
 		doGenerate: async () => ({
-			finishReason: 'tool-calls',
-			usage: {inputTokens: 10, outputTokens: 20, totalTokens: 30},
+			finishReason: {unified: 'tool-calls', raw: undefined},
+			usage: {
+				inputTokens: {
+					total: 10,
+					noCache: 10,
+					cacheRead: undefined,
+					cacheWrite: undefined,
+				},
+				outputTokens: {total: 20, text: 20, reasoning: undefined},
+			},
 			content: [
 				{
 					type: 'tool-call',
-					toolCallType: 'function',
 					toolCallId: 'call-1',
 					toolName: 'completePageAnalysis',
-					args: '{}',
 					input: '{}',
 				},
 			],
@@ -234,14 +240,22 @@ test('AIService calls onProgress with increasing iteration numbers for multiple 
 	// First iteration: returns 'stop' (no tool calls) - should trigger reminder
 	// Second iteration: returns 'tool-calls' with completePageAnalysis
 	let callCount = 0;
-	const mockModel = new MockLanguageModelV2({
+	const mockModel = new MockLanguageModelV4({
 		async doGenerate() {
 			callCount++;
 			if (callCount === 1) {
 				// First iteration: stop without tool calls (triggers reminder)
 				return {
-					finishReason: 'stop',
-					usage: {inputTokens: 10, outputTokens: 20, totalTokens: 30},
+					finishReason: {unified: 'stop', raw: undefined},
+					usage: {
+						inputTokens: {
+							total: 10,
+							noCache: 10,
+							cacheRead: undefined,
+							cacheWrite: undefined,
+						},
+						outputTokens: {total: 20, text: 20, reasoning: undefined},
+					},
 					content: [],
 					warnings: [],
 				};
@@ -249,15 +263,21 @@ test('AIService calls onProgress with increasing iteration numbers for multiple 
 
 			// Second iteration: complete the analysis
 			return {
-				finishReason: 'tool-calls',
-				usage: {inputTokens: 10, outputTokens: 20, totalTokens: 30},
+				finishReason: {unified: 'tool-calls', raw: undefined},
+				usage: {
+					inputTokens: {
+						total: 10,
+						noCache: 10,
+						cacheRead: undefined,
+						cacheWrite: undefined,
+					},
+					outputTokens: {total: 20, text: 20, reasoning: undefined},
+				},
 				content: [
 					{
 						type: 'tool-call',
-						toolCallType: 'function',
 						toolCallId: 'call-1',
 						toolName: 'completePageAnalysis',
-						args: '{}',
 						input: '{}',
 					},
 				],
@@ -329,6 +349,119 @@ test('AIService calls onProgress with increasing iteration numbers for multiple 
 			`LLM response ${index} should have iteration ${index + 1}`,
 		);
 	}
+
+	await aiService.close();
+	sandbox.restore();
+});
+
+test('AIService surfaces tool call arguments in the LLM response sent to the UI', async t => {
+	const sandbox = sinon.createSandbox();
+	const mockMCPClient = createMockMCPClient();
+	const receivedLLMResponses: LLMResponseData[] = [];
+
+	// Regression guard: the SDK renamed the tool-call payload from `args` to
+	// `input` in v5, and this service kept reading `args`. Because the result
+	// type was declared structurally, the compiler never caught it and every
+	// tool call rendered with empty arguments in the UI.
+	const finding = {
+		severity: 'high' as const,
+		title: 'Primary CTA is not discoverable',
+		description: 'The call to action sits below the fold.',
+		recommendation: 'Move the CTA above the fold.',
+		affectedElements: ['button.cta'],
+	};
+
+	let callCount = 0;
+	const mockModel = new MockLanguageModelV4({
+		async doGenerate() {
+			callCount++;
+			const usage = {
+				inputTokens: {
+					total: 10,
+					noCache: 10,
+					cacheRead: undefined,
+					cacheWrite: undefined,
+				},
+				outputTokens: {total: 20, text: 20, reasoning: undefined},
+			};
+
+			if (callCount === 1) {
+				return {
+					finishReason: {unified: 'tool-calls' as const, raw: undefined},
+					usage,
+					content: [
+						{
+							type: 'tool-call' as const,
+							toolCallId: 'call-finding',
+							toolName: 'addFinding',
+							input: JSON.stringify(finding),
+						},
+					],
+					warnings: [],
+				};
+			}
+
+			return {
+				finishReason: {unified: 'tool-calls' as const, raw: undefined},
+				usage,
+				content: [
+					{
+						type: 'tool-call' as const,
+						toolCallId: 'call-complete',
+						toolName: 'completePageAnalysis',
+						input: '{}',
+					},
+				],
+				warnings: [],
+			};
+		},
+	});
+
+	const mockFsAsync = {
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	};
+	const reportBuilder = new ReportBuilder(mockFsAsync);
+	const aiService = new AIService(mockModel, mockMCPClient, reportBuilder);
+
+	const config: UxLintConfig = {
+		mainPageUrl: 'https://example.com',
+		subPageUrls: [],
+		pages: [{url: 'https://example.com', features: 'Test page features'}],
+		persona: 'Test persona',
+		report: {output: './test-report.md'},
+	};
+
+	const page = config.pages[0];
+
+	if (!page) {
+		t.fail('Page is undefined');
+		return;
+	}
+
+	const onProgress: AnalysisProgressCallback = (
+		_stage,
+		_message,
+		llmResponse,
+	) => {
+		if (llmResponse) {
+			receivedLLMResponses.push(llmResponse);
+		}
+	};
+
+	reportBuilder.initializePageAnalysis(page.url, page.features);
+	await aiService.analyzePage(config, page, onProgress);
+
+	const addFindingCall = receivedLLMResponses
+		.flatMap(response => response.toolCalls ?? [])
+		.find(toolCall => toolCall.toolName === 'addFinding');
+
+	t.truthy(addFindingCall, 'Should report the addFinding tool call to the UI');
+	t.deepEqual(
+		addFindingCall?.args,
+		finding,
+		'Tool call arguments should reach the UI instead of an empty object',
+	);
 
 	await aiService.close();
 	sandbox.restore();

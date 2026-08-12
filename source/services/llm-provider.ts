@@ -1,4 +1,4 @@
-import {type LanguageModelV2} from '@ai-sdk/provider';
+import {type LanguageModelV4} from '@ai-sdk/provider';
 import type {UxLintConfig} from '../models/config.js';
 import {
 	envIO,
@@ -11,7 +11,7 @@ import {
  */
 async function createLanguageModel(
 	aiConfig: AiEnvConfig,
-): Promise<LanguageModelV2> {
+): Promise<LanguageModelV4> {
 	switch (aiConfig.provider) {
 		case 'anthropic': {
 			const {createAnthropic} = await import('@ai-sdk/anthropic');
@@ -40,8 +40,8 @@ async function createLanguageModel(
 		}
 
 		case 'google': {
-			const {createGoogleGenerativeAI} = await import('@ai-sdk/google');
-			const google = createGoogleGenerativeAI({apiKey: aiConfig.apiKey});
+			const {createGoogle} = await import('@ai-sdk/google');
+			const google = createGoogle({apiKey: aiConfig.apiKey});
 			return google(aiConfig.model!);
 		}
 	}
@@ -52,12 +52,12 @@ async function createLanguageModel(
  *
  * @param _config - UxLintConfig (unused, kept for backward compatibility)
  * @param envIoInstance - EnvIO instance for dependency injection (defaults to singleton)
- * @returns Promise that resolves to LanguageModelV2 instance
+ * @returns Promise that resolves to LanguageModelV4 instance
  */
 export async function getLanguageModel(
 	_config: UxLintConfig,
 	envIoInstance: EnvIO = envIO,
-): Promise<LanguageModelV2> {
+): Promise<LanguageModelV4> {
 	const aiConfig = envIoInstance.loadAiConfig();
 	return createLanguageModel(aiConfig);
 }

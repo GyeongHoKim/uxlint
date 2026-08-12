@@ -51,15 +51,15 @@
 		"dist"
 	],
 	"dependencies": {
-		"@ai-sdk/anthropic": "^2.0.27",
-		"@ai-sdk/google": "^2.0.28",
-		"@ai-sdk/mcp": "^0.0.7",
-		"@ai-sdk/openai": "^2.0.50",
-		"@ai-sdk/provider": "^2.0.0",
-		"@ai-sdk/xai": "^2.0.31",
+		"@ai-sdk/anthropic": "^4.0.37",
+		"@ai-sdk/google": "^4.0.41",
+		"@ai-sdk/mcp": "^2.0.30",
+		"@ai-sdk/openai": "^4.0.38",
+		"@ai-sdk/provider": "^4.0.7",
+		"@ai-sdk/xai": "^4.0.34",
 		"@inkjs/ui": "^2.0.0",
 		"@xstate/react": "^6.1.0",
-		"ai": "^5.0.68",
+		"ai": "^7.0.60",
 		"dotenv": "^17.2.3",
 		"ink": "^7.1.1",
 		"ink-big-text": "^2.0.0",
@@ -70,13 +70,13 @@
 		"keytar": "^7.9.0",
 		"meow": "^11.0.0",
 		"oauth-callback": "^1.2.1",
-		"ollama-ai-provider-v2": "^1.5.2",
+		"ollama-ai-provider-v2": "^4.0.1",
 		"open": "^11.0.0",
 		"react": "^19.2.8",
 		"winston": "^3.18.3",
 		"winston-daily-rotate-file": "^5.0.0",
 		"xstate": "^5.32.5",
-		"zod": "^4.1.12"
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@ava/typescript": "^6.0.0",
@@ -113,7 +113,6 @@
 		"semantic-release": "^25.0.2",
 		"sinon": "^21.0.0",
 		"typescript": "^6.0.3",
-		"vitest": "^4.1.10",
 		"xo": "^1.2.2"
 	},
 	"c8": {

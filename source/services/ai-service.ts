@@ -7,7 +7,7 @@
  */
 
 import {type experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
-import {type LanguageModelV2} from '@ai-sdk/provider';
+import {type LanguageModelV4} from '@ai-sdk/provider';
 import {generateText, tool, type ModelMessage} from 'ai';
 import {z} from 'zod/v4';
 import {getRandomWaitingMessage} from '../constants/waiting-messages.js';
@@ -51,12 +51,12 @@ const UxFindingSchema = z.object({
  * Orchestrates AI-powered UX analysis using MCP tools
  */
 export class AIService {
-	private readonly model: LanguageModelV2;
+	private readonly model: LanguageModelV4;
 	private readonly mcpClient: MCPClient;
 	private readonly reportBuilder: ReportBuilder;
 
 	constructor(
-		model: LanguageModelV2,
+		model: LanguageModelV4,
 		mcpClient: MCPClient,
 		reportBuilder: ReportBuilder,
 	) {
@@ -137,10 +137,17 @@ export class AIService {
 					request: {systemPrompt, messages},
 				});
 
+				// No `stopWhen`, so generateText performs exactly one step per
+				// call and this loop drives the agent itself. That assumption is
+				// load-bearing: in AI SDK 7 the top-level `toolCalls`, `content`
+				// and `usage` accumulate across *all* steps, so adding a
+				// multi-step stop condition would make processAgentResult see
+				// tool calls from earlier steps. If multi-step is ever wanted,
+				// switch processAgentResult to read `result.finalStep`.
 				// eslint-disable-next-line no-await-in-loop
 				const result = await generateText({
 					model: this.model,
-					system: systemPrompt,
+					instructions: systemPrompt,
 					messages,
 					tools,
 				});
@@ -160,9 +167,11 @@ export class AIService {
 				const llmResponse = this.createLLMResponseData(result, iterations);
 				onProgress?.('analyzing', undefined, llmResponse);
 
-				// Add response messages to history
-				const responseMessages = result.response.messages;
-				messages.push(...responseMessages);
+				// Add response messages to history.
+				// `result.response` is deprecated in AI SDK 7 in favour of
+				// `finalStep.response`; `responseMessages` is the accumulated
+				// assistant/tool message list this loop needs.
+				messages.push(...result.responseMessages);
 
 				// Process result and check if analysis is complete
 				const shouldContinue = this.processAgentResult(
@@ -238,7 +247,7 @@ export class AIService {
 			toolCalls?: Array<{
 				toolName: string;
 				toolCallId?: string;
-				args?: unknown;
+				input?: unknown;
 			}>;
 			finishReason?: string;
 		},
@@ -250,11 +259,13 @@ export class AIService {
 			toolCalls: result.toolCalls?.map((tc, index) => ({
 				id: tc.toolCallId ?? `${tc.toolName}-${iteration}-${index}`,
 				toolName: tc.toolName,
+				// The SDK has called this `input` since v5; this code read the
+				// pre-v5 `args`, so every tool call silently rendered as {}.
 				args:
-					typeof tc.args === 'object' &&
-					tc.args !== null &&
-					!Array.isArray(tc.args)
-						? (tc.args as Record<string, unknown>)
+					typeof tc.input === 'object' &&
+					tc.input !== null &&
+					!Array.isArray(tc.input)
+						? (tc.input as Record<string, unknown>)
 						: emptyArgs,
 			})),
 			finishReason: result.finishReason,

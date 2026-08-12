@@ -34,53 +34,24 @@ export async function waitFor(
 }
 
 /**
- * Create a mock MCP client for testing
- * Implements all MCPClient interface methods
+ * Create a mock MCP client for testing.
  *
- * Note: Type assertions are necessary here because MCPClient uses complex
- * generic types (especially for tools()) that cannot be satisfied with
- * simple mock implementations. This is a common pattern in test mocking.
+ * Only `tools()` and `close()` are implemented, because those are the only
+ * members AIService ever calls. Spelling out the full MCPClient interface is
+ * what made the previous version of this helper break on every @ai-sdk/mcp
+ * release -- v2 alone added listTools, callTool, toolsFromDefinitions,
+ * complete and onElicitationRequest, and renamed listPrompts/getPrompt to
+ * experimental_*.
  *
  * @returns Mock MCPClient instance
  */
 export function createMockMCPClient(): MCPClient {
 	return {
-		// Type assertion needed due to complex generic return type McpToolSet<TOOL_SCHEMAS>
-		tools: (async () => {
+		async tools() {
 			return {};
-		}) as MCPClient['tools'],
+		},
 		async close() {
 			// Mock implementation - no-op
 		},
-		async listResources() {
-			const result: Awaited<ReturnType<MCPClient['listResources']>> = {
-				resources: [],
-			};
-			return result;
-		},
-		async readResource() {
-			const result: Awaited<ReturnType<MCPClient['readResource']>> = {
-				contents: [],
-			};
-			return result;
-		},
-		async listResourceTemplates() {
-			const result: Awaited<ReturnType<MCPClient['listResourceTemplates']>> = {
-				resourceTemplates: [],
-			};
-			return result;
-		},
-		async listPrompts() {
-			const result: Awaited<ReturnType<MCPClient['listPrompts']>> = {
-				prompts: [],
-			};
-			return result;
-		},
-		async getPrompt() {
-			const result: Awaited<ReturnType<MCPClient['getPrompt']>> = {
-				messages: [],
-			};
-			return result;
-		},
-	};
+	} as unknown as MCPClient;
 }
