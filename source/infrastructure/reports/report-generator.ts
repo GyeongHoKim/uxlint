@@ -90,24 +90,26 @@ export function generateMarkdownReport(report: UxReport): string {
 
 	// Page Analyses Content
 	for (const page of pages) {
-		if (page.status === 'complete') {
-			sections.push(
-				`### ${page.pageUrl}\n`,
-				`**Features**: ${page.features}\n`,
-				`**Findings**: ${page.findings.length} issues identified\n`,
-			);
+		if (page.status !== 'complete') {
+			continue;
+		}
 
-			if (page.findings.length > 0) {
-				for (const finding of page.findings) {
-					sections.push(
-						`- ${severityEmoji[finding.severity]} **${finding.category}**: ${
-							finding.description
-						}`,
-					);
-				}
+		sections.push(
+			`### ${page.pageUrl}\n`,
+			`**Features**: ${page.features}\n`,
+			`**Findings**: ${page.findings.length} issues identified\n`,
+		);
 
-				sections.push('');
+		if (page.findings.length > 0) {
+			for (const finding of page.findings) {
+				sections.push(
+					`- ${severityEmoji[finding.severity]} **${finding.category}**: ${
+						finding.description
+					}`,
+				);
 			}
+
+			sections.push('');
 		}
 	}
 

@@ -119,7 +119,7 @@ test('renders success state with checkmark', async t => {
 
 test('renders error state with error message', async t => {
 	const {client, sandbox} = createMockClient('error');
-	let errorCalled = false;
+	let isErrorCalled = false;
 
 	const {frames, unmount} = render(
 		<UXLintClientProvider uxlintClientImpl={client}>
@@ -128,7 +128,7 @@ test('renders error state with error message', async t => {
 					t.fail('onComplete should not be called on error');
 				}}
 				onError={() => {
-					errorCalled = true;
+					isErrorCalled = true;
 				}}
 			/>
 		</UXLintClientProvider>,
@@ -137,7 +137,7 @@ test('renders error state with error message', async t => {
 	const hasErrorFrame = () => frames.some(frame => frame?.includes('✗'));
 	await waitFor(hasErrorFrame);
 	t.true(hasErrorFrame(), 'Should render error state');
-	t.true(errorCalled, 'Should call onError');
+	t.true(isErrorCalled, 'Should call onError');
 
 	unmount();
 	sandbox.restore();

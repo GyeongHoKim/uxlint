@@ -46,21 +46,24 @@ export function useUxlintActor() {
  */
 export function matchesStatePath(stateValue: unknown, path: string): boolean {
 	const parts = path.split('.');
-	const firstPart = parts[0];
+	let current = stateValue;
 
-	if (!firstPart) {
-		return false;
-	}
-
-	if (parts.length === 1) {
-		return stateValue === firstPart;
-	}
-
-	if (typeof stateValue === 'object' && stateValue !== null) {
-		const nested = (stateValue as Record<string, unknown>)[firstPart];
-		if (nested) {
-			return matchesStatePath(nested, parts.slice(1).join('.'));
+	for (const [index, part] of parts.entries()) {
+		if (index === parts.length - 1) {
+			return current === part;
 		}
+
+		if (typeof current !== 'object' || current === null) {
+			return false;
+		}
+
+		const nested = (current as Record<string, unknown>)[part];
+
+		if (!nested) {
+			return false;
+		}
+
+		current = nested;
 	}
 
 	return false;

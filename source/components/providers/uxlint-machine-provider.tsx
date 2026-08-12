@@ -13,9 +13,14 @@ export function UXLintMachineProvider({
 	readonly children: ReactNode;
 }) {
 	const configPath = configIO.findConfigFile(process.cwd());
-	const configExists = configPath !== undefined;
+	const isConfigExists = configPath !== undefined;
 	let preloadedConfig: UxLintConfig | undefined;
-	if (configExists) {
+	// Resolved inside the try/catch, rendered outside it: JSX constructed within
+	// a try/catch is misleading, because React renders later and the catch would
+	// never see a rendering error.
+	let configError: string | undefined;
+
+	if (isConfigExists) {
 		logger.info('Parse config file', {configPath});
 		try {
 			const configContent = configIO.readConfigFile(configPath);
@@ -31,8 +36,7 @@ export function UXLintMachineProvider({
 				});
 			} else {
 				logger.error('Invalid config file', {configPath});
-				setTimeout(() => process.exit(1), 1000);
-				return <Text color="red">Invalid config file</Text>;
+				configError = 'Invalid config file';
 			}
 		} catch (error) {
 			const errorMessage =
@@ -41,11 +45,15 @@ export function UXLintMachineProvider({
 				configPath,
 				error: errorMessage,
 			});
-			setTimeout(() => process.exit(1), 1000);
-			return <Text color="red">Error parsing config file: {errorMessage}</Text>;
+			configError = `Error parsing config file: ${errorMessage}`;
 		}
 	} else {
 		logger.info('No config file found, starting wizard', {cwd: process.cwd()});
+	}
+
+	if (configError) {
+		setTimeout(() => process.exit(1), 1000);
+		return <Text color="red">{configError}</Text>;
 	}
 
 	return (
@@ -53,7 +61,7 @@ export function UXLintMachineProvider({
 			options={{
 				input: {
 					interactive: true,
-					configExists,
+					configExists: isConfigExists,
 					config: preloadedConfig,
 				},
 			}}

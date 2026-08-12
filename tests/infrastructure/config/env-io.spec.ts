@@ -56,7 +56,7 @@ test('loadLoggingConfig returns default values when no env vars set', t => {
 	const envIO = new EnvIO(createMockEnv());
 	const config = envIO.loadLoggingConfig();
 
-	t.is(config.debugMode, false);
+	t.false(config.debugMode);
 	t.is(config.logDirectory, undefined);
 });
 
@@ -67,7 +67,7 @@ test('loadLoggingConfig sets debugMode to true when DEBUG_MODE is "true"', t => 
 	const envIO = new EnvIO(env);
 	const config = envIO.loadLoggingConfig();
 
-	t.is(config.debugMode, true);
+	t.true(config.debugMode);
 	t.is(config.logDirectory, undefined);
 });
 
@@ -78,7 +78,7 @@ test('loadLoggingConfig sets debugMode to false when DEBUG_MODE is "false"', t =
 	const envIO = new EnvIO(env);
 	const config = envIO.loadLoggingConfig();
 
-	t.is(config.debugMode, false);
+	t.false(config.debugMode);
 	t.is(config.logDirectory, undefined);
 });
 
@@ -89,7 +89,7 @@ test('loadLoggingConfig sets debugMode to false when DEBUG_MODE is not "true"', 
 	const envIO = new EnvIO(env);
 	const config = envIO.loadLoggingConfig();
 
-	t.is(config.debugMode, false);
+	t.false(config.debugMode);
 	t.is(config.logDirectory, undefined);
 });
 
@@ -100,7 +100,7 @@ test('loadLoggingConfig uses LOG_DIRECTORY when set', t => {
 	const envIO = new EnvIO(env);
 	const config = envIO.loadLoggingConfig();
 
-	t.is(config.debugMode, false);
+	t.false(config.debugMode);
 	t.is(config.logDirectory, '/custom/log/path');
 });
 
@@ -111,18 +111,18 @@ test('loadLoggingConfig sets logDirectory to undefined when LOG_DIRECTORY is emp
 	const envIO = new EnvIO(env);
 	const config = envIO.loadLoggingConfig();
 
-	t.is(config.debugMode, false);
+	t.false(config.debugMode);
 	t.is(config.logDirectory, undefined);
 });
 
 test('loadLoggingConfig sets logDirectory to undefined when LOG_DIRECTORY is whitespace only', t => {
 	const env = createMockEnv({
-		LOG_DIRECTORY: '   ',
+		LOG_DIRECTORY: ' '.repeat(3),
 	});
 	const envIO = new EnvIO(env);
 	const config = envIO.loadLoggingConfig();
 
-	t.is(config.debugMode, false);
+	t.false(config.debugMode);
 	t.is(config.logDirectory, undefined);
 });
 
@@ -134,7 +134,7 @@ test('loadLoggingConfig handles both DEBUG_MODE and LOG_DIRECTORY together', t =
 	const envIO = new EnvIO(env);
 	const config = envIO.loadLoggingConfig();
 
-	t.is(config.debugMode, true);
+	t.true(config.debugMode);
 	t.is(config.logDirectory, '/var/log/uxlint');
 });
 
@@ -418,7 +418,7 @@ test('loadAiConfig throws when API key is missing for Google', t => {
 test('loadAiConfig throws when API key is empty string', t => {
 	const env = createMockEnv({
 		UXLINT_AI_PROVIDER: 'anthropic',
-		UXLINT_AI_API_KEY: '   ',
+		UXLINT_AI_API_KEY: ' '.repeat(3),
 	});
 	const envIO = new EnvIO(env);
 

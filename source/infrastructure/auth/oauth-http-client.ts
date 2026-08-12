@@ -71,7 +71,7 @@ async function retryWithBackoff<T>(
 ): Promise<T> {
 	let lastError: Error = new Error('Max retries exceeded');
 
-	/* eslint-disable no-await-in-loop */
+	/* eslint-disable no-await-in-loop -- retries must be sequential; the whole point is to back off between attempts */
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		try {
 			return await fn();

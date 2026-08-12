@@ -122,7 +122,9 @@ export function useAnalysis(
 			for (let i = 0; i < config.pages.length; i++) {
 				const page = config.pages[i];
 
-				if (!page) continue;
+				if (!page) {
+					continue;
+				}
 
 				// Update state - navigating
 				// Reset iteration state for new page

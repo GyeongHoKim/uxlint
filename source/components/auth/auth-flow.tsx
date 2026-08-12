@@ -45,9 +45,9 @@ export function AuthFlow({command, onAuthError}: AuthFlowProps) {
 						process.removeListener('SIGINT', onAuthError);
 						process.exit(0);
 					}}
-					onError={error => {
+					onError={loginError => {
 						logger.error('Login failed', {
-							error: error.message,
+							error: loginError.message,
 						});
 						process.removeListener('SIGINT', onAuthError);
 						process.exit(1);

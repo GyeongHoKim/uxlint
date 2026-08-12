@@ -1,10 +1,22 @@
-import {getAuthCode, type OAuthError} from 'oauth-callback';
+import {getAuthCode} from 'oauth-callback';
 import {AuthErrorCode, AuthenticationError} from '../../models/auth-error.js';
 import {
 	MAX_AUTH_CODE_LENGTH,
 	MAX_PORT_RANGE_SIZE,
 	MAX_STATE_LENGTH,
 } from './auth-constants.js';
+
+/**
+ * Structural shape of an OAuth error response.
+ *
+ * Declared locally rather than imported as oauth-callback's `OAuthError`:
+ * that class does not resolve to a usable type through the package's
+ * `exports` map, so every member access on it reads as `any`.
+ */
+type OAuthErrorShape = {
+	error: string;
+	error_description?: string;
+};
 
 export type CallbackServerOptions = {
 	port: number | [number, number];
@@ -102,7 +114,7 @@ export class CallbackServer {
 			}
 
 			if (result.error) {
-				this.handleOAuthError(result as OAuthError);
+				this.handleOAuthError(result as OAuthErrorShape);
 			}
 
 			return {
@@ -187,7 +199,7 @@ export class CallbackServer {
 		)}`;
 	}
 
-	private isOAuthError(error: unknown): error is OAuthError {
+	private isOAuthError(error: unknown): error is OAuthErrorShape {
 		return (
 			typeof error === 'object' &&
 			error !== null &&
@@ -196,11 +208,9 @@ export class CallbackServer {
 		);
 	}
 
-	private handleOAuthError(error: OAuthError): never {
-		const errorCode = String(error.error);
-		const description = error.error_description
-			? String(error.error_description)
-			: undefined;
+	private handleOAuthError(error: OAuthErrorShape): never {
+		const errorCode = error.error;
+		const description = error.error_description;
 		const errorMessage = this.formatOAuthErrorMessage(errorCode, description);
 
 		if (errorCode === 'access_denied') {

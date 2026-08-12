@@ -181,37 +181,37 @@ function SavePhase({
 
 	// Handle save when format is confirmed via effect
 	useEffect(() => {
-		if (formatSelected && !isLoading) {
-			const performSave = async () => {
-				setIsLoading(true);
-				const config = buildConfig(state.data);
+		if (!formatSelected || isLoading) {
+			return;
+		}
 
-				try {
-					const filePath = await configIO.saveConfigToFile(config, {
+		const performSave = async () => {
+			setIsLoading(true);
+			const config = buildConfig(state.data);
+
+			try {
+				const filePath = await configIO.saveConfigToFile(config, {
+					shouldSave: true,
+					format: selectedFormat,
+				});
+
+				setIsLoading(false);
+				dispatch({
+					type: 'SET_SAVE_OPTIONS',
+					payload: {
 						shouldSave: true,
 						format: selectedFormat,
-					});
+						filePath,
+					},
+				});
+				dispatch({type: 'COMPLETE_WIZARD'});
+			} catch (error_: unknown) {
+				setIsLoading(false);
+				setError(error_ instanceof Error ? error_ : new Error(String(error_)));
+			}
+		};
 
-					setIsLoading(false);
-					dispatch({
-						type: 'SET_SAVE_OPTIONS',
-						payload: {
-							shouldSave: true,
-							format: selectedFormat,
-							filePath,
-						},
-					});
-					dispatch({type: 'COMPLETE_WIZARD'});
-				} catch (error_: unknown) {
-					setIsLoading(false);
-					setError(
-						error_ instanceof Error ? error_ : new Error(String(error_)),
-					);
-				}
-			};
-
-			void performSave();
-		}
+		void performSave();
 	}, [
 		formatSelected,
 		isLoading,
@@ -300,9 +300,9 @@ function SavePhase({
 			<Box flexDirection="column">
 				<Header theme={theme} />
 				<Box flexDirection="column" gap={1}>
-					{Boolean(isLoading) && (
+					{isLoading ? (
 						<Text color={theme.accent}>Saving configuration...</Text>
-					)}
+					) : null}
 					{error ? (
 						<Text color={theme.status.error}>Error: {error.message}</Text>
 					) : null}
@@ -320,9 +320,9 @@ function SavePhase({
  * @example
  * ```tsx
  * <ConfigWizard
- *   theme={theme}
- *   onComplete={(config) => logger.info('Config created', {config})}
- *   onCancel={() => process.exit(0)}
+ * theme={theme}
+ * onComplete={(config) => logger.info('Config created', {config})}
+ * onCancel={() => process.exit(0)}
  * />
  * ```
  */
@@ -346,6 +346,7 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 	// Get all URLs that need page descriptions
 	const getAllUrls = (): string[] => {
 		if (
+			// eslint-disable-next-line unicorn/prefer-includes-over-repeated-comparisons -- Array#includes does not narrow the discriminated union, so state.data would lose its type
 			state.phase === 'pages' ||
 			state.phase === 'persona' ||
 			state.phase === 'report'
@@ -425,7 +426,9 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 
 	// Render sub URLs phase
 	const renderSubUrls = () => {
-		if (state.phase !== 'sub-urls') return null;
+		if (state.phase !== 'sub-urls') {
+			return null;
+		}
 
 		return (
 			<SubUrlsPhase
@@ -442,7 +445,9 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 
 	// Render pages phase
 	const renderPages = () => {
-		if (state.phase !== 'pages') return null;
+		if (state.phase !== 'pages') {
+			return null;
+		}
 
 		const allUrls = getAllUrls();
 		const currentUrl = allUrls[currentUrlIndex];
@@ -489,7 +494,9 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 
 	// Render persona phase
 	const renderPersona = () => {
-		if (state.phase !== 'persona') return null;
+		if (state.phase !== 'persona') {
+			return null;
+		}
 
 		return (
 			<PersonaPhase
@@ -505,7 +512,9 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 
 	// Render report output phase
 	const renderReport = () => {
-		if (state.phase !== 'report') return null;
+		if (state.phase !== 'report') {
+			return null;
+		}
 
 		const defaultPath = configIO.getDefaultReportPath();
 
@@ -543,7 +552,9 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 
 	// Render summary phase
 	const renderSummary = () => {
-		if (state.phase !== 'summary') return null;
+		if (state.phase !== 'summary') {
+			return null;
+		}
 
 		return (
 			<Box flexDirection="column">
@@ -571,7 +582,9 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 
 	// Render save phase
 	const renderSave = () => {
-		if (state.phase !== 'save') return null;
+		if (state.phase !== 'save') {
+			return null;
+		}
 
 		return (
 			<SavePhase
@@ -589,7 +602,9 @@ export function ConfigWizard({theme, onComplete, onCancel}: ConfigWizardProps) {
 
 	// Render complete phase
 	const renderComplete = () => {
-		if (state.phase !== 'complete') return null;
+		if (state.phase !== 'complete') {
+			return null;
+		}
 
 		const savedFile = state.saveOptions?.filePath;
 

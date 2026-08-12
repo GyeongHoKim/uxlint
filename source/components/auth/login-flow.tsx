@@ -29,7 +29,9 @@ export function LoginFlow({onComplete, onError}: LoginFlowProps) {
 
 	const handleLogin = useCallback(async () => {
 		try {
-			setStatus('opening-browser');
+			// No setStatus('opening-browser') here: that is already the initial
+			// state, and setting it synchronously from the effect body would
+			// force an extra render pass.
 			await uxlintClient.login();
 			setStatus('success');
 			const profile = await uxlintClient.getUserProfile();
@@ -72,6 +74,7 @@ export function LoginFlow({onComplete, onError}: LoginFlowProps) {
 	}, [onComplete, onError, uxlintClient]);
 
 	useEffect(() => {
+		// eslint-disable-next-line react-hooks/set-state-in-effect -- kicking off the OAuth flow is exactly the "synchronize with an external system" case effects exist for; the setState happens in the async continuation
 		void handleLogin();
 	}, [handleLogin]);
 

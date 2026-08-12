@@ -156,7 +156,7 @@ function validateUrl(value: string): ValidationResult {
 		.transform(url => {
 			// Return normalized URL
 			try {
-				return new URL(url).toString();
+				return new URL(url).href;
 			} catch {
 				return url;
 			}
@@ -235,7 +235,7 @@ function validateRequiredWithMinLength(
  * Validate file path format using Zod
  */
 function validateFilePath(value: string, fieldName: string): ValidationResult {
-	const invalidChars = /[<>"|?*]/;
+	const invalidChars = /["*<>?|]/;
 	const schema = z
 		.string()
 		.min(1, `${fieldName} is required`)

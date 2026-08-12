@@ -143,7 +143,7 @@ export class OAuthFlow {
 	private extractPortFromRedirectUri(options: OAuthFlowOptions): number {
 		try {
 			const url = new URL(options.redirectUri);
-			return url.port ? Number.parseInt(url.port, 10) : 8080;
+			return url.port ? Number(url.port) : 8080;
 		} catch {
 			return 8080;
 		}

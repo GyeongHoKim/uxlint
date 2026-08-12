@@ -129,6 +129,6 @@ export const logger: ILogger = new WinstonLogger(
  */
 export function getLogFilePath(): string {
 	const logDir = getLogDirectory();
-	const today = new Date().toISOString().split('T')[0];
+	const today = new Date().toISOString().split('T', 1)[0];
 	return path.join(logDir, `uxlint-${today}.log`);
 }

@@ -84,6 +84,9 @@ test('refreshAccessToken returns valid token set', async t => {
 });
 
 test('refreshAccessToken with scope parameter', async t => {
+	// The assertion lives in the request handler below, which runs exactly once.
+	t.plan(1);
+
 	server.use(
 		createValidatingTokenHandler(parameters => {
 			t.is(parameters.get('scope'), 'openid profile');
@@ -99,7 +102,6 @@ test('refreshAccessToken with scope parameter', async t => {
 	};
 
 	await client.refreshAccessToken(parameters);
-	t.pass();
 });
 
 test('getOpenIDConfiguration returns valid config', async t => {

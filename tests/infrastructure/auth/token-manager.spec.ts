@@ -159,9 +159,9 @@ test('TokenManager.isKeychainAvailable returns keychain availability', async t =
 	const keychain = new MockKeychainService();
 	const manager = new TokenManager(keychain);
 
-	const available = await manager.isKeychainAvailable();
+	const isAvailable = await manager.isKeychainAvailable();
 
-	t.true(available);
+	t.true(isAvailable);
 });
 
 test('TokenManager can round-trip a complete session', async t => {
