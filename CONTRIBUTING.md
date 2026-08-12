@@ -495,7 +495,7 @@ For questions about using uxlint:
 
 ### Constitutional Principles
 
-uxlint is governed by constitutional principles documented in `.specify/memory/constitution.md` v1.2.1:
+uxlint is governed by constitutional principles documented in `.specify/memory/constitution.md` v1.3.0:
 
 1. **Code Quality Gates** (compile → format → lint sequence) — NON-NEGOTIABLE
 2. **Test-First Development** — NON-NEGOTIABLE
