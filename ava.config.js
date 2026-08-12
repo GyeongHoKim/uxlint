@@ -12,7 +12,4 @@ export default {
 	watchMode: {
 		ignoreChanges: ['dist/**', 'coverage/**'],
 	},
-	environmentVariables: {
-		TEST_ENV: 'jsdom',
-	},
 };
