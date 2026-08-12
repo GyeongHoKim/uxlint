@@ -50,13 +50,13 @@ const cli = meow(
 
 // Check for existing config file
 const configPath = configIO.findConfigFile(process.cwd());
-const isConfigExists = configPath !== undefined;
+const hasConfig = configPath !== undefined;
 
 // Log application startup
 logger.info('UXLint started', {
 	interactive: cli.flags.interactive,
 	cwd: process.cwd(),
-	configExists: isConfigExists,
+	configExists: hasConfig,
 });
 
 // Register exit handlers for logging shutdown
@@ -115,7 +115,7 @@ if (authCommand === 'auth') {
 	logger.info('CI mode selected');
 
 	// CI mode - no config file = error
-	if (!isConfigExists || !configPath) {
+	if (!hasConfig || !configPath) {
 		logger.error('Configuration file not found in CI mode', {
 			cwd: process.cwd(),
 			searchedFiles: ['.uxlintrc.json', '.uxlintrc.yml', '.uxlintrc.yaml'],

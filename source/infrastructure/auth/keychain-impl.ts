@@ -69,15 +69,15 @@ export class KeytarKeychainService implements IKeychainService {
 		logger.debug('Deleting password from keychain', {service, account});
 
 		try {
-			const isResult = await keytar.deletePassword(service, account);
+			const wasDeleted = await keytar.deletePassword(service, account);
 
 			logger.info('Password deleted from keychain', {
 				service,
 				account,
-				deleted: isResult,
+				deleted: wasDeleted,
 			});
 
-			return isResult;
+			return wasDeleted;
 		} catch (error) {
 			logger.error('Keychain deletePassword failed', {
 				service,

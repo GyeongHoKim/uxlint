@@ -13,14 +13,14 @@ export function UXLintMachineProvider({
 	readonly children: ReactNode;
 }) {
 	const configPath = configIO.findConfigFile(process.cwd());
-	const isConfigExists = configPath !== undefined;
+	const hasConfig = configPath !== undefined;
 	let preloadedConfig: UxLintConfig | undefined;
 	// Resolved inside the try/catch, rendered outside it: JSX constructed within
 	// a try/catch is misleading, because React renders later and the catch would
 	// never see a rendering error.
 	let configError: string | undefined;
 
-	if (isConfigExists) {
+	if (hasConfig) {
 		logger.info('Parse config file', {configPath});
 		try {
 			const configContent = configIO.readConfigFile(configPath);
@@ -61,7 +61,7 @@ export function UXLintMachineProvider({
 			options={{
 				input: {
 					interactive: true,
-					configExists: isConfigExists,
+					configExists: hasConfig,
 					config: preloadedConfig,
 				},
 			}}
