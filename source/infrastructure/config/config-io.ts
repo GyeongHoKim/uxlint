@@ -142,9 +142,16 @@ export class ConfigIO {
 		logger.debug('Parsing config file', {format});
 
 		try {
-			// Parse JSON or YAML based on format
+			// Parse JSON or YAML based on format.
+			// js-yaml 5 throws on empty input where 4 returned undefined; keep
+			// the clearer "must be an object" error from validation by letting
+			// empty content through as undefined.
 			const parsed: unknown =
-				format === 'json' ? JSON.parse(content) : parseYaml(content);
+				format === 'json'
+					? JSON.parse(content)
+					: content.trim() === ''
+						? undefined
+						: parseYaml(content);
 
 			logger.info('Config file parsed successfully', {format});
 			return parsed;
