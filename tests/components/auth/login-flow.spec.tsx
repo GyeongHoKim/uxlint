@@ -13,6 +13,7 @@ import {
 	AuthenticationError,
 } from '../../../source/models/auth-error.js';
 import type {UserProfile} from '../../../source/models/user-profile.js';
+import {waitFor} from '../../utils.js';
 
 // Create mock client for testing using SinonJS
 function createMockClient(
@@ -108,14 +109,9 @@ test('renders success state with checkmark', async t => {
 		</UXLintClientProvider>,
 	);
 
-	// Wait for async login to complete
-	await new Promise(resolve => {
-		setTimeout(resolve, 100);
-	});
-
-	// Should have success frame
-	const hasSuccessFrame = frames.some(frame => frame?.includes('✓'));
-	t.true(hasSuccessFrame, 'Should render success state');
+	const hasSuccessFrame = () => frames.some(frame => frame?.includes('✓'));
+	await waitFor(hasSuccessFrame);
+	t.true(hasSuccessFrame(), 'Should render success state');
 
 	unmount();
 	sandbox.restore();
@@ -138,14 +134,9 @@ test('renders error state with error message', async t => {
 		</UXLintClientProvider>,
 	);
 
-	// Wait for async login to fail
-	await new Promise(resolve => {
-		setTimeout(resolve, 100);
-	});
-
-	// Should have error frame
-	const hasErrorFrame = frames.some(frame => frame?.includes('✗'));
-	t.true(hasErrorFrame, 'Should render error state');
+	const hasErrorFrame = () => frames.some(frame => frame?.includes('✗'));
+	await waitFor(hasErrorFrame);
+	t.true(hasErrorFrame(), 'Should render error state');
 	t.true(errorCalled, 'Should call onError');
 
 	unmount();
@@ -168,16 +159,10 @@ test('renders browser fallback when browser launch fails', async t => {
 		</UXLintClientProvider>,
 	);
 
-	// Wait for browser failure to trigger
-	await new Promise(resolve => {
-		setTimeout(resolve, 100);
-	});
-
-	// Should show fallback component (contains URL)
-	const hasFallbackFrame = frames.some(frame =>
-		frame?.includes('https://example.com/auth'),
-	);
-	t.true(hasFallbackFrame, 'Should render browser fallback with URL');
+	const hasFallbackFrame = () =>
+		frames.some(frame => frame?.includes('https://example.com/auth'));
+	await waitFor(hasFallbackFrame);
+	t.true(hasFallbackFrame(), 'Should render browser fallback with URL');
 
 	unmount();
 	sandbox.restore();
@@ -199,15 +184,10 @@ test('handles already authenticated scenario', async t => {
 		</UXLintClientProvider>,
 	);
 
-	// Wait for already-authenticated scenario to complete
-	await new Promise(resolve => {
-		setTimeout(resolve, 100);
-	});
-
-	// Should complete successfully
-	const hasSuccessFrame = frames.some(frame => frame?.includes('✓'));
+	const hasSuccessFrame = () => frames.some(frame => frame?.includes('✓'));
+	await waitFor(hasSuccessFrame);
 	t.true(
-		hasSuccessFrame,
+		hasSuccessFrame(),
 		'Should render success state for already authenticated',
 	);
 

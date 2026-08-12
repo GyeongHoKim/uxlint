@@ -3,7 +3,7 @@
  * React hook for managing wizard state with useReducer
  */
 
-import {useReducer, type Reducer} from 'react';
+import {useReducer} from 'react';
 import type {
 	ConfigurationData,
 	SaveOptions,
@@ -344,9 +344,7 @@ export type UseWizardResult = {
  * ```
  */
 export function useWizard(): UseWizardResult {
-	const [state, dispatch] = useReducer<
-		Reducer<ExtendedWizardState, WizardAction>
-	>(wizardReducer, initialState);
+	const [state, dispatch] = useReducer(wizardReducer, initialState);
 
 	return {
 		state,

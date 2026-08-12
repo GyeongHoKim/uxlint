@@ -1,8 +1,9 @@
+import type {ReactNode} from 'react';
 import {type UXLintClient} from '../../infrastructure/auth/uxlint-client.js';
 import {UxlintClientContext} from './uxlint-client-context.js';
 
 type UXLintClientProviderProps = {
-	readonly children: React.ReactNode;
+	readonly children: ReactNode;
 	readonly uxlintClientImpl: UXLintClient;
 };
 

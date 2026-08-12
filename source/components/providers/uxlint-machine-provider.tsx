@@ -1,4 +1,5 @@
 import process from 'node:process';
+import type {ReactNode} from 'react';
 import {Text} from 'ink';
 import {configIO} from '../../infrastructure/config/config-io.js';
 import {logger} from '../../infrastructure/logger.js';
@@ -9,7 +10,7 @@ import {UxlintMachineContext} from './uxlint-machine-context.js';
 export function UXLintMachineProvider({
 	children,
 }: {
-	readonly children: React.ReactNode;
+	readonly children: ReactNode;
 }) {
 	const configPath = configIO.findConfigFile(process.cwd());
 	const configExists = configPath !== undefined;

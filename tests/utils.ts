@@ -5,6 +5,35 @@
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 
 /**
+ * Poll until `predicate` returns true, or throw once `timeout` elapses.
+ *
+ * Component tests render asynchronously, so asserting after a fixed sleep is
+ * inherently racy: the sleep has to be long enough for the slowest machine
+ * under the heaviest parallel load, and any value that satisfies that is
+ * wasted time everywhere else. Polling a condition is both faster and stable.
+ *
+ * @param predicate Condition to wait for
+ * @param options Timeout and poll interval in milliseconds
+ */
+export async function waitFor(
+	predicate: () => boolean,
+	{timeout = 5000, interval = 10}: {timeout?: number; interval?: number} = {},
+): Promise<void> {
+	const deadline = Date.now() + timeout;
+
+	while (!predicate()) {
+		if (Date.now() > deadline) {
+			throw new Error(`waitFor timed out after ${timeout}ms`);
+		}
+
+		// eslint-disable-next-line no-await-in-loop
+		await new Promise(resolve => {
+			setTimeout(resolve, interval);
+		});
+	}
+}
+
+/**
  * Create a mock MCP client for testing
  * Implements all MCPClient interface methods
  *
