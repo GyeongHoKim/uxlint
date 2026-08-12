@@ -13,7 +13,7 @@ jobs:
       contents: write # to be able to publish a GitHub release
       issues: write # to be able to comment on released issues
       pull-requests: write # to be able to comment on released pull requests
-      id-token: write # to enable use of OIDC for npm provenance
+      id-token: write # to authenticate to npm via OIDC trusted publishing (also generates provenance)
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -32,4 +32,4 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: NODE_AUTH_TOKEN="" npm run release
+        run: npm run release
