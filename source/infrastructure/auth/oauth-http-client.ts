@@ -257,8 +257,7 @@ export class OAuthHttpClient {
 				});
 
 				const data = (await response.json()) as
-					| OAuthTokenResponse
-					| OAuthErrorResponse;
+					OAuthTokenResponse | OAuthErrorResponse;
 
 				if (!response.ok) {
 					const errorData = data as OAuthErrorResponse;

@@ -12,12 +12,7 @@ import type {LLMResponseData} from './llm-response.js';
  * Represents the current state of page analysis
  */
 export type AnalysisStatus =
-	| 'pending'
-	| 'navigating'
-	| 'capturing'
-	| 'analyzing'
-	| 'complete'
-	| 'failed';
+	'pending' | 'navigating' | 'capturing' | 'analyzing' | 'complete' | 'failed';
 
 /**
  * Page analysis result

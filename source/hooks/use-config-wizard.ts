@@ -19,8 +19,7 @@ import {useWizard} from './use-wizard.js';
  * Validation result type
  */
 type ValidationResult<T = string> =
-	| {success: true; value: T}
-	| {success: false; error: Error};
+	{success: true; value: T} | {success: false; error: Error};
 
 /**
  * Convert Zod error to custom validation error

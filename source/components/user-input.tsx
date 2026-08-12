@@ -47,10 +47,7 @@ export type ErrorVariant = 'error';
  * Discriminated union of all UserInput variants
  */
 export type UserInputVariant =
-	| DefaultVariant
-	| TypingVariant
-	| LoadingVariant
-	| ErrorVariant;
+	DefaultVariant | TypingVariant | LoadingVariant | ErrorVariant;
 
 /**
  * Complete UserInput props combining variant and base props
