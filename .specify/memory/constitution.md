@@ -1,23 +1,20 @@
 <!--
 Sync Impact Report:
-Version: 1.2.0 → 1.2.1 (PATCH - Corrected AI SDK mock provider version from V3 to V2 to match AI SDK 5.x)
+Version: 1.2.1 → 1.3.0 (MINOR - Language model testing guidance replaced for AI SDK 7 / V4 provider specification)
 
 Modified principles:
-  - II. Test-First Development → Corrected language model testing guidance to use MockLanguageModelV2 (AI SDK 5.x standard)
+  - II. Test-First Development → Language model testing now targets MockLanguageModelV4; all worked examples updated to the V4 result shape (finishReason as {unified, raw}, usage nested under inputTokens/outputTokens)
+  - I. Code Quality Gates → Linting rules may be changed when the tooling requires it, provided the change carries a stated rationale
 
 Added sections: None
 
 Removed sections: None
 
 Templates requiring updates:
-  ✅ .specify/memory/constitution.md - Updated examples to use MockLanguageModelV2
-  ✅ .specify/templates/plan-template.md - Updated to reference MockLanguageModelV2
-  ✅ .specify/templates/spec-template.md - Updated to reference MockLanguageModelV2
-  ✅ .specify/templates/tasks-template.md - Updated to reference MockLanguageModelV2
-  ✅ specs/002-uxlint-tty-analyze/tasks.md - Updated to reference MockLanguageModelV2
-  ✅ specs/002-uxlint-tty-analyze/plan.md - Updated to reference MockLanguageModelV2
-  ✅ specs/001-readme-md-uxlint/tasks.md - Updated to reference MockLanguageModelV2
-  ✅ specs/001-readme-md-uxlint/plan.md - Updated to reference MockLanguageModelV2
+  ✅ .specify/memory/constitution.md - Examples updated to MockLanguageModelV4
+  ✅ CLAUDE.md - Testing guidance and constitution version references updated
+  ✅ CONTRIBUTING.md - Constitution version reference updated
+  ⚠ specs/00{1,2,3}-* - Historical planning documents still reference MockLanguageModelV2; left as-is, they record the state at the time they were written
 
 Follow-up TODOs: None
 -->
@@ -97,12 +94,14 @@ Complexity MUST be justified before introduction:
 
 **Linting & Formatting**:
 - XO with React config and Prettier integration
-- No bypassing via `// eslint-disable-next-line` or config modifications
+- No bypassing via `// eslint-disable-next-line`. Linting rules may be changed
+  when the tooling genuinely requires it (a major upgrade, a rule that is wrong
+  for this codebase); such changes MUST carry a stated rationale
 - EditorConfig enforces consistent editor settings
 
 **Testing Requirements**:
 - Ava for unit and snapshot tests
-- @testing-library/react-hooks for custom hooks testing
+- @testing-library/react (renderHook) for custom hooks testing
 - c8 for coverage reporting (80% minimum)
 - ink-testing-library for component snapshot testing
 - AI SDK test helpers for language model testing
@@ -112,29 +111,38 @@ Complexity MUST be justified before introduction:
 Language model integrations MUST use mock-based testing to ensure deterministic, fast, and cost-effective tests:
 
 **Required Approach**:
-- Import test helpers from `ai/test`: `MockLanguageModelV2`, `simulateReadableStream`, `mockId`, `mockValues`
-- Use `MockLanguageModelV2` to mock language model responses in unit tests (AI SDK 5.x standard)
+- Import test helpers from `ai/test`: `MockLanguageModelV4`, `simulateReadableStream`, `mockId`, `mockValues`
+- Use `MockLanguageModelV4` to mock language model responses in unit tests (AI SDK 7.x standard)
 - Control output with `doGenerate` for synchronous calls or `doStream` for streaming responses
 - Test both success and failure scenarios without calling actual LLM providers
+- Match the mock class to the specification version the installed providers emit.
+  `@ai-sdk/provider` ships V2, V3 and V4 side by side, and `ai/test` exports a
+  mock for each; using the wrong one produces confusing runtime failures inside
+  `generateText` rather than type errors, because the mock constructors take
+  loosely typed callbacks.
 
-**Rationale**: Language models are non-deterministic, slow, and expensive to call. Mock providers enable repeatable, deterministic testing of AI-powered features without API costs or network dependencies. This ensures tests run quickly in CI/CD and remain stable across environments. AI SDK 5.x uses the V2 specification for mock providers as documented at https://ai-sdk.dev/docs/ai-sdk-core/testing#testing.
+**Rationale**: Language models are non-deterministic, slow, and expensive to call. Mock providers enable repeatable, deterministic testing of AI-powered features without API costs or network dependencies. This ensures tests run quickly in CI/CD and remain stable across environments. AI SDK 7.x uses the V4 specification for mock providers as documented at https://ai-sdk.dev/docs/ai-sdk-core/testing#testing.
 
 **Examples**:
 
 Testing `generateText`:
 ```typescript
 import { generateText } from 'ai';
-import { MockLanguageModelV2 } from 'ai/test';
+import { MockLanguageModelV4 } from 'ai/test';
 
 const result = await generateText({
-  model: new MockLanguageModelV2({
+  model: new MockLanguageModelV4({
     doGenerate: async () => ({
-      finishReason: 'stop',
-      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: {
+        inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
+        outputTokens: { total: 20, text: 20, reasoning: undefined },
+      },
       content: [{ type: 'text', text: 'Hello, world!' }],
       warnings: [],
     }),
   }),
+  instructions: 'You are a helpful assistant.',
   prompt: 'Hello, test!',
 });
 ```
@@ -142,10 +150,10 @@ const result = await generateText({
 Testing `streamText`:
 ```typescript
 import { streamText, simulateReadableStream } from 'ai';
-import { MockLanguageModelV2 } from 'ai/test';
+import { MockLanguageModelV4 } from 'ai/test';
 
 const result = streamText({
-  model: new MockLanguageModelV2({
+  model: new MockLanguageModelV4({
     doStream: async () => ({
       stream: simulateReadableStream({
         chunks: [
@@ -156,9 +164,11 @@ const result = streamText({
           { type: 'text-end', id: 'text-1' },
           {
             type: 'finish',
-            finishReason: 'stop',
-            logprobs: undefined,
-            usage: { inputTokens: 3, outputTokens: 10, totalTokens: 13 },
+            finishReason: { unified: 'stop', raw: undefined },
+            usage: {
+              inputTokens: { total: 3, noCache: 3, cacheRead: undefined, cacheWrite: undefined },
+              outputTokens: { total: 10, text: 10, reasoning: undefined },
+            },
           },
         ],
       }),
@@ -168,22 +178,26 @@ const result = streamText({
 });
 ```
 
-Testing `generateObject`:
+Testing structured output (`generateObject` was deprecated in AI SDK 6 in
+favour of `generateText` with `output`):
 ```typescript
-import { generateObject } from 'ai';
-import { MockLanguageModelV2 } from 'ai/test';
+import { generateText, Output } from 'ai';
+import { MockLanguageModelV4 } from 'ai/test';
 import { z } from 'zod';
 
-const result = await generateObject({
-  model: new MockLanguageModelV2({
+const result = await generateText({
+  model: new MockLanguageModelV4({
     doGenerate: async () => ({
-      finishReason: 'stop',
-      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: {
+        inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
+        outputTokens: { total: 20, text: 20, reasoning: undefined },
+      },
       content: [{ type: 'text', text: '{"content":"Hello, world!"}' }],
       warnings: [],
     }),
   }),
-  schema: z.object({ content: z.string() }),
+  output: Output.object({ schema: z.object({ content: z.string() }) }),
   prompt: 'Hello, test!',
 });
 ```
@@ -245,4 +259,4 @@ const result = await generateObject({
 - `CLAUDE.md` MUST reference constitutional principles
 - Constitutional updates propagate to `CLAUDE.md` within 24 hours
 
-**Version**: 1.2.1 | **Ratified**: 2025-10-08 | **Last Amended**: 2025-12-03
+**Version**: 1.3.0 | **Ratified**: 2025-10-08 | **Last Amended**: 2026-08-12

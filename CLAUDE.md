@@ -21,7 +21,7 @@ This application uses the MCP (Model Context Protocol) for communication. **NEVE
 - Semantic release for versioning
 - Winston for file-only logging (MCP-safe)
 
-**Constitutional Principles** (see `.specify/memory/constitution.md` v1.2.1):
+**Constitutional Principles** (see `.specify/memory/constitution.md` v1.3.0):
 1. Code Quality Gates (compile → format → lint sequence) — NON-NEGOTIABLE
 2. Test-First Development (Unit tests for models, visual regression for components, mock-based tests for LLM integrations) — NON-NEGOTIABLE
 3. UX Consistency via Persona-First Design (with Ink ecosystem library discovery via GitHub MCP)
@@ -69,7 +69,7 @@ npm run lint          # Check linting rules (zero violations required)
 
 **Execution Order**: compile → format → lint. Running format before lint prevents formatting-related linting violations.
 
-These quality gates are enforced by the project constitution (v1.2.1) and prevent commits with type errors, linting violations, or formatting inconsistencies. Do not bypass linting by using `// eslint-disable-next-line`. Changing a linting rule is allowed only when the rule is genuinely wrong for this codebase, and the change must carry a comment explaining why.
+These quality gates are enforced by the project constitution (v1.3.0) and prevent commits with type errors, linting violations, or formatting inconsistencies. Do not bypass linting by using `// eslint-disable-next-line`. Changing a linting rule is allowed only when the rule is genuinely wrong for this codebase, and the change must carry a comment explaining why.
 
 ### Local Testing
 
@@ -121,7 +121,7 @@ stateDiagram-v2
 **Testing Strategy** (Constitution II: Test-First Development):
 - **Models** (pure TypeScript classes/functions): Unit tests using Ava
 - **Components** (React/Ink UI): Visual regression tests using ink-testing-library
-- **Language Model Integrations**: Mock-based tests using AI SDK test helpers (`MockLanguageModelV2` from `ai/test`)
+- **Language Model Integrations**: Mock-based tests using AI SDK test helpers (`MockLanguageModelV4` from `ai/test`)
 - Tests MUST be written and approved BEFORE implementation
 - Tests MUST fail initially (red phase) before implementation begins
 - Coverage threshold: 80% via c8
