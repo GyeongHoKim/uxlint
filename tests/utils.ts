@@ -2,7 +2,52 @@
  * Test utilities for creating mock objects
  */
 
+import net from 'node:net';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
+
+/**
+ * Resolve once `port` accepts TCP connections, or throw once `timeout` elapses.
+ *
+ * Sleeping a fixed number of milliseconds and hoping a server has bound by
+ * then is a race that only shows up when the whole suite runs in parallel.
+ *
+ * @param port Port to probe on localhost
+ * @param options Timeout and poll interval in milliseconds
+ * @param options.timeout Milliseconds to wait before giving up
+ * @param options.interval Milliseconds between probes
+ */
+export async function waitForPort(
+	port: number,
+	{timeout = 5000, interval = 10}: {timeout?: number; interval?: number} = {},
+): Promise<void> {
+	const deadline = Date.now() + timeout;
+
+	const canConnect = async () =>
+		new Promise<boolean>(resolve => {
+			const socket = net
+				.connect({port, host: '127.0.0.1'})
+				.on('connect', () => {
+					socket.destroy();
+					resolve(true);
+				})
+				.on('error', () => {
+					socket.destroy();
+					resolve(false);
+				});
+		});
+
+	// eslint-disable-next-line no-await-in-loop -- probes are inherently sequential
+	while (!(await canConnect())) {
+		if (Date.now() > deadline) {
+			throw new Error(`Port ${port} did not open within ${timeout}ms`);
+		}
+
+		// eslint-disable-next-line no-await-in-loop -- back off between probes
+		await new Promise(resolve => {
+			setTimeout(resolve, interval);
+		});
+	}
+}
 
 /**
  * Poll until `predicate` returns true, or throw once `timeout` elapses.

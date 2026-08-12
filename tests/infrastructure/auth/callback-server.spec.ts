@@ -7,6 +7,7 @@ import {
 	AuthErrorCode,
 	AuthenticationError,
 } from '../../../source/models/auth-error.js';
+import {waitForPort} from '../../utils.js';
 
 test('waitForCallback returns code and state on success', async t => {
 	const server = new CallbackServer();
@@ -153,9 +154,9 @@ test('stop method cleans up server', async t => {
 
 	const callbackPromise = server.waitForCallback(options);
 
-	await new Promise(resolve => {
-		setTimeout(resolve, 100);
-	});
+	// Wait for the server to actually bind before aborting it; a fixed sleep
+	// races with the rest of the suite under parallel load.
+	await waitForPort(8084);
 
 	await server.stop();
 
