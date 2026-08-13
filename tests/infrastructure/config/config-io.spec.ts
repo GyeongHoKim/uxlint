@@ -267,3 +267,40 @@ test('ConfigIO with sinon stubs: readConfigFile returns mocked content', t => {
 		sandbox.restore();
 	}
 });
+
+// Since js-yaml 5, content that carries no document throws "expected a
+// document, but the input is empty" where js-yaml 4 returned undefined. Both
+// blank and comment-only files must keep resolving to undefined so the caller
+// reports "Configuration must be an object" rather than a syntax error the
+// user cannot find.
+for (const [label, content] of [
+	['blank', ''],
+	['whitespace-only', '   \n\t\n'],
+	['comment-only', '# mainPageUrl: https://example.com\n# personas: []\n'],
+	['comment-only without trailing newline', '# nothing here'],
+] as const) {
+	test(`ConfigIO.parseConfigFile() returns undefined for ${label} YAML`, t => {
+		const configIO = new ConfigIO();
+
+		t.is(configIO.parseConfigFile(content, 'yaml'), undefined);
+	});
+}
+
+test('ConfigIO.parseConfigFile() still parses YAML that has content', t => {
+	const configIO = new ConfigIO();
+
+	t.deepEqual(
+		configIO.parseConfigFile('# a comment\nmainPageUrl: x\n', 'yaml'),
+		{
+			mainPageUrl: 'x',
+		},
+	);
+});
+
+test('ConfigIO.parseConfigFile() reports genuine YAML syntax errors', t => {
+	const configIO = new ConfigIO();
+
+	t.throws(() => configIO.parseConfigFile('a:\n\t- b\n', 'yaml'), {
+		instanceOf: ConfigurationError,
+	});
+});
