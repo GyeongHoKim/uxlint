@@ -687,3 +687,39 @@ test('AIService sets the report persona without the caller doing it', async t =>
 
 	sandbox.restore();
 });
+
+test('AIService refuses to analyse after close instead of using a dead client', async t => {
+	const sandbox = sinon.createSandbox();
+	const config = multiPageConfig(['https://example.com/one']);
+	const mockModel = new MockLanguageModelV4({
+		async doGenerate() {
+			return toolCallStep('completePageAnalysis');
+		},
+	});
+
+	const reportBuilder = createBuilder(sandbox);
+	const aiService = new AIService(
+		mockModel,
+		createMockMCPClient(),
+		reportBuilder,
+	);
+
+	const page = config.pages[0];
+
+	if (!page) {
+		t.fail('Page is undefined');
+		return;
+	}
+
+	await aiService.close();
+	const analysis = await aiService.analyzePage(config, page);
+
+	t.is(analysis.status, 'failed');
+	t.regex(
+		analysis.error ?? '',
+		/closed/i,
+		'the error should name the real cause instead of surfacing an MCP failure',
+	);
+
+	sandbox.restore();
+});

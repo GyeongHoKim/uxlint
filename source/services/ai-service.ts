@@ -65,19 +65,40 @@ export class AIService {
 	private readonly model: LanguageModelV4;
 	private readonly mcpClient: MCPClient;
 	private readonly reportBuilder: ReportBuilder;
+	private readonly cacheKey: string | undefined;
+	private isClosed = false;
 
+	/**
+	 * Create an analysis service bound to one model and MCP connection.
+	 *
+	 * `cacheKey` is the key this instance is filed under in the module cache,
+	 * which lets `close()` evict itself. It is omitted when the service is
+	 * constructed directly, as tests do.
+	 *
+	 * @param model - Language model backing the analysis
+	 * @param mcpClient - Connected MCP client providing browser tools
+	 * @param builder - Report builder collecting findings
+	 * @param cacheKey - Module cache key for this instance
+	 */
 	constructor(
 		model: LanguageModelV4,
 		mcpClient: MCPClient,
 		builder: ReportBuilder,
+		cacheKey?: string,
 	) {
 		this.model = model;
 		this.mcpClient = mcpClient;
 		this.reportBuilder = builder;
+		this.cacheKey = cacheKey;
 	}
 
 	/**
 	 * Close the MCP client connection and reset state
+	 *
+	 * Also drops this instance from the module cache. Without that, a second
+	 * run in the same process got the same AIService back from `getAIService`
+	 * with its MCP client already closed, and failed on a dead transport
+	 * rather than starting a fresh one.
 	 */
 	async close(): Promise<void> {
 		if (this.mcpClient) {
@@ -85,6 +106,11 @@ export class AIService {
 		}
 
 		this.reportBuilder.reset();
+		this.isClosed = true;
+
+		if (this.cacheKey) {
+			aiServiceInstances.delete(this.cacheKey);
+		}
 	}
 
 	/**
@@ -97,6 +123,15 @@ export class AIService {
 	): Promise<PageAnalysis> {
 		if (!this.model || !this.mcpClient) {
 			throw new Error('AIService not initialized');
+		}
+
+		if (this.isClosed) {
+			// Name the real cause here. Letting this through surfaced whatever
+			// obscure error the closed MCP transport happened to raise.
+			return this.reportBuilder.failCurrentPage(
+				'AIService has been closed; create a new instance before analyzing again',
+				page,
+			);
 		}
 
 		try {
@@ -437,7 +472,7 @@ export async function getAIService(config: UxLintConfig): Promise<AIService> {
 	if (!aiServiceInstances.has(cacheKey)) {
 		const model = await getLanguageModel(config);
 		const client = await getMCPClient();
-		const service = new AIService(model, client, reportBuilder);
+		const service = new AIService(model, client, reportBuilder, cacheKey);
 		aiServiceInstances.set(cacheKey, service);
 	}
 
