@@ -142,19 +142,25 @@ test('logout handles keychain errors gracefully', async t => {
 	};
 
 	// Logout may either swallow the keychain failure or surface it, but it must
-	// not reject with an unrelated error.
-	const thrown = await t.throwsAsync(client.logout()).catch(() => undefined);
+	// not reject with an unrelated error. `t.throwsAsync` cannot express that:
+	// it records a failure the moment the promise resolves, so the "swallowed"
+	// branch below would be a red build no matter what the assertions say.
+	let thrown: unknown;
+	try {
+		await client.logout();
+	} catch (error) {
+		thrown = error;
+	}
 
-	if (thrown) {
+	if (thrown === undefined) {
+		t.is(thrown, undefined, 'Swallowing the keychain failure is acceptable');
+	} else {
 		t.true(thrown instanceof Error, 'Should reject with an Error');
 		t.regex(
-			thrown.message,
+			(thrown as Error).message,
 			/keychain|denied/i,
 			'Rejection should describe the keychain failure',
 		);
-	} else {
-		// Swallowing the keychain failure is acceptable behavior.
-		t.is(thrown, undefined);
 	}
 
 	// Restore original function
