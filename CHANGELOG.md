@@ -1,3 +1,31 @@
+# [4.0.0](https://github.com/GyeongHoKim/uxlint/compare/v3.1.0...v4.0.0) (2026-08-13)
+
+
+* chore!: require Node >=22.22.2 and refresh CI ([beb5f56](https://github.com/GyeongHoKim/uxlint/commit/beb5f5686ffc30d41b48c0bd0e898d0ab8840d8a))
+* feat!: upgrade AI SDK from v5 to v7 ([f5a0819](https://github.com/GyeongHoKim/uxlint/commit/f5a0819a7de90806ae260f77be816b6eb4611d02))
+* feat!: upgrade to React 19 and Ink 7 ([50f1ed1](https://github.com/GyeongHoKim/uxlint/commit/50f1ed1da58ee3aae47baab0d1b5047b30509ee8))
+
+
+### Bug Fixes
+
+* keep comment-only config files parsing as an empty document ([3d12613](https://github.com/GyeongHoKim/uxlint/commit/3d1261399a37320c6010e71f1d77b1f447266063))
+* settle the config wizard on a save error instead of retrying forever ([3a7433c](https://github.com/GyeongHoKim/uxlint/commit/3a7433ca518f5bff5a2e403765c1069c34a723a6))
+* **test:** probe both loopback families in waitForPort ([0773da3](https://github.com/GyeongHoKim/uxlint/commit/0773da3392e246beeef4449be62bdd89840be5c2))
+
+
+### BREAKING CHANGES
+
+* requires AI SDK 7 and Node >=22.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+* requires React 19.2 and Ink 7 at runtime.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+* Node.js >=22.22.2 is now required. Node 18 and 20 are
+no longer supported.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
 # [3.1.0](https://github.com/GyeongHoKim/uxlint/compare/v3.0.0...v3.1.0) (2025-12-24)
 
 
