@@ -1,2 +1,10 @@
-npm run format
+# Format the staged files and re-stage the result. `npm run format` alone
+# rewrites the working tree without staging it, so an unformatted commit still
+# reaches CI and fails there while the local tree looks clean.
+if [ -n "$(git diff --cached --name-only --diff-filter=ACMR)" ]; then
+	git diff --cached --name-only --diff-filter=ACMR -z |
+		xargs -0 npx prettier --ignore-unknown --write
+	git diff --cached --name-only --diff-filter=ACMR -z | xargs -0 git add
+fi
+
 npm run lint
