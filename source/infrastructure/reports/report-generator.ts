@@ -5,7 +5,11 @@
  * @packageDocumentation
  */
 
-import type {FindingSeverity, UxReport} from '../../models/analysis.js';
+import type {
+	FindingSeverity,
+	PageAnalysis,
+	UxReport,
+} from '../../models/analysis.js';
 
 /**
  * Severity emoji mapping
@@ -93,22 +97,30 @@ export function generateMarkdownReport(report: UxReport): string {
 	);
 
 	// Page Analyses Content
+	// Every page that produced findings is rendered, whatever ended it. The
+	// status note says how far the analysis got; omitting cut-short and failed
+	// pages hid findings that had already been paid for.
+	const statusNote: Partial<Record<PageAnalysis['status'], string>> = {
+		partial:
+			'**Status**: Partial — the analysis was cut short, so this page is not fully covered.\n',
+		failed:
+			'**Status**: Failed — findings below are only what was collected before the failure.\n',
+	};
+
 	for (const page of pages) {
-		if (page.status !== 'complete' && page.status !== 'partial') {
+		if (!['complete', 'partial', 'failed'].includes(page.status)) {
 			continue;
 		}
 
-		const isPartial = page.status === 'partial';
+		const note = statusNote[page.status];
 
 		sections.push(
-			`### ${isPartial ? '⚠️ ' : ''}${page.pageUrl}\n`,
+			`### ${note ? '⚠️ ' : ''}${page.pageUrl}\n`,
 			`**Features**: ${page.features}\n`,
 		);
 
-		if (isPartial) {
-			sections.push(
-				'**Status**: Partial — the analysis was cut short, so this page is not fully covered.\n',
-			);
+		if (note) {
+			sections.push(note);
 		}
 
 		sections.push(`**Findings**: ${page.findings.length} issues identified\n`);

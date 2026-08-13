@@ -71,6 +71,31 @@ test('a partial page is flagged instead of passing as analysed', t => {
 	t.regex(markdown, /Pages Analyzed\*\*: 0 successful/);
 });
 
+test('a failed page still shows what it managed to find', t => {
+	const markdown = generateMarkdownReport(
+		buildReport([
+			buildPage({
+				pageUrl: 'https://example.com/died',
+				status: 'failed',
+				error: 'threw on iteration 15',
+				findings: [
+					{
+						severity: 'high',
+						category: 'Accessibility',
+						description: 'Missing alt text',
+						personaRelevance: ['Test persona'],
+						recommendation: 'Add alt text',
+						pageUrl: 'https://example.com/died',
+					},
+				],
+			}),
+		]),
+	);
+
+	t.regex(markdown, /Missing alt text/, 'pre-failure findings are rendered');
+	t.regex(markdown, /Status\*\*: Failed/);
+});
+
 test('a fully analysed page renders no partial or failure noise', t => {
 	const markdown = generateMarkdownReport(
 		buildReport([buildPage({pageUrl: 'https://example.com/ok'})]),
