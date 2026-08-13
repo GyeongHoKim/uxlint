@@ -330,7 +330,7 @@ export type UseWizardResult = {
  * @example
  * ```tsx
  * function ConfigWizard() {
- * const {state, dispatch} = useWizard();
+ *   const {state, dispatch} = useWizard();
  *
  *   if (state.phase === 'intro') {
  *     return <IntroScreen onStart={() => dispatch({type: 'START_WIZARD'})} />;
