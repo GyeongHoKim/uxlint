@@ -45,25 +45,6 @@ const completeOnePage = (builder: ReportBuilder, pageUrl: string) => {
 	builder.completePageAnalysis();
 };
 
-test('discardCurrentPage drops only the in-flight page', t => {
-	const {builder, sandbox} = createBuilder();
-
-	builder.setPersona('Test persona');
-	completeOnePage(builder, 'https://example.com/one');
-
-	builder.initializePageAnalysis('https://example.com/two', 'features');
-	builder.addFinding(buildFinding('https://example.com/two'));
-	builder.discardCurrentPage();
-
-	const state = builder.getCurrentState();
-	t.is(state.currentPageAnalysis, undefined);
-	t.is(state.completedAnalyses.length, 1);
-	t.is(state.completedAnalyses[0]?.pageUrl, 'https://example.com/one');
-	t.is(state.persona, 'Test persona', 'persona must survive a page discard');
-
-	sandbox.restore();
-});
-
 test('failCurrentPage records the failure without destroying earlier pages', t => {
 	const {builder, sandbox} = createBuilder();
 
@@ -108,6 +89,29 @@ test('failCurrentPage synthesises a record when the page never initialised', t =
 	t.is(failed.status, 'failed');
 	t.is(failed.error, 'MCP client unavailable');
 	t.is(builder.getCurrentState().completedAnalyses.length, 1);
+
+	sandbox.restore();
+});
+
+test('failCurrentPage does not re-record a page that already finished', t => {
+	const {builder, sandbox} = createBuilder();
+
+	// The model completes the page, then something after that throws inside the
+	// same try block. Without a guard the page lands in analyzedPages *and*
+	// failedPages, and a finished page gets reported as failed.
+	completeOnePage(builder, 'https://example.com/one');
+
+	const result = builder.failCurrentPage('progress subscriber blew up', {
+		url: 'https://example.com/one',
+		features: 'features',
+	});
+
+	t.is(result.status, 'complete', 'the settled record wins');
+
+	const report = builder.generateFinalReport();
+	t.deepEqual(report.metadata.analyzedPages, ['https://example.com/one']);
+	t.deepEqual(report.metadata.failedPages, []);
+	t.is(report.pages.length, 1, 'the page must appear exactly once');
 
 	sandbox.restore();
 });

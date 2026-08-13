@@ -123,21 +123,13 @@ export class ReportBuilder {
 	}
 
 	/**
-	 * Drop the in-flight page analysis without touching the rest of the run.
-	 *
-	 * `reset()` is for run boundaries: it also empties `allAnalyses`. Using it
-	 * to abandon a single page threw away every page already completed, so one
-	 * flaky page cost the whole report.
-	 */
-	discardCurrentPage(): void {
-		this.currentPageAnalysis = undefined;
-	}
-
-	/**
 	 * Record the in-flight page as failed and move it into the collection.
 	 *
 	 * A failure that leaves no trace is indistinguishable from a page that was
 	 * never requested, which is why `metadata.failedPages` was always empty.
+	 * Note that `reset()` is for run boundaries -- it also empties
+	 * `allAnalyses`, so using it to abandon one page threw away every page
+	 * already completed.
 	 *
 	 * `page` is the fallback identity for a failure that happened before
 	 * `initializePageAnalysis` ran, when there is no in-flight analysis to convert.
@@ -146,12 +138,31 @@ export class ReportBuilder {
 	 * @param page - Page identity to fall back on
 	 * @param page.url - Page URL
 	 * @param page.features - Feature descriptions from config
-	 * @returns The recorded failed analysis
+	 * @returns The recorded failed analysis, or the existing terminal record
 	 */
 	failCurrentPage(
 		error: string,
 		page: {url: string; features: string},
 	): PageAnalysis {
+		if (!this.currentPageAnalysis) {
+			// No in-flight page means one of two things, and they need opposite
+			// handling: the page was never initialised (record the failure), or
+			// it already reached a terminal state and something after that threw
+			// (do not record it again). Pushing a second record would list the
+			// same URL under both analyzedPages and failedPages and report a
+			// finished page as failed.
+			// Scanning backwards so a URL that legitimately appears twice in the
+			// config resolves to its most recent record. `findLast` would say
+			// this in one line but is ES2023, and tsconfig targets ES2022 libs.
+			for (let index = this.allAnalyses.length - 1; index >= 0; index--) {
+				const settled = this.allAnalyses[index];
+
+				if (settled?.pageUrl === page.url) {
+					return settled;
+				}
+			}
+		}
+
 		const failedAnalysis: PageAnalysis = {
 			pageUrl: this.currentPageAnalysis?.pageUrl ?? page.url,
 			features: this.currentPageAnalysis?.features ?? page.features,
@@ -307,12 +318,16 @@ export class ReportBuilder {
 			return 'All pages failed analysis. Please check error messages and try again.';
 		}
 
-		const partialNote =
+		// The finding count spans complete and partial pages, so the sentence
+		// has to account for both. Crediting them all to successCount read as a
+		// contradiction whenever a run was mostly partial ("Analyzed 0 page(s)
+		// successfully. Found 12 UX issue(s)").
+		const coverage =
 			partialCount > 0
-				? ` ${partialCount} page(s) were cut short before the analysis finished, so their coverage is incomplete.`
-				: '';
+				? `Analyzed ${successCount} page(s) fully and ${partialCount} page(s) partially -- the partial ones were cut short, so their coverage is incomplete.`
+				: `Analyzed ${successCount} page(s) successfully.`;
 
-		return `Analyzed ${successCount} page(s) successfully. Found ${findingsCount} UX issue(s) requiring attention.${partialNote}`;
+		return `${coverage} Found ${findingsCount} UX issue(s) requiring attention.`;
 	}
 }
 

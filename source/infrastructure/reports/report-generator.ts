@@ -126,11 +126,18 @@ export function generateMarkdownReport(report: UxReport): string {
 		}
 	}
 
-	// Failed Pages
-	if (metadata.failedPages.length > 0) {
+	// Failed Pages. Read off `pages` rather than `metadata.failedPages` so the
+	// recorded reason is shown: a report that says a page failed without saying
+	// why sends the reader back to the log files.
+	const failedAnalyses = pages.filter(page => page.status === 'failed');
+	if (failedAnalyses.length > 0) {
 		sections.push('### Failed Pages\n');
-		for (const failedPage of metadata.failedPages) {
-			sections.push(`- ❌ ${failedPage}`);
+		for (const failedPage of failedAnalyses) {
+			sections.push(
+				`- ❌ ${failedPage.pageUrl}${
+					failedPage.error ? ` — ${failedPage.error}` : ''
+				}`,
+			);
 		}
 
 		sections.push('');
