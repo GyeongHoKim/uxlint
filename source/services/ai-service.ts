@@ -16,7 +16,7 @@ import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
 import {getLanguageModel} from './llm-provider.js';
-import {getMCPClient} from './mcp-client.js';
+import {getMCPClient, resetMCPClient} from './mcp-client.js';
 import {reportBuilder, type ReportBuilder} from './report-builder.js';
 
 /**
@@ -95,10 +95,12 @@ export class AIService {
 	/**
 	 * Close the MCP client connection and reset state
 	 *
-	 * Also drops this instance from the module cache. Without that, a second
-	 * run in the same process got the same AIService back from `getAIService`
-	 * with its MCP client already closed, and failed on a dead transport
-	 * rather than starting a fresh one.
+	 * Both caches in front of this object have to be cleared, not just one.
+	 * `getAIService` memoises the service and `getMCPClient` memoises the
+	 * transport at module scope, so dropping only the service handed the next
+	 * run a brand new AIService wrapped around the same closed client -- and
+	 * because that instance is not itself closed, the guard in `analyzePage`
+	 * would not catch it either.
 	 */
 	async close(): Promise<void> {
 		if (this.mcpClient) {
@@ -108,8 +110,12 @@ export class AIService {
 		this.reportBuilder.reset();
 		this.isClosed = true;
 
+		// Only a cache-managed instance owns the module-level caches. A service
+		// constructed directly (tests) brings its own client and must not
+		// clobber them.
 		if (this.cacheKey) {
 			aiServiceInstances.delete(this.cacheKey);
+			resetMCPClient();
 		}
 	}
 
@@ -126,12 +132,21 @@ export class AIService {
 		}
 
 		if (this.isClosed) {
-			// Name the real cause here. Letting this through surfaced whatever
-			// obscure error the closed MCP transport happened to raise.
-			return this.reportBuilder.failCurrentPage(
-				'AIService has been closed; create a new instance before analyzing again',
-				page,
-			);
+			// Name the real cause instead of letting the closed transport raise
+			// whatever it raises. Reported straight to the caller and not through
+			// the builder: close() reset that builder, and it is the process-wide
+			// singleton the *next* run will use, so writing here would plant a
+			// phantom failed page in a report for a run that never saw this page.
+			return {
+				pageUrl: page.url,
+				features: page.features,
+				snapshot: '',
+				findings: [],
+				analysisTimestamp: Date.now(),
+				status: 'failed',
+				error:
+					'AIService has been closed; create a new instance before analyzing again',
+			};
 		}
 
 		try {

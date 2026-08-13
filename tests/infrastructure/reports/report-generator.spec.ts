@@ -1,0 +1,82 @@
+/**
+ * Unit tests for markdown report rendering
+ *
+ * The generator is a pure function over UxReport, so Constitution II puts it
+ * under unit tests. It had none, which is why a page could be recorded as
+ * failed and still render without saying why.
+ */
+
+import test from 'ava';
+import type {PageAnalysis, UxReport} from '../../../source/models/analysis.js';
+import {generateMarkdownReport} from '../../../source/infrastructure/reports/report-generator.js';
+
+const buildPage = (overrides: Partial<PageAnalysis>): PageAnalysis => ({
+	pageUrl: 'https://example.com',
+	features: 'features',
+	snapshot: '',
+	findings: [],
+	analysisTimestamp: 0,
+	status: 'complete',
+	...overrides,
+});
+
+const buildReport = (pages: PageAnalysis[]): UxReport => ({
+	metadata: {
+		timestamp: 0,
+		analyzedPages: pages
+			.filter(page => page.status === 'complete')
+			.map(page => page.pageUrl),
+		partialPages: pages
+			.filter(page => page.status === 'partial')
+			.map(page => page.pageUrl),
+		failedPages: pages
+			.filter(page => page.status === 'failed')
+			.map(page => page.pageUrl),
+		totalFindings: 0,
+		persona: 'Test persona',
+	},
+	pages,
+	summary: 'Test summary',
+	prioritizedFindings: [],
+});
+
+test('a failed page renders with the reason it failed', t => {
+	const markdown = generateMarkdownReport(
+		buildReport([
+			buildPage({
+				pageUrl: 'https://example.com/broken',
+				status: 'failed',
+				error: 'navigation timed out',
+			}),
+		]),
+	);
+
+	t.regex(markdown, /https:\/\/example\.com\/broken/);
+	t.regex(
+		markdown,
+		/navigation timed out/,
+		'a report that says a page failed without saying why sends the reader to the log files',
+	);
+});
+
+test('a partial page is flagged instead of passing as analysed', t => {
+	const markdown = generateMarkdownReport(
+		buildReport([
+			buildPage({pageUrl: 'https://example.com/cut', status: 'partial'}),
+		]),
+	);
+
+	t.regex(markdown, /\*\*Partial Pages\*\*: 1/);
+	t.regex(markdown, /Partial — the analysis was cut short/);
+	t.regex(markdown, /Pages Analyzed\*\*: 0 successful/);
+});
+
+test('a fully analysed page renders no partial or failure noise', t => {
+	const markdown = generateMarkdownReport(
+		buildReport([buildPage({pageUrl: 'https://example.com/ok'})]),
+	);
+
+	t.notRegex(markdown, /Partial Pages/);
+	t.notRegex(markdown, /Failed Pages/);
+	t.regex(markdown, /### https:\/\/example\.com\/ok/);
+});

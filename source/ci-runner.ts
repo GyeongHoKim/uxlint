@@ -104,6 +104,7 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 			totalDurationMs: totalDuration,
 			findingsCount: report.prioritizedFindings?.length ?? 0,
 			analyzedPages: report.metadata.analyzedPages.length,
+			partialPages: report.metadata.partialPages.length,
 			failedPages: report.metadata.failedPages.length,
 		});
 
