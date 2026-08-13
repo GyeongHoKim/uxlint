@@ -179,9 +179,12 @@ function SavePhase({
 	const [selectedFormat, setSelectedFormat] = useState<'yaml' | 'json'>('yaml');
 	const [formatSelected, setFormatSelected] = useState(false);
 
-	// Handle save when format is confirmed via effect
+	// Handle save when format is confirmed via effect.
+	// `error` is part of the guard: a failed save clears `isLoading`, which
+	// re-runs this effect, so without it the wizard would retry forever
+	// instead of settling on the error screen.
 	useEffect(() => {
-		if (!formatSelected || isLoading) {
+		if (!formatSelected || isLoading || error) {
 			return;
 		}
 
@@ -215,6 +218,7 @@ function SavePhase({
 	}, [
 		formatSelected,
 		isLoading,
+		error,
 		selectedFormat,
 		state.data,
 		dispatch,
@@ -320,9 +324,9 @@ function SavePhase({
  * @example
  * ```tsx
  * <ConfigWizard
- * theme={theme}
- * onComplete={(config) => logger.info('Config created', {config})}
- * onCancel={() => process.exit(0)}
+ *   theme={theme}
+ *   onComplete={(config) => logger.info('Config created', {config})}
+ *   onCancel={() => process.exit(0)}
  * />
  * ```
  */
