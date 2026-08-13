@@ -25,6 +25,17 @@ import {reportBuilder, type ReportBuilder} from './report-builder.js';
 const MAX_AGENT_ITERATIONS = 20;
 
 /**
+ * The shape `generateText` actually returns.
+ *
+ * Derived from the SDK rather than hand-written: the helpers below used to
+ * declare their own all-optional structural type, which is why reading the
+ * pre-v5 `toolCalls[].args` kept compiling and shipped empty tool-call
+ * arguments to the UI for a whole major version. Anchoring to the SDK turns
+ * the next rename into a compile error.
+ */
+type GenerateTextResult = Awaited<ReturnType<typeof generateText>>;
+
+/**
  * Analysis progress callback type
  * Extended to support LLM response data display
  */
@@ -242,15 +253,7 @@ export class AIService {
 	 * Create LLM response data for UI display
 	 */
 	private createLLMResponseData(
-		result: {
-			text: string;
-			toolCalls?: Array<{
-				toolName: string;
-				toolCallId?: string;
-				input?: unknown;
-			}>;
-			finishReason?: string;
-		},
+		result: Pick<GenerateTextResult, 'text' | 'toolCalls' | 'finishReason'>,
 		iteration: number,
 	): LLMResponseData {
 		const emptyArgs: Record<string, unknown> = {};
@@ -279,10 +282,7 @@ export class AIService {
 	 * @returns false to break loop, true to continue, 'completed' if analysis done
 	 */
 	private processAgentResult(
-		result: {
-			finishReason?: string;
-			toolCalls?: Array<{toolName: string}>;
-		},
+		result: Pick<GenerateTextResult, 'finishReason' | 'toolCalls'>,
 		messages: ModelMessage[],
 		iterations: number,
 	): boolean | 'completed' {
