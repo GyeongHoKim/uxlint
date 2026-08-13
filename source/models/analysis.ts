@@ -237,7 +237,7 @@ export type AnalysisState = {
  * @example
  * ```typescript
  * if (isPageAnalysisComplete(analysis)) {
- * logger.info(`Found ${analysis.findings.length} issues`);
+ *   logger.info(`Found ${analysis.findings.length} issues`);
  * }
  * ```
  */
@@ -254,7 +254,7 @@ export function isPageAnalysisComplete(analysis: PageAnalysis): boolean {
  * @example
  * ```typescript
  * if (isPageAnalysisFailed(analysis)) {
- * logger.error(`Analysis failed: ${analysis.error}`);
+ *   logger.error(`Analysis failed: ${analysis.error}`);
  * }
  * ```
  */
@@ -281,7 +281,7 @@ export function isAnalysisComplete(state: AnalysisState): boolean {
  * @example
  * ```typescript
  * if (isAnalysisInProgress(state)) {
- * renderProgressSpinner(state.currentStage);
+ *   renderProgressSpinner(state.currentStage);
  * }
  * ```
  */
