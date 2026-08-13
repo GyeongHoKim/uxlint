@@ -20,6 +20,7 @@ const createMockReport = (): UxReport => ({
 	metadata: {
 		timestamp: 0,
 		analyzedPages: [],
+		partialPages: [],
 		failedPages: [],
 		totalFindings: 0,
 		persona: 'test persona',

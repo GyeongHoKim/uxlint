@@ -112,6 +112,19 @@ test('failCurrentPage synthesises a record when the page never initialised', t =
 	sandbox.restore();
 });
 
+test('completePageAnalysis marks the page partial when asked', t => {
+	const {builder, sandbox} = createBuilder();
+
+	builder.initializePageAnalysis('https://example.com/one', 'features');
+	builder.addFinding(buildFinding('https://example.com/one'));
+	const analysis = builder.completePageAnalysis('partial');
+
+	t.is(analysis.status, 'partial');
+	t.is(builder.getCurrentState().completedAnalyses[0]?.status, 'partial');
+
+	sandbox.restore();
+});
+
 test('completePageAnalysis still defaults to complete', t => {
 	const {builder, sandbox} = createBuilder();
 
@@ -121,11 +134,15 @@ test('completePageAnalysis still defaults to complete', t => {
 	sandbox.restore();
 });
 
-test('generateReport separates completed pages from failed ones', t => {
+test('generateReport separates complete, partial and failed pages', t => {
 	const {builder, sandbox} = createBuilder();
 
 	builder.setPersona('Test persona');
 	completeOnePage(builder, 'https://example.com/complete');
+
+	builder.initializePageAnalysis('https://example.com/partial', 'features');
+	builder.addFinding(buildFinding('https://example.com/partial', 'Navigation'));
+	builder.completePageAnalysis('partial');
 
 	builder.initializePageAnalysis('https://example.com/failed', 'features');
 	builder.failCurrentPage('boom', {
@@ -136,9 +153,14 @@ test('generateReport separates completed pages from failed ones', t => {
 	const report = builder.generateFinalReport();
 
 	t.deepEqual(report.metadata.analyzedPages, ['https://example.com/complete']);
+	t.deepEqual(report.metadata.partialPages, ['https://example.com/partial']);
 	t.deepEqual(report.metadata.failedPages, ['https://example.com/failed']);
-	t.is(report.metadata.totalFindings, 1);
-	t.is(report.pages.length, 2, 'every page appears in the report body');
+
+	// A partial analysis is cut short, not wrong: the findings it did produce
+	// are real observations and must survive into the report.
+	t.is(report.metadata.totalFindings, 2);
+	t.is(report.prioritizedFindings.length, 2);
+	t.is(report.pages.length, 3, 'every page appears in the report body');
 	t.is(report.metadata.persona, 'Test persona');
 
 	sandbox.restore();

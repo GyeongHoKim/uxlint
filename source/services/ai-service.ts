@@ -198,11 +198,15 @@ export class AIService {
 				}
 			}
 
-			// If analysis was not completed properly, complete it now
+			// The loop ended without the model calling completePageAnalysis --
+			// it exhausted MAX_AGENT_ITERATIONS or stopped early. Close the page
+			// out as `partial`: recording it as `complete` made a truncated
+			// sweep indistinguishable from a finished one, which is exactly the
+			// distinction a CI gate has to be able to make.
 			if (!isAnalysisCompleted) {
 				const state = this.reportBuilder.getCurrentState();
 				if (state.currentPageAnalysis) {
-					this.reportBuilder.completePageAnalysis();
+					this.reportBuilder.completePageAnalysis('partial');
 				}
 			}
 

@@ -12,7 +12,18 @@ import type {LLMResponseData} from './llm-response.js';
  * Represents the current state of page analysis
  */
 export type AnalysisStatus =
-	'pending' | 'navigating' | 'capturing' | 'analyzing' | 'complete' | 'failed';
+	| 'pending'
+	| 'navigating'
+	| 'capturing'
+	| 'analyzing'
+	| 'complete'
+	/**
+	 * The agent loop ended without the model signalling completion -- it ran
+	 * out of iterations. Findings collected so far are real, but the sweep is
+	 * unfinished, so this must never be reported as `complete`.
+	 */
+	| 'partial'
+	| 'failed';
 
 /**
  * Page analysis result
@@ -111,6 +122,11 @@ export type ReportMetadata = {
 	 * URLs successfully analyzed
 	 */
 	analyzedPages: string[];
+
+	/**
+	 * URLs whose analysis was cut short before the model signalled completion
+	 */
+	partialPages: string[];
 
 	/**
 	 * URLs that failed analysis (with reasons)
