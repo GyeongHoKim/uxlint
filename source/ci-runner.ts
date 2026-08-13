@@ -72,7 +72,11 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 
 			// Analyze page with minimal progress callback
 			// eslint-disable-next-line no-await-in-loop
-			await aiService.analyzePage(config, page, progressCallback);
+			const analysis = await aiService.analyzePage(
+				config,
+				page,
+				progressCallback,
+			);
 
 			const pageDuration = Date.now() - pageStartTime;
 			logger.info('Page analysis completed', {
@@ -80,6 +84,8 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 				totalPages,
 				url: page.url,
 				durationMs: pageDuration,
+				status: analysis.status,
+				error: analysis.error,
 			});
 		}
 
@@ -97,6 +103,8 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 			reportOutput: config.report.output,
 			totalDurationMs: totalDuration,
 			findingsCount: report.prioritizedFindings?.length ?? 0,
+			analyzedPages: report.metadata.analyzedPages.length,
+			failedPages: report.metadata.failedPages.length,
 		});
 
 		// Cleanup

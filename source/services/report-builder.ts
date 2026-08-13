@@ -117,6 +117,53 @@ export class ReportBuilder {
 	}
 
 	/**
+	 * Drop the in-flight page analysis without touching the rest of the run.
+	 *
+	 * `reset()` is for run boundaries: it also empties `allAnalyses`. Using it
+	 * to abandon a single page threw away every page already completed, so one
+	 * flaky page cost the whole report.
+	 */
+	discardCurrentPage(): void {
+		this.currentPageAnalysis = undefined;
+	}
+
+	/**
+	 * Record the in-flight page as failed and move it into the collection.
+	 *
+	 * A failure that leaves no trace is indistinguishable from a page that was
+	 * never requested, which is why `metadata.failedPages` was always empty.
+	 *
+	 * `page` is the fallback identity for a failure that happened before
+	 * `initializePageAnalysis` ran, when there is no in-flight analysis to convert.
+	 *
+	 * @param error - Why the page failed
+	 * @param page - Page identity to fall back on
+	 * @param page.url - Page URL
+	 * @param page.features - Feature descriptions from config
+	 * @returns The recorded failed analysis
+	 */
+	failCurrentPage(
+		error: string,
+		page: {url: string; features: string},
+	): PageAnalysis {
+		const failedAnalysis: PageAnalysis = {
+			pageUrl: this.currentPageAnalysis?.pageUrl ?? page.url,
+			features: this.currentPageAnalysis?.features ?? page.features,
+			snapshot: this.currentPageAnalysis?.snapshot ?? '',
+			findings: this.currentPageAnalysis?.findings ?? [],
+			analysisTimestamp:
+				this.currentPageAnalysis?.analysisTimestamp ?? Date.now(),
+			status: 'failed',
+			error,
+		};
+
+		this.allAnalyses.push(failedAnalysis);
+		this.currentPageAnalysis = undefined;
+
+		return failedAnalysis;
+	}
+
+	/**
 	 * Set persona for the report
 	 *
 	 * @param persona - Target persona

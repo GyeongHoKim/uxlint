@@ -470,3 +470,136 @@ test('AIService surfaces tool call arguments in the LLM response sent to the UI'
 	await aiService.close();
 	sandbox.restore();
 });
+
+const mockUsage = {
+	inputTokens: {
+		total: 10,
+		noCache: 10,
+		cacheRead: undefined,
+		cacheWrite: undefined,
+	},
+	outputTokens: {total: 20, text: 20, reasoning: undefined},
+} as const;
+
+/** A step that calls one report tool with the given JSON input. */
+const toolCallStep = (toolName: string, input = '{}') => ({
+	finishReason: {unified: 'tool-calls' as const, raw: undefined},
+	usage: mockUsage,
+	content: [
+		{
+			type: 'tool-call' as const,
+			toolCallId: `call-${toolName}`,
+			toolName,
+			input,
+		},
+	],
+	warnings: [],
+});
+
+const multiPageConfig = (urls: string[]): UxLintConfig => ({
+	mainPageUrl: urls[0] ?? 'https://example.com',
+	subPageUrls: urls.slice(1),
+	pages: urls.map(url => ({url, features: `Features for ${url}`})),
+	persona: 'Test persona',
+	report: {output: './test-report.md'},
+});
+
+const createBuilder = (sandbox: sinon.SinonSandbox) =>
+	new ReportBuilder({
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	});
+
+test('AIService keeps earlier page findings when a later page throws', async t => {
+	const sandbox = sinon.createSandbox();
+	const config = multiPageConfig([
+		'https://example.com/one',
+		'https://example.com/two',
+		'https://example.com/three',
+	]);
+
+	// The failing page is the second of three, so the assertion can tell
+	// "prior work survived" apart from "nothing ran".
+	let pageIndex = 0;
+	const mockModel = new MockLanguageModelV4({
+		async doGenerate() {
+			if (pageIndex === 1) {
+				throw new Error('navigation timed out');
+			}
+
+			return toolCallStep(
+				'addFinding',
+				JSON.stringify({
+					severity: 'high',
+					category: 'Accessibility',
+					description: `Issue on page ${pageIndex}`,
+					personaRelevance: ['Test persona'],
+					recommendation: 'Fix it',
+					pageUrl: config.pages[pageIndex]?.url ?? '',
+				}),
+			);
+		},
+	});
+
+	const reportBuilder = createBuilder(sandbox);
+	const aiService = new AIService(
+		mockModel,
+		createMockMCPClient(),
+		reportBuilder,
+	);
+
+	const results = [];
+	for (const [index, page] of config.pages.entries()) {
+		pageIndex = index;
+		// eslint-disable-next-line no-await-in-loop -- pages are analysed in order
+		results.push(await aiService.analyzePage(config, page));
+	}
+
+	t.is(results[1]?.status, 'failed');
+
+	const report = reportBuilder.generateFinalReport();
+
+	t.true(
+		report.metadata.analyzedPages.includes('https://example.com/one'),
+		'a mid-run failure must not erase the pages already analysed',
+	);
+	t.true(report.metadata.analyzedPages.includes('https://example.com/three'));
+	t.true(
+		report.metadata.totalFindings > 0,
+		'findings collected before the failure must survive',
+	);
+
+	sandbox.restore();
+});
+
+test('AIService records a failed page in the report metadata', async t => {
+	const sandbox = sinon.createSandbox();
+	const config = multiPageConfig(['https://example.com/broken']);
+	const mockModel = new MockLanguageModelV4({
+		async doGenerate() {
+			throw new Error('navigation timed out');
+		},
+	});
+
+	const reportBuilder = createBuilder(sandbox);
+	const aiService = new AIService(
+		mockModel,
+		createMockMCPClient(),
+		reportBuilder,
+	);
+
+	const page = config.pages[0]!;
+	const analysis = await aiService.analyzePage(config, page);
+
+	t.is(analysis.status, 'failed');
+	t.is(analysis.error, 'navigation timed out');
+
+	const report = reportBuilder.generateFinalReport();
+	t.deepEqual(
+		report.metadata.failedPages,
+		['https://example.com/broken'],
+		'a failed page has to leave a trace in the report',
+	);
+
+	sandbox.restore();
+});

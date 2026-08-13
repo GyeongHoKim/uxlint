@@ -99,8 +99,6 @@ export class AIService {
 			throw new Error('AIService not initialized');
 		}
 
-		const startTime = Date.now();
-
 		try {
 			// Initialize page analysis in report builder
 			this.reportBuilder.initializePageAnalysis(page.url, page.features);
@@ -233,19 +231,11 @@ export class AIService {
 				stack: error instanceof Error ? error.stack : undefined,
 			});
 
-			// Reset current page analysis on error
-			this.reportBuilder.reset();
-			this.reportBuilder.setPersona(config.persona);
-
-			return {
-				pageUrl: page.url,
-				features: page.features,
-				snapshot: '',
-				findings: [],
-				analysisTimestamp: startTime,
-				status: 'failed',
-				error: errorMessage,
-			};
+			// Record the failure and drop only this page. Calling reset() here
+			// emptied the whole run, so a single failing page erased every page
+			// already analysed -- and the hand-built result below was returned to
+			// a caller that discards it, leaving the failure out of the report.
+			return this.reportBuilder.failCurrentPage(errorMessage, page);
 		}
 	}
 
