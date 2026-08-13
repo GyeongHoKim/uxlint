@@ -207,10 +207,9 @@ test('AIService generates valid report when LLM completes page analysis using Mo
 	t.is(pageAnalysis.pageUrl, 'https://example.com');
 	t.is(pageAnalysis.status, 'complete');
 
-	// Set persona for report generation
-	reportBuilder.setPersona(config.persona);
-
-	// Generate final report
+	// Deliberately no setPersona call: analyzePage owns that now. Calling it
+	// from the test is what hid the fact that the production success path
+	// never set it at all.
 	const report = reportBuilder.generateFinalReport();
 
 	// Verify report is not empty and contains expected data
@@ -650,6 +649,41 @@ test('AIService marks an iteration-exhausted analysis as partial', async t => {
 	const report = reportBuilder.generateFinalReport();
 	t.deepEqual(report.metadata.partialPages, ['https://example.com/loops']);
 	t.deepEqual(report.metadata.analyzedPages, []);
+
+	sandbox.restore();
+});
+
+test('AIService sets the report persona without the caller doing it', async t => {
+	const sandbox = sinon.createSandbox();
+	const config = multiPageConfig(['https://example.com/one']);
+	const mockModel = new MockLanguageModelV4({
+		async doGenerate() {
+			return toolCallStep('completePageAnalysis');
+		},
+	});
+
+	const reportBuilder = createBuilder(sandbox);
+	const aiService = new AIService(
+		mockModel,
+		createMockMCPClient(),
+		reportBuilder,
+	);
+
+	const page = config.pages[0];
+
+	if (!page) {
+		t.fail('Page is undefined');
+		return;
+	}
+
+	await aiService.analyzePage(config, page);
+
+	const report = reportBuilder.generateFinalReport();
+	t.is(
+		report.metadata.persona,
+		'Test persona',
+		'persona must be recorded on the success path, not only when a page fails',
+	);
 
 	sandbox.restore();
 });

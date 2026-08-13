@@ -100,6 +100,12 @@ export class AIService {
 		}
 
 		try {
+			// The persona belongs to the run, not to a page, but nothing else
+			// records it: this used to live only in the error path, so a run
+			// where every page succeeded produced a report with a blank
+			// persona. Setting it here is idempotent.
+			this.reportBuilder.setPersona(config.persona);
+
 			// Initialize page analysis in report builder
 			this.reportBuilder.initializePageAnalysis(page.url, page.features);
 
