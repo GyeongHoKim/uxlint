@@ -6,7 +6,7 @@
  */
 
 import {Box, Text} from 'ink';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef} from 'react';
 import type {ThemeConfig} from '../models/theme.js';
 import type {UxLintConfig} from '../models/config.js';
 import type {UxReport} from '../models/analysis.js';
@@ -42,7 +42,9 @@ export function AnalysisRunner({
 }: AnalysisRunnerProps) {
 	// Use analysis orchestration hook
 	const {analysisState, runAnalysis, getCurrentPageUrl} = useAnalysis(config);
-	const [hasNotified, setHasNotified] = useState(false);
+	// A ref, not state: the flag is never rendered, so keeping it out of state
+	// avoids an extra commit per completed analysis.
+	const hasNotified = useRef(false);
 
 	// Derived, not state: the exit prompt is a pure function of the stage, and
 	// setting it from an effect would trigger an extra render pass.
@@ -60,7 +62,7 @@ export function AnalysisRunner({
 			return;
 		}
 
-		if (hasNotified) {
+		if (hasNotified.current) {
 			return;
 		}
 
@@ -69,14 +71,13 @@ export function AnalysisRunner({
 				return;
 			}
 
-			// eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot guard so the caller is notified exactly once; there is no render-time equivalent
-			setHasNotified(true);
+			hasNotified.current = true;
 			onComplete(analysisState.finalReport);
 			return;
 		}
 
 		if (analysisState.currentStage === 'error' && onError) {
-			setHasNotified(true);
+			hasNotified.current = true;
 			onError(analysisState.error ?? new Error('Unknown analysis error'));
 		}
 	}, [
@@ -84,7 +85,6 @@ export function AnalysisRunner({
 		analysisState.currentStage,
 		analysisState.error,
 		analysisState.finalReport,
-		hasNotified,
 		onComplete,
 		onError,
 	]);
