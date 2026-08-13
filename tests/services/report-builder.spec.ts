@@ -170,6 +170,33 @@ test('generateReport separates complete, partial and failed pages', t => {
 	sandbox.restore();
 });
 
+test('findings collected before a failure still reach the report', t => {
+	const {builder, sandbox} = createBuilder();
+
+	// The page called addFinding a few times and then threw. Those findings
+	// were already paid for; dropping them is the same mistake as wiping
+	// completed pages on failure.
+	builder.initializePageAnalysis('https://example.com/died', 'features');
+	builder.addFinding(buildFinding('https://example.com/died'));
+	builder.failCurrentPage('threw on iteration 15', {
+		url: 'https://example.com/died',
+		features: 'features',
+	});
+
+	const report = builder.generateFinalReport();
+
+	t.is(report.metadata.totalFindings, 1);
+	t.is(report.prioritizedFindings.length, 1);
+	t.deepEqual(report.metadata.failedPages, ['https://example.com/died']);
+	t.deepEqual(
+		report.metadata.analyzedPages,
+		[],
+		'the page still does not count as analysed',
+	);
+
+	sandbox.restore();
+});
+
 test('reset still clears the whole run', t => {
 	const {builder, sandbox} = createBuilder();
 

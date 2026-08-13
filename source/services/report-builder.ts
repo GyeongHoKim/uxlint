@@ -225,13 +225,12 @@ export class ReportBuilder {
 		const partialAnalyses = analyses.filter(a => a.status === 'partial');
 		const failedAnalyses = analyses.filter(a => a.status === 'failed');
 
-		// Collect all findings. A partial analysis stopped early, but what it
-		// did observe is as real as anything from a finished page -- dropping
-		// those findings would make marking pages partial worse than not
-		// distinguishing them at all.
-		const allFindings = [...successfulAnalyses, ...partialAnalyses].flatMap(
-			a => a.findings,
-		);
+		// Every observation counts, whatever ended the page. A page cut short at
+		// iteration 20, or one that threw on iteration 15, still found what it
+		// found beforehand; discarding that is the same mistake as wiping
+		// completed pages on failure. How much of the page was covered is
+		// carried by the status split above, not by hiding findings.
+		const allFindings = analyses.flatMap(a => a.findings);
 
 		// Sort findings by severity
 		const prioritizedFindings = this.prioritizeFindings(allFindings);

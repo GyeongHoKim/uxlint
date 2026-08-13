@@ -103,19 +103,24 @@ export class AIService {
 	 * would not catch it either.
 	 */
 	async close(): Promise<void> {
-		if (this.mcpClient) {
-			await this.mcpClient.close();
-		}
+		try {
+			if (this.mcpClient) {
+				await this.mcpClient.close();
+			}
+		} finally {
+			// A transport that throws on the way down is still down. Leaving the
+			// caches populated because its close() failed reproduces the exact
+			// symptom this teardown exists to prevent.
+			this.reportBuilder.reset();
+			this.isClosed = true;
 
-		this.reportBuilder.reset();
-		this.isClosed = true;
-
-		// Only a cache-managed instance owns the module-level caches. A service
-		// constructed directly (tests) brings its own client and must not
-		// clobber them.
-		if (this.cacheKey) {
-			aiServiceInstances.delete(this.cacheKey);
-			resetMCPClient();
+			// Only a cache-managed instance owns the module-level caches. A
+			// service constructed directly (tests) brings its own client and
+			// must not clobber them.
+			if (this.cacheKey) {
+				aiServiceInstances.delete(this.cacheKey);
+				resetMCPClient();
+			}
 		}
 	}
 
