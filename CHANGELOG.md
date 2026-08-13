@@ -1,3 +1,15 @@
+## [4.0.1](https://github.com/GyeongHoKim/uxlint/compare/v4.0.0...v4.0.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* clear the MCP client cache on close and stop double-recording pages ([a44269d](https://github.com/GyeongHoKim/uxlint/commit/a44269d24283265bb570992d0beb4498209d1733))
+* distinguish truncated analyses from completed ones ([8c946af](https://github.com/GyeongHoKim/uxlint/commit/8c946afe0894a60242461a4289ee48fddbf01924))
+* preserve completed analyses and record failures when a page fails ([c108b5a](https://github.com/GyeongHoKim/uxlint/commit/c108b5ac60e2c9cd5aaee7f0659a3df4cde2d9ca))
+* retire the AIService instance once its MCP client closes ([75f4571](https://github.com/GyeongHoKim/uxlint/commit/75f4571b3fd52141121f98f9b3e3423ffa573e51))
+* set the report persona on the success path ([735843c](https://github.com/GyeongHoKim/uxlint/commit/735843c05cab4d2021f456a4cc2669b85d0ec609))
+* surface findings collected before a page failed ([0569e99](https://github.com/GyeongHoKim/uxlint/commit/0569e9943ba2c7cbc956962e6c4f8afb928ebd7b))
+
 # [4.0.0](https://github.com/GyeongHoKim/uxlint/compare/v3.1.0...v4.0.0) (2026-08-13)
 
 
