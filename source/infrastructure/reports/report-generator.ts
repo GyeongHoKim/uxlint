@@ -63,6 +63,10 @@ export function generateMarkdownReport(report: UxReport): string {
 		`**Generated**: ${formatTimestamp(metadata.timestamp)}`,
 		`**Pages Analyzed**: ${metadata.analyzedPages.length} successful`,
 	);
+	if (metadata.partialPages.length > 0) {
+		sections.push(`**Partial Pages**: ${metadata.partialPages.length}`);
+	}
+
 	if (metadata.failedPages.length > 0) {
 		sections.push(`**Failed Pages**: ${metadata.failedPages.length}`);
 	}
@@ -90,15 +94,24 @@ export function generateMarkdownReport(report: UxReport): string {
 
 	// Page Analyses Content
 	for (const page of pages) {
-		if (page.status !== 'complete') {
+		if (page.status !== 'complete' && page.status !== 'partial') {
 			continue;
 		}
 
+		const isPartial = page.status === 'partial';
+
 		sections.push(
-			`### ${page.pageUrl}\n`,
+			`### ${isPartial ? '⚠️ ' : ''}${page.pageUrl}\n`,
 			`**Features**: ${page.features}\n`,
-			`**Findings**: ${page.findings.length} issues identified\n`,
 		);
+
+		if (isPartial) {
+			sections.push(
+				'**Status**: Partial — the analysis was cut short, so this page is not fully covered.\n',
+			);
+		}
+
+		sections.push(`**Findings**: ${page.findings.length} issues identified\n`);
 
 		if (page.findings.length > 0) {
 			for (const finding of page.findings) {

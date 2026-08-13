@@ -80,10 +80,16 @@ export class ReportBuilder {
 	/**
 	 * Complete the current page analysis and add it to collection
 	 *
+	 * `'partial'` is for a run that ended without the model signalling
+	 * completion -- it exhausted its iterations rather than finishing.
+	 *
+	 * @param status - Terminal status for the page; defaults to `'complete'`
 	 * @returns The completed page analysis
 	 * @throws Error if no page analysis is initialized or required fields are missing
 	 */
-	completePageAnalysis(): PageAnalysis {
+	completePageAnalysis(
+		status: 'complete' | 'partial' = 'complete',
+	): PageAnalysis {
 		if (!this.currentPageAnalysis) {
 			throw new Error(
 				'No page analysis initialized. Call initializePageAnalysis first.',
@@ -107,7 +113,7 @@ export class ReportBuilder {
 			findings: this.currentPageAnalysis.findings ?? [],
 			analysisTimestamp:
 				this.currentPageAnalysis.analysisTimestamp ?? Date.now(),
-			status: 'complete',
+			status,
 		};
 
 		this.allAnalyses.push(completedAnalysis);
@@ -205,10 +211,16 @@ export class ReportBuilder {
 	 */
 	generateReport(analyses: PageAnalysis[], persona: string): UxReport {
 		const successfulAnalyses = analyses.filter(a => a.status === 'complete');
+		const partialAnalyses = analyses.filter(a => a.status === 'partial');
 		const failedAnalyses = analyses.filter(a => a.status === 'failed');
 
-		// Collect all findings
-		const allFindings = successfulAnalyses.flatMap(a => a.findings);
+		// Collect all findings. A partial analysis stopped early, but what it
+		// did observe is as real as anything from a finished page -- dropping
+		// those findings would make marking pages partial worse than not
+		// distinguishing them at all.
+		const allFindings = [...successfulAnalyses, ...partialAnalyses].flatMap(
+			a => a.findings,
+		);
 
 		// Sort findings by severity
 		const prioritizedFindings = this.prioritizeFindings(allFindings);
@@ -217,12 +229,14 @@ export class ReportBuilder {
 		const summary = this.generateSummary(
 			successfulAnalyses.length,
 			allFindings.length,
+			partialAnalyses.length,
 		);
 
 		return {
 			metadata: {
 				timestamp: Date.now(),
 				analyzedPages: successfulAnalyses.map(a => a.pageUrl),
+				partialPages: partialAnalyses.map(a => a.pageUrl),
 				failedPages: failedAnalyses.map(a => a.pageUrl),
 				totalFindings: allFindings.length,
 				persona,
@@ -284,12 +298,21 @@ export class ReportBuilder {
 	/**
 	 * Generate executive summary
 	 */
-	private generateSummary(successCount: number, findingsCount: number): string {
-		if (successCount === 0) {
+	private generateSummary(
+		successCount: number,
+		findingsCount: number,
+		partialCount: number,
+	): string {
+		if (successCount === 0 && partialCount === 0) {
 			return 'All pages failed analysis. Please check error messages and try again.';
 		}
 
-		return `Analyzed ${successCount} page(s) successfully. Found ${findingsCount} UX issue(s) requiring attention.`;
+		const partialNote =
+			partialCount > 0
+				? ` ${partialCount} page(s) were cut short before the analysis finished, so their coverage is incomplete.`
+				: '';
+
+		return `Analyzed ${successCount} page(s) successfully. Found ${findingsCount} UX issue(s) requiring attention.${partialNote}`;
 	}
 }
 

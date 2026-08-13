@@ -496,6 +496,14 @@ const toolCallStep = (toolName: string, input = '{}') => ({
 	warnings: [],
 });
 
+/** A step that stops with plain text and no tool calls. */
+const stopStep = () => ({
+	finishReason: {unified: 'stop' as const, raw: undefined},
+	usage: mockUsage,
+	content: [],
+	warnings: [],
+});
+
 const multiPageConfig = (urls: string[]): UxLintConfig => ({
 	mainPageUrl: urls[0] ?? 'https://example.com',
 	subPageUrls: urls.slice(1),
@@ -558,12 +566,13 @@ test('AIService keeps earlier page findings when a later page throws', async t =
 	t.is(results[1]?.status, 'failed');
 
 	const report = reportBuilder.generateFinalReport();
+	const recordedUrls = new Set(report.pages.map(page => page.pageUrl));
 
 	t.true(
-		report.metadata.analyzedPages.includes('https://example.com/one'),
+		recordedUrls.has('https://example.com/one'),
 		'a mid-run failure must not erase the pages already analysed',
 	);
-	t.true(report.metadata.analyzedPages.includes('https://example.com/three'));
+	t.true(recordedUrls.has('https://example.com/three'));
 	t.true(
 		report.metadata.totalFindings > 0,
 		'findings collected before the failure must survive',
@@ -600,6 +609,47 @@ test('AIService records a failed page in the report metadata', async t => {
 		['https://example.com/broken'],
 		'a failed page has to leave a trace in the report',
 	);
+
+	sandbox.restore();
+});
+
+test('AIService marks an iteration-exhausted analysis as partial', async t => {
+	const sandbox = sinon.createSandbox();
+	const config = multiPageConfig(['https://example.com/loops']);
+
+	// Never calls completePageAnalysis, so the loop runs to
+	// MAX_AGENT_ITERATIONS and falls through to the terminal path.
+	const mockModel = new MockLanguageModelV4({
+		async doGenerate() {
+			return stopStep();
+		},
+	});
+
+	const reportBuilder = createBuilder(sandbox);
+	const aiService = new AIService(
+		mockModel,
+		createMockMCPClient(),
+		reportBuilder,
+	);
+
+	const page = config.pages[0];
+
+	if (!page) {
+		t.fail('Page is undefined');
+		return;
+	}
+
+	const analysis = await aiService.analyzePage(config, page);
+
+	t.is(
+		analysis.status,
+		'partial',
+		'a truncated analysis must not be indistinguishable from a finished one',
+	);
+
+	const report = reportBuilder.generateFinalReport();
+	t.deepEqual(report.metadata.partialPages, ['https://example.com/loops']);
+	t.deepEqual(report.metadata.analyzedPages, []);
 
 	sandbox.restore();
 });

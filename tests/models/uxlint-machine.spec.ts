@@ -19,6 +19,7 @@ const createMockReport = (summary = 'test summary'): UxReport => ({
 	metadata: {
 		timestamp: 0,
 		analyzedPages: [],
+		partialPages: [],
 		failedPages: [],
 		totalFindings: 0,
 		persona: 'test persona',
