@@ -29,6 +29,20 @@ export type SaveResult = {
 };
 
 /**
+ * Whether a YAML string carries no document at all.
+ *
+ * True for blank content and for files made up entirely of comments. A `#`
+ * cannot open a comment inside a scalar, and a document consisting only of
+ * blank and `#`-prefixed lines has no scalar to be inside, so a line-wise
+ * check is exact here.
+ */
+function isBlankYamlDocument(content: string): boolean {
+	return content
+		.split('\n')
+		.every(line => line.trim() === '' || line.trim().startsWith('#'));
+}
+
+/**
  * Configuration I/O handler with injectable fs dependency
  */
 export class ConfigIO {
@@ -143,13 +157,14 @@ export class ConfigIO {
 
 		try {
 			// Parse JSON or YAML based on format.
-			// js-yaml 5 throws on empty input where 4 returned undefined; keep
-			// the clearer "must be an object" error from validation by letting
-			// empty content through as undefined.
+			// js-yaml 5 throws on documents with no content where 4 returned
+			// undefined, and that covers comment-only files as well as blank
+			// ones. Short-circuit both so validation still produces the clearer
+			// "must be an object" error instead of a bogus syntax error.
 			const parsed: unknown =
 				format === 'json'
 					? JSON.parse(content)
-					: content.trim() === ''
+					: isBlankYamlDocument(content)
 						? undefined
 						: parseYaml(content);
 
@@ -341,7 +356,7 @@ export class ConfigIO {
 	 *
 	 * @example
 	 * const filePath = await configIO.saveConfigToFile(config, {
-	 * shouldSave: true,
+	 *   shouldSave: true,
 	 *   format: 'yaml',
 	 *   filePath: '.uxlintrc.yaml'
 	 * });
