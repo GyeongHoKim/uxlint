@@ -11,7 +11,17 @@ import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
  * Sleeping a fixed number of milliseconds and hoping a server has bound by
  * then is a race that only shows up when the whole suite runs in parallel.
  *
- * @param port Port to probe on localhost
+ * Probes both loopback families and accepts either. The servers under test
+ * bind by name -- `listen(port, 'localhost')`, inside oauth-callback -- and
+ * Node has not reordered lookup results since 17, so on a host whose
+ * `localhost` resolves to `::1` first (GitHub's runners, for one) the server
+ * ends up bound to IPv6 only. A probe hardcoded to `127.0.0.1` is then
+ * refused until the deadline even though the server came up fine. Probing the
+ * name instead would not fix it either: that leaves the outcome to whatever
+ * the machine's `/etc/hosts` happens to list, which is how this passed
+ * locally and failed in CI.
+ *
+ * @param port Port to probe on loopback
  * @param options Timeout and poll interval in milliseconds
  * @param options.timeout Milliseconds to wait before giving up
  * @param options.interval Milliseconds between probes
@@ -22,10 +32,10 @@ export async function waitForPort(
 ): Promise<void> {
 	const deadline = Date.now() + timeout;
 
-	const canConnect = async () =>
+	const canConnectVia = async (host: string) =>
 		new Promise<boolean>(resolve => {
 			const socket = net
-				.connect({port, host: '127.0.0.1'})
+				.connect({port, host})
 				.on('connect', () => {
 					socket.destroy();
 					resolve(true);
@@ -35,6 +45,13 @@ export async function waitForPort(
 					resolve(false);
 				});
 		});
+
+	const canConnect = async () => {
+		const reachable = await Promise.all(
+			['127.0.0.1', '::1'].map(async host => canConnectVia(host)),
+		);
+		return reachable.includes(true);
+	};
 
 	// eslint-disable-next-line no-await-in-loop -- probes are inherently sequential
 	while (!(await canConnect())) {
