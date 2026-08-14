@@ -28,7 +28,7 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 **Purpose**: Nothing to scaffold — no new dependencies, no new tooling (plan.md Technical Context). This phase exists only to pin the baseline the regression guarantee is measured against.
 
-- [ ] T001 Capture current exit behaviour as a baseline: run the CLI against a config with findings, one with none, and one containing an unreachable URL; record exit codes in `specs/004-ci-gate/baseline.md` for SC-004 to be checked against later
+- [X] T001 Capture current exit behaviour as a baseline: run the CLI against a config with findings, one with none, and one containing an unreachable URL; record exit codes in `specs/004-ci-gate/baseline.md` for SC-004 to be checked against later
 
 ---
 
@@ -38,13 +38,13 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 [P] Write failing unit tests for `Thresholds` validation in `tests/models/thresholds.spec.ts` covering: integer/non-negative rules, boolean rules, unknown-key rejection, non-object `thresholds`, and absent-vs-zero distinction (data-model.md validation rules)
-- [ ] T003 [P] Write failing unit tests for the `GateResult` shape in `tests/models/gate-result.spec.ts` asserting `evaluated` is populated even when `passed` is true (FR-009)
-- [ ] T004 Create `source/models/thresholds.ts` with the `Thresholds` type, the severity→field lookup (FR-002), the two coverage defaults (`failOnPartialPage`/`failOnFailedPage` default `true`, FR-003), and the validation predicate — makes T002 pass
-- [ ] T005 Create `source/models/gate-result.ts` with the `Breach` union (severity / partial-pages / failed-pages) and the `GateResult` type — makes T003 pass
-- [ ] T006 Add the optional `thresholds` property to `UxLintConfig` in `source/models/config.ts`, leaving `isUxLintConfig` unchanged (research R2 records why the divergence is deliberate)
-- [ ] T007 Write a failing test in `tests/ci-runner.spec.ts` asserting `runCIAnalysis` **resolves to** `0` on success and `1` when analysis throws, and never calls `process.exit` — the first test `ci-runner` has ever had, and it must fail before T008 because today the function returns `void` and exits the process
-- [ ] T008 Change `runCIAnalysis` in `source/ci-runner.ts` to return an exit code instead of calling `process.exit`, and make `source/cli.tsx:145` perform the exit — behaviour-preserving refactor, no gate logic yet (research R1). Makes T007 pass
+- [X] T002 [P] Write failing unit tests for `Thresholds` validation in `tests/models/thresholds.spec.ts` covering: integer/non-negative rules, boolean rules, unknown-key rejection, non-object `thresholds`, and absent-vs-zero distinction (data-model.md validation rules)
+- [ ] T003 [P] Write failing unit tests for the `GateResult` shape in `tests/models/gate-result.spec.ts` asserting `evaluated` is populated even when `passed` is true (FR-009). **Deferred to Phase 3** — the assertion needs `evaluateGate`, which is T014, and a test that only constructs a type literal would assert nothing TypeScript does not already enforce. Landed with T012/T015 instead
+- [X] T004 Create `source/models/thresholds.ts` with the `Thresholds` type, the severity→field lookup (FR-002), the two coverage defaults (`failOnPartialPage`/`failOnFailedPage` default `true`, FR-003), and the validation predicate — makes T002 pass
+- [X] T005 Create `source/models/gate-result.ts` with the `Breach` union (severity / partial-pages / failed-pages) and the `GateResult` type — makes T003 pass
+- [X] T006 Add the optional `thresholds` property to `UxLintConfig` in `source/models/config.ts`, leaving `isUxLintConfig` unchanged (research R2 records why the divergence is deliberate)
+- [X] T007 Write a failing test in `tests/ci-runner.spec.ts` asserting `runCIAnalysis` **resolves to** `0` on success and `1` when analysis throws, and never calls `process.exit` — the first test `ci-runner` has ever had, and it must fail before T008 because today the function returns `void` and exits the process
+- [X] T008 Change `runCIAnalysis` in `source/ci-runner.ts` to return an exit code instead of calling `process.exit`, and make `source/cli.tsx:145` perform the exit — behaviour-preserving refactor, no gate logic yet (research R1). Makes T007 pass
 
 **Checkpoint**: Exit status is now a value a test can read. User stories can begin.
 

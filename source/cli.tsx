@@ -141,13 +141,20 @@ if (authCommand === 'auth') {
 			pagesCount: parsed.pages.length,
 		});
 
-		// Run CI analysis without UI
-		void runCIAnalysis(parsed);
+		// Run CI analysis without UI. The runner returns its verdict rather
+		// than terminating, so the exit happens here.
+		//
+		// The old call site was `void runCIAnalysis(parsed)`, which dropped
+		// the outcome on the floor -- harmless only because the runner used to
+		// exit the process itself.
+		const exitCode = await runCIAnalysis(parsed);
+		process.exit(exitCode);
 	} catch (error) {
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error';
-		logger.error('Failed to load config in CI mode', {
+		logger.error('CI mode failed', {
 			error: errorMessage,
+			stack: error instanceof Error ? error.stack : undefined,
 			configPath,
 		});
 		process.exit(1);

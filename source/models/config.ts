@@ -6,6 +6,8 @@
  * See source/infrastructure/config/env-io.ts for AI configuration types.
  */
 
+import type {Thresholds} from './thresholds.js';
+
 /**
  * Represents a page configuration with its URL and feature descriptions
  */
@@ -72,6 +74,15 @@ export type UxLintConfig = {
 	 * Report output configuration
 	 */
 	report: ReportConfig;
+
+	/**
+	 * Optional CI gate thresholds.
+	 *
+	 * Absent means the gate is off and the run exits exactly as it did before
+	 * this field existed, so adding the feature cannot break an existing
+	 * pipeline.
+	 */
+	thresholds?: Thresholds;
 };
 
 /**
