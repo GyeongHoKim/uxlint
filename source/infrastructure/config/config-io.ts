@@ -9,6 +9,7 @@ import process from 'node:process';
 import {load as parseYaml, dump as yamlDump} from 'js-yaml';
 import type {UxLintConfig} from '../../models/config.js';
 import {ConfigurationError} from '../../models/errors.js';
+import {validateThresholds} from '../../models/thresholds.js';
 import type {SaveOptions} from '../../models/wizard-state.js';
 import {logger} from '../logger.js';
 
@@ -290,6 +291,17 @@ export class ConfigIO {
 				'report.output is required and must be a string',
 				filePath,
 				'report',
+			);
+		}
+
+		// Validate the optional CI gate thresholds. Runs here, before any page
+		// is analysed, so a misconfigured pipeline costs no model usage.
+		const thresholdsIssue = validateThresholds(config['thresholds']);
+		if (thresholdsIssue) {
+			throw new ConfigurationError(
+				thresholdsIssue.message,
+				filePath,
+				thresholdsIssue.key,
 			);
 		}
 

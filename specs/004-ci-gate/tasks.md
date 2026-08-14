@@ -109,14 +109,14 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T026 [P] [US3] Write failing tests in `tests/infrastructure/config/config-io.spec.ts` for each rejected input in the `contracts/config-thresholds.md` table, asserting the message names the offending key and value (FR-013)
-- [ ] T027 [P] [US3] Write a failing test in `tests/infrastructure/config/config-io.spec.ts` asserting a valid `thresholds` block parses identically from `.uxlintrc.yml` and `.uxlintrc.json` (FR-001, US3 scenario 3)
-- [ ] T028 [P] [US3] Write a failing test in `tests/infrastructure/config/config-io.spec.ts` asserting a config with no `thresholds` key still validates and yields `thresholds: undefined` (FR-004)
+- [X] T026 [P] [US3] Write failing tests in `tests/infrastructure/config/config-io.spec.ts` for each rejected input in the `contracts/config-thresholds.md` table, asserting the message names the offending key and value (FR-013)
+- [X] T027 [P] [US3] Write a failing test in `tests/infrastructure/config/config-io.spec.ts` asserting a valid `thresholds` block parses identically from `.uxlintrc.yml` and `.uxlintrc.json` (FR-001, US3 scenario 3)
+- [X] T028 [P] [US3] Write a failing test in `tests/infrastructure/config/config-io.spec.ts` asserting a config with no `thresholds` key still validates and yields `thresholds: undefined` (FR-004)
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] Extend `ConfigIO.validateConfig` in `source/infrastructure/config/config-io.ts` to validate `thresholds` via the T004 predicate, throwing `ConfigurationError` with the file path and offending field — makes T026–T028 pass. Hand-written, matching the existing idiom (research R2)
-- [ ] T030 [US3] Confirm validation runs before any MCP client or browser is created by tracing the `cli.tsx` → `loadConfig` → `runCIAnalysis` order; add a test asserting a malformed config rejects without constructing an AI service (SC-005)
+- [X] T029 [US3] Extend `ConfigIO.validateConfig` in `source/infrastructure/config/config-io.ts` to validate `thresholds` via the T004 predicate, throwing `ConfigurationError` with the file path and offending field — makes T026–T028 pass. Hand-written, matching the existing idiom (research R2)
+- [X] T030 [US3] Confirm validation runs before any MCP client or browser is created by tracing the `cli.tsx` → `loadConfig` → `runCIAnalysis` order; add a test asserting a malformed config rejects without constructing an AI service (SC-005)
 
 **Checkpoint**: All three stories done. Misconfiguration is loud and free.
 
