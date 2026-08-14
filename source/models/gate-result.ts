@@ -8,7 +8,12 @@
  */
 
 import type {FindingSeverity, UxReport} from './analysis.js';
-import {severityThresholdKeys, type Thresholds} from './thresholds.js';
+import {
+	defaultFailOnFailedPage,
+	defaultFailOnPartialPage,
+	severityThresholdKeys,
+	type Thresholds,
+} from './thresholds.js';
 
 /**
  * A page that could not be fully analysed, with the reason where one exists.
@@ -80,6 +85,19 @@ export type GateResult = {
 	 * user switch it off.
 	 */
 	analyzedNothing: boolean;
+
+	/**
+	 * Pages cut short before finishing, listed whether or not they were gated
+	 * on. Hiding them from a passing run would make the pass look better
+	 * founded than it is.
+	 */
+	partialPages: AffectedPage[];
+
+	/**
+	 * Pages that could not be analysed, with their recorded reasons, listed
+	 * whether or not they were gated on.
+	 */
+	failedPages: AffectedPage[];
 };
 
 /**
@@ -135,16 +153,29 @@ export function evaluateGate(
 	report: UxReport,
 	thresholds: Thresholds | undefined,
 ): GateResult {
+	const {metadata} = report;
+
 	if (!thresholds) {
+		// The gate did not run, so it observed nothing — including the coverage
+		// lists. Reporting pages here would put new text on the stdout of every
+		// pipeline that has not opted in, which is exactly what FR-004 forbids.
 		return {
 			passed: true,
 			breaches: [],
 			evaluated: [],
 			analyzedNothing: false,
+			partialPages: [],
+			failedPages: [],
 		};
 	}
 
-	const {metadata} = report;
+	const partialPages: AffectedPage[] = metadata.partialPages.map(pageUrl => ({
+		pageUrl,
+	}));
+	const failedPages: AffectedPage[] = metadata.failedPages.map(pageUrl => ({
+		pageUrl,
+		error: report.pages.find(page => page.pageUrl === pageUrl)?.error,
+	}));
 
 	// "Nothing was analysed" means every page that was attempted ended in
 	// failure. The third clause is what makes an all-failed run distinguishable
@@ -176,16 +207,42 @@ export function evaluateGate(
 		}
 	}
 
+	if (
+		(thresholds.failOnPartialPage ?? defaultFailOnPartialPage) &&
+		metadata.partialPages.length > 0
+	) {
+		breaches.push({kind: 'partial-pages', pages: partialPages});
+	}
+
+	if (
+		(thresholds.failOnFailedPage ?? defaultFailOnFailedPage) &&
+		metadata.failedPages.length > 0
+	) {
+		breaches.push({kind: 'failed-pages', pages: failedPages});
+	}
+
 	return {
 		passed: breaches.length === 0 && !analyzedNothing,
 		breaches,
 		evaluated,
 		analyzedNothing,
+		partialPages,
+		failedPages,
 	};
 }
 
 /** Width the severity column is padded to, so counts line up in a log. */
 const labelWidth = 10;
+
+/** Indent for the page URLs listed under a coverage line. */
+const pageIndent = ' '.repeat(labelWidth + 4);
+
+/**
+ * "1 page" / "3 pages", so the log reads as prose rather than as a template.
+ */
+function pluralPages(count: number): string {
+	return `${count} page${count === 1 ? '' : 's'}`;
+}
 
 /**
  * Render one evaluated threshold as a single log line.
@@ -212,7 +269,13 @@ function renderThresholdLine({
  * @returns Text for the CI log, or `''` when no threshold was evaluated
  */
 export function renderGateVerdict(result: GateResult): string {
-	if (result.evaluated.length === 0 && result.breaches.length === 0) {
+	if (
+		result.evaluated.length === 0 &&
+		result.breaches.length === 0 &&
+		!result.analyzedNothing &&
+		result.partialPages.length === 0 &&
+		result.failedPages.length === 0
+	) {
 		return '';
 	}
 
@@ -245,6 +308,36 @@ export function renderGateVerdict(result: GateResult): string {
 		if (!breachedSeverities.has(entry.severity)) {
 			lines.push(renderThresholdLine(entry));
 		}
+	}
+
+	// Coverage is reported whether or not it was gated on. A run that passed
+	// only because a page failed to load should not look like a clean run.
+	if (result.partialPages.length > 0) {
+		lines.push(
+			`  ${'partial'.padEnd(labelWidth)}${pluralPages(
+				result.partialPages.length,
+			)} not fully analysed`,
+			...result.partialPages.map(page => `${pageIndent}${page.pageUrl}`),
+		);
+	}
+
+	if (result.failedPages.length > 0) {
+		lines.push(
+			`  ${'failed'.padEnd(labelWidth)}${pluralPages(
+				result.failedPages.length,
+			)} could not be analysed`,
+			...result.failedPages.map(
+				page =>
+					`${pageIndent}${page.pageUrl}${page.error ? ` — ${page.error}` : ''}`,
+			),
+		);
+	}
+
+	if (result.analyzedNothing) {
+		lines.push(
+			'',
+			'  no page was analysed successfully — the report is not evidence of anything',
+		);
 	}
 
 	return lines.join('\n');

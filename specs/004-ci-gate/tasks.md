@@ -87,15 +87,15 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T020 [P] [US2] Write failing tests in `tests/models/gate-result.spec.ts` for coverage breaches: `failOnPartialPage` with partial pages breaches, `failOnFailedPage` with failed pages breaches, both disabled with no severity limits passes (US2 scenarios 1–3)
-- [ ] T021 [P] [US2] Write a failing test in `tests/models/gate-result.spec.ts` asserting a failed-page breach carries each page's recorded `error` string (FR-008)
-- [ ] T022 [P] [US2] Write a failing test in `tests/models/gate-result.spec.ts` asserting `analyzedNothing` fails the gate **even when both coverage flags are `false`** (FR-012 — this is why it is a separate field, not a breach kind)
+- [X] T020 [P] [US2] Write failing tests in `tests/models/gate-result.spec.ts` for coverage breaches: `failOnPartialPage` with partial pages breaches, `failOnFailedPage` with failed pages breaches, both disabled with no severity limits passes (US2 scenarios 1–3)
+- [X] T021 [P] [US2] Write a failing test in `tests/models/gate-result.spec.ts` asserting a failed-page breach carries each page's recorded `error` string (FR-008)
+- [X] T022 [P] [US2] Write a failing test in `tests/models/gate-result.spec.ts` asserting `analyzedNothing` fails the gate **even when both coverage flags are `false`** (FR-012 — this is why it is a separate field, not a breach kind)
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Extend `evaluateGate` in `source/models/gate-result.ts` with derivation steps 4–5 (FR-003) and the `analyzedNothing` rule from step 1, which data-model.md defines concretely as `analyzedPages` empty and `partialPages` empty and `report.pages.length > 0` — makes T020–T022 pass (FR-012, SC-007)
-- [ ] T024 [US2] Extend the renderer in `source/models/gate-result.ts` to emit the coverage breach lines and the nothing-analysed line from `contracts/config-thresholds.md`
-- [ ] T025 [US2] Report failed and partial counts as a warning in the passing path too, so disabling coverage gating still surfaces them (US2 scenario 3)
+- [X] T023 [US2] Extend `evaluateGate` in `source/models/gate-result.ts` with derivation steps 4–5 (FR-003) and the `analyzedNothing` rule from step 1, which data-model.md defines concretely as `analyzedPages` empty and `partialPages` empty and `report.pages.length > 0` — makes T020–T022 pass (FR-012, SC-007)
+- [X] T024 [US2] Extend the renderer in `source/models/gate-result.ts` to emit the coverage breach lines and the nothing-analysed line from `contracts/config-thresholds.md`
+- [X] T025 [US2] Report failed and partial counts as a warning in the passing path too, so disabling coverage gating still surfaces them (US2 scenario 3)
 
 **Checkpoint**: Both P1 stories work. The gate is complete in behaviour.
 
