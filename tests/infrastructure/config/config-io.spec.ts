@@ -5,7 +5,6 @@ import {join} from 'node:path';
 import test from 'ava';
 import sinon from 'sinon';
 import {ConfigIO} from '../../../source/infrastructure/config/config-io.js';
-import {isUxLintConfig} from '../../../source/models/config.js';
 import {ConfigurationError} from '../../../source/models/errors.js';
 
 test('ConfigIO.findConfigFile() returns path when config exists', t => {
@@ -408,26 +407,20 @@ test('the same thresholds block validates identically from either format', t => 
 	);
 });
 
-test('isUxLintConfig does not check thresholds, which is why no load path uses it', t => {
-	// Two validators exist for the same type and they disagree. Both config
-	// load paths -- CI and interactive -- used to accept a config through the
-	// structural guard alone, which let a misspelled threshold key through
-	// untouched: the exact silent-no-gate failure this feature exists to
-	// prevent. Both now use validateConfig, leaving the guard with no
-	// production caller. Pinned here so the divergence stays known rather than
-	// accidental, and so removing the guard is a deliberate decision rather
-	// than a surprise.
+test('validateConfig is the only config validator', t => {
+	// There used to be a second one: an isUxLintConfig type guard that checked
+	// structure only and knew nothing about thresholds. Both load paths used
+	// it, so a misspelled threshold key was accepted silently -- a gate the
+	// user believed in but did not have. The guard is gone; this pins that the
+	// remaining validator catches what it could not.
 	const misspelled = {...validConfigObject, thresholds: {maxCritcal: 0}};
 
-	t.true(
-		isUxLintConfig(misspelled),
-		'the guard is structural and knows nothing about thresholds',
-	);
-	t.throws(
+	const error = t.throws(
 		() => {
 			new ConfigIO().validateConfig(misspelled, '.uxlintrc.yml');
 		},
 		{instanceOf: ConfigurationError},
-		'validateConfig is the one that catches it',
 	);
+
+	t.is(error?.configField, 'thresholds.maxCritcal');
 });
