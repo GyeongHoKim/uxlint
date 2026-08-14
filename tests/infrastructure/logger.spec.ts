@@ -1,13 +1,9 @@
 /**
  * Tests for log durability across process exit
  *
- * Winston's rotating file transport writes asynchronously, and its stream is
- * not even open by the time a fast failure logs. `process.exit` therefore
- * killed the process before anything reached disk, and CI-mode failures --
- * the exact runs a user needs to diagnose -- left no trace anywhere: not on
- * stdout, which is reserved for MCP, and not in the log either.
- *
- * Spawning the real binary is the only honest way to cover that race.
+ * The rotating file transport writes asynchronously and its stream may not be
+ * open yet when a fast failure logs, so an immediate exit drops the entry.
+ * Spawning the real binary is the only way to cover that race.
  */
 
 import {spawnSync} from 'node:child_process';
@@ -18,10 +14,7 @@ import process from 'node:process';
 import test from 'ava';
 
 test('a CI-mode rejection survives process.exit', async t => {
-	// The unit test above proves flush works in a process that keeps running.
-	// This one proves the thing that actually matters: that the entry is on
-	// disk after the CLI has exited. Spawning the real binary is the only way
-	// to cover the exit race, and it is the path a user hits with a typo.
+	// The entry has to be on disk after the CLI has exited, not merely written.
 	const workDirectory = await fsPromises.mkdtemp(
 		path.join(tmpdir(), 'uxlint-cli-'),
 	);

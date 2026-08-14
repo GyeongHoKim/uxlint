@@ -73,12 +73,8 @@ const defaultDependencies: CIAnalysisDependencies = {
 /**
  * Run analysis in CI mode without any UI
  *
- * Returns the process exit code rather than calling `process.exit` itself.
- * Terminating from in here made the decision untestable — asserting on an
- * exit status meant killing the test process — and it also left no room for
- * the caller to print anything after the MCP transport closes.
- *
- * All logging goes to log files only; the caller owns stdout.
+ * Returns the exit code; the caller performs the exit. All logging goes to
+ * log files only, and the caller owns stdout.
  *
  * @param config - Validated configuration for this run
  * @param dependencies - Injectable collaborators; defaults to the singletons
@@ -103,11 +99,9 @@ export async function runCIAnalysis(
 		reportOutput: config.report.output,
 	});
 
-	// Held outside the try so the finally can close it. Anything that throws
-	// after the service exists -- a page analysis, saving the report -- used to
-	// return straight from the catch and leave the MCP transport and its
-	// browser alive for the life of the process.
+	// Held outside the try so the finally closes it on every path.
 	let aiService: Awaited<ReturnType<typeof getAIService>> | undefined;
+	let failure: string | undefined;
 
 	try {
 		// Get AI Service instance
@@ -175,8 +169,13 @@ export async function runCIAnalysis(
 		// Cleanup. This must happen before the verdict is emitted: stdout
 		// belongs to the MCP protocol until the transport is shut down.
 		logger.debug('Cleaning up AI service');
-		await aiService.close();
-		aiService = undefined;
+		try {
+			await aiService.close();
+		} finally {
+			// Cleared even when close() throws, so the finally below does not
+			// close a torn-down instance a second time.
+			aiService = undefined;
+		}
 
 		const gate = evaluateGate(report, config.thresholds);
 		const verdict = renderGateVerdict(gate);
@@ -205,12 +204,27 @@ export async function runCIAnalysis(
 			elapsedMs: Date.now() - startTime,
 		});
 
-		return 1;
+		failure = errorMessage;
 	} finally {
 		// Only reached when the happy path did not already close it.
 		if (aiService) {
 			logger.debug('Closing AI service after a failed run');
-			await aiService.close();
+			try {
+				await aiService.close();
+			} catch (closeError) {
+				logger.error('Failed to close AI service', {
+					error:
+						closeError instanceof Error
+							? closeError.message
+							: String(closeError),
+				});
+			}
 		}
 	}
+
+	// Reached only on failure; the success path returns from inside the try.
+	// Emitted here rather than in the catch so the transport is already down.
+	// See console-output.ts.
+	emitVerdict(`uxlint: analysis failed — ${failure ?? 'Unknown error'}`);
+	return 1;
 }

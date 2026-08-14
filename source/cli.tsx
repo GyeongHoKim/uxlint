@@ -153,12 +153,6 @@ if (authCommand === 'auth') {
 				hasThresholds: parsed.thresholds !== undefined,
 			});
 
-			// Run CI analysis without UI. The runner returns its verdict rather
-			// than terminating, so the exit status is decided here.
-			//
-			// The old call site was `void runCIAnalysis(parsed)`, which dropped
-			// the outcome on the floor -- harmless only because the runner used
-			// to exit the process itself.
 			process.exitCode = await runCIAnalysis(parsed);
 		} catch (error) {
 			const errorMessage =
@@ -169,10 +163,8 @@ if (authCommand === 'auth') {
 				configPath,
 			});
 
-			// Printed, not just logged. In CI the log file lives in a container
-			// that is thrown away, so a rejection that reaches only the log tells
-			// the developer whose build broke nothing at all. Safe here because
-			// no MCP transport has been created yet -- see console-output.ts.
+			// Printed as well as logged: in CI the log file is discarded with the
+			// container. No MCP transport exists yet -- see console-output.ts.
 			writeTerminalMessage(`uxlint: ${errorMessage}`);
 			process.exitCode = 1;
 		}

@@ -43,7 +43,6 @@ export type Breach =
 	  }
 	| {
 			kind: 'partial-pages' | 'failed-pages';
-			pages: AffectedPage[];
 	  };
 
 /**
@@ -213,14 +212,14 @@ export function evaluateGate(
 		(thresholds.failOnPartialPage ?? defaultFailOnPartialPage) &&
 		metadata.partialPages.length > 0
 	) {
-		breaches.push({kind: 'partial-pages', pages: partialPages});
+		breaches.push({kind: 'partial-pages'});
 	}
 
 	if (
 		(thresholds.failOnFailedPage ?? defaultFailOnFailedPage) &&
 		metadata.failedPages.length > 0
 	) {
-		breaches.push({kind: 'failed-pages', pages: failedPages});
+		breaches.push({kind: 'failed-pages'});
 	}
 
 	return {

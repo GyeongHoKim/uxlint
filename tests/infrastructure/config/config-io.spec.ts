@@ -408,11 +408,8 @@ test('the same thresholds block validates identically from either format', t => 
 });
 
 test('validateConfig is the only config validator', t => {
-	// There used to be a second one: an isUxLintConfig type guard that checked
-	// structure only and knew nothing about thresholds. Both load paths used
-	// it, so a misspelled threshold key was accepted silently -- a gate the
-	// user believed in but did not have. The guard is gone; this pins that the
-	// remaining validator catches what it could not.
+	// A misspelled key must be rejected rather than ignored: a gate the user
+	// believes in but does not have is worse than no gate.
 	const misspelled = {...validConfigObject, thresholds: {maxCritcal: 0}};
 
 	const error = t.throws(
@@ -423,4 +420,40 @@ test('validateConfig is the only config validator', t => {
 	);
 
 	t.is(error?.configField, 'thresholds.maxCritcal');
+});
+
+for (const [label, subPageUrls] of [
+	['a number', [1]],
+	['null', [null]],
+	['a mix of strings and numbers', ['https://example.com/a', 2]],
+	['an object', [{url: 'https://example.com'}]],
+] as const) {
+	test(`validateConfig rejects subPageUrls containing ${label}`, t => {
+		// An unquoted YAML entry parses as a number; without an element check it
+		// surfaces much later as an unrelated runtime error.
+		const error = t.throws(
+			() => {
+				new ConfigIO().validateConfig(
+					{...validConfigObject, subPageUrls},
+					'.uxlintrc.yml',
+				);
+			},
+			{instanceOf: ConfigurationError},
+		);
+
+		t.is(error?.configField, 'subPageUrls');
+	});
+}
+
+test('validateConfig accepts an all-string subPageUrls list', t => {
+	t.deepEqual(
+		new ConfigIO().validateConfig(
+			{
+				...validConfigObject,
+				subPageUrls: ['https://example.com/a', 'https://example.com/b'],
+			},
+			'.uxlintrc.yml',
+		).subPageUrls,
+		['https://example.com/a', 'https://example.com/b'],
+	);
 });
