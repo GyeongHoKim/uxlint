@@ -39,7 +39,7 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
 - [X] T002 [P] Write failing unit tests for `Thresholds` validation in `tests/models/thresholds.spec.ts` covering: integer/non-negative rules, boolean rules, unknown-key rejection, non-object `thresholds`, and absent-vs-zero distinction (data-model.md validation rules)
-- [ ] T003 [P] Write failing unit tests for the `GateResult` shape in `tests/models/gate-result.spec.ts` asserting `evaluated` is populated even when `passed` is true (FR-009). **Deferred to Phase 3** — the assertion needs `evaluateGate`, which is T014, and a test that only constructs a type literal would assert nothing TypeScript does not already enforce. Landed with T012/T015 instead
+- [X] T003 [P] Write failing unit tests for the `GateResult` shape in `tests/models/gate-result.spec.ts` asserting `evaluated` is populated even when `passed` is true (FR-009). **Deferred to Phase 3** — the assertion needs `evaluateGate`, which is T014, and a test that only constructs a type literal would assert nothing TypeScript does not already enforce. Landed with T012/T015 instead
 - [X] T004 Create `source/models/thresholds.ts` with the `Thresholds` type, the severity→field lookup (FR-002), the two coverage defaults (`failOnPartialPage`/`failOnFailedPage` default `true`, FR-003), and the validation predicate — makes T002 pass
 - [X] T005 Create `source/models/gate-result.ts` with the `Breach` union (severity / partial-pages / failed-pages) and the `GateResult` type — makes T003 pass
 - [X] T006 Add the optional `thresholds` property to `UxLintConfig` in `source/models/config.ts`, leaving `isUxLintConfig` unchanged (research R2 records why the divergence is deliberate)
@@ -60,20 +60,20 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 > Write these FIRST and confirm they fail.
 
-- [ ] T009 [P] [US1] Write failing tests for `evaluateGate` severity counting in `tests/models/gate-result.spec.ts`: count above limit breaches, count below passes, **count equal to limit passes** (FR-006, the boundary), absent threshold is not evaluated, `0` threshold with 0 findings passes
-- [ ] T010 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting every breached threshold appears in `breaches`, not just the first (FR-007)
-- [ ] T011 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting findings from partial and failed pages are counted, using a report fixture whose findings come only from a failed page (FR-011, research R3)
-- [ ] T012 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting an absent `thresholds` yields `passed: true` with empty `evaluated`, so FR-004 holds at the evaluator level
-- [ ] T013 [P] [US1] Write a failing performance test in `tests/models/gate-result.spec.ts` for the SC-006 budget on a fixture of 500 findings across 50 pages. **Do not assert a bare 50ms wall clock** — a loaded CI runner will flake it. Calibrate first (time a trivial loop in the same process) and assert the evaluator's time against that, or assert a generous ceiling and log the observed figure so a real regression is still visible. The budget is the design target; the test's job is to catch an order-of-magnitude regression, not to police jitter
+- [X] T009 [P] [US1] Write failing tests for `evaluateGate` severity counting in `tests/models/gate-result.spec.ts`: count above limit breaches, count below passes, **count equal to limit passes** (FR-006, the boundary), absent threshold is not evaluated, `0` threshold with 0 findings passes
+- [X] T010 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting every breached threshold appears in `breaches`, not just the first (FR-007)
+- [X] T011 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting findings from partial and failed pages are counted, using a report fixture whose findings come only from a failed page (FR-011, research R3)
+- [X] T012 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting an absent `thresholds` yields `passed: true` with empty `evaluated`, so FR-004 holds at the evaluator level
+- [X] T013 [P] [US1] Write a failing performance test in `tests/models/gate-result.spec.ts` for the SC-006 budget on a fixture of 500 findings across 50 pages. **Do not assert a bare 50ms wall clock** — a loaded CI runner will flake it. Calibrate first (time a trivial loop in the same process) and assert the evaluator's time against that, or assert a generous ceiling and log the observed figure so a real regression is still visible. The budget is the design target; the test's job is to catch an order-of-magnitude regression, not to police jitter
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Implement `evaluateGate(report, thresholds)` in `source/models/gate-result.ts` following data-model.md derivation steps 1–3 and 6, tallying `report.prioritizedFindings` — makes T009–T013 pass (SC-002)
-- [ ] T015 [P] [US1] Write failing tests in `tests/models/gate-result.spec.ts` for the verdict renderer: a breached run lists every breach, a passing run still lists evaluated thresholds (FR-009, SC-003)
-- [ ] T016 [US1] Implement the verdict renderer in `source/models/gate-result.ts` producing the exact layout in `contracts/config-thresholds.md` (breach lines and the passing summary) — makes T015 pass (SC-003)
-- [ ] T017 [US1] Wire `evaluateGate` into `source/ci-runner.ts` after `saveReport`, returning non-zero on breach — the report must already be on disk when the gate runs (FR-005, FR-010, SC-002)
-- [ ] T018 [US1] Print the rendered verdict from `source/cli.tsx` after the MCP transport closes and immediately before exit, and mirror it to the Winston logger (research R4)
-- [ ] T019 [US1] Write a test asserting the ordering — report written, then verdict printed, then exit — in `tests/ci-runner.spec.ts`. The stdout/MCP constraint makes this ordering load-bearing, so it must not rest on convention (plan.md Risks)
+- [X] T014 [US1] Implement `evaluateGate(report, thresholds)` in `source/models/gate-result.ts` following data-model.md derivation steps 1–3 and 6, tallying `report.prioritizedFindings` — makes T009–T013 pass (SC-002)
+- [X] T015 [P] [US1] Write failing tests in `tests/models/gate-result.spec.ts` for the verdict renderer: a breached run lists every breach, a passing run still lists evaluated thresholds (FR-009, SC-003)
+- [X] T016 [US1] Implement the verdict renderer in `source/models/gate-result.ts` producing the exact layout in `contracts/config-thresholds.md` (breach lines and the passing summary) — makes T015 pass (SC-003)
+- [X] T017 [US1] Wire `evaluateGate` into `source/ci-runner.ts` after `saveReport`, returning non-zero on breach — the report must already be on disk when the gate runs (FR-005, FR-010, SC-002)
+- [X] T018 [US1] Print the rendered verdict from `source/cli.tsx` after the MCP transport closes and immediately before exit, and mirror it to the Winston logger (research R4)
+- [X] T019 [US1] Write a test asserting the ordering — report written, then verdict printed, then exit — in `tests/ci-runner.spec.ts`. The stdout/MCP constraint makes this ordering load-bearing, so it must not rest on convention (plan.md Risks)
 
 **Checkpoint**: US1 is functional. A team can adopt severity budgets and nothing else.
 

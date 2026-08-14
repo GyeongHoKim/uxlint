@@ -7,7 +7,8 @@
  * @packageDocumentation
  */
 
-import type {FindingSeverity} from './analysis.js';
+import type {FindingSeverity, UxReport} from './analysis.js';
+import {severityThresholdKeys, type Thresholds} from './thresholds.js';
 
 /**
  * A page that could not be fully analysed, with the reason where one exists.
@@ -80,3 +81,171 @@ export type GateResult = {
 	 */
 	analyzedNothing: boolean;
 };
+
+/**
+ * Severities in the order a reader wants them: worst first.
+ *
+ * Fixed here rather than derived from the config file's key order, so the
+ * output does not change shape because someone reordered their YAML.
+ */
+const severityOrder: FindingSeverity[] = ['critical', 'high', 'medium', 'low'];
+
+/**
+ * Count findings by severity.
+ *
+ * Reads `prioritizedFindings` rather than re-walking `report.pages` so the
+ * gate counts exactly what the report's own statistics table shows. A gate
+ * that disagrees with the document it gates on would be its own bug class.
+ */
+function countBySeverity(report: UxReport): Record<FindingSeverity, number> {
+	const counts: Record<FindingSeverity, number> = {
+		critical: 0,
+		high: 0,
+		medium: 0,
+		low: 0,
+	};
+
+	for (const finding of report.prioritizedFindings) {
+		counts[finding.severity] += 1;
+	}
+
+	return counts;
+}
+
+/**
+ * Judge a completed run against the configured thresholds.
+ *
+ * Pure: takes data, returns a verdict, touches nothing. That is what lets the
+ * exit decision be tested without a model, a browser or a live process.
+ *
+ * An absent `thresholds` gates nothing and always passes, so adding this
+ * feature cannot change the outcome of a pipeline that has not opted in.
+ *
+ * @param report - The completed report for this run
+ * @param thresholds - The user's declared limits, or `undefined` when the gate is off
+ * @returns The verdict, including every threshold checked and every one breached
+ *
+ * @example
+ * ```typescript
+ * const result = evaluateGate(report, {maxCritical: 0});
+ * process.exit(result.passed ? 0 : 1);
+ * ```
+ */
+export function evaluateGate(
+	report: UxReport,
+	thresholds: Thresholds | undefined,
+): GateResult {
+	if (!thresholds) {
+		return {
+			passed: true,
+			breaches: [],
+			evaluated: [],
+			analyzedNothing: false,
+		};
+	}
+
+	const {metadata} = report;
+
+	// "Nothing was analysed" means every page that was attempted ended in
+	// failure. The third clause is what makes an all-failed run distinguishable
+	// from an empty one; config validation happens to guarantee it today, but
+	// the rule must not lean on a promise kept somewhere else.
+	const analyzedNothing =
+		metadata.analyzedPages.length === 0 &&
+		metadata.partialPages.length === 0 &&
+		report.pages.length > 0;
+
+	const counts = countBySeverity(report);
+	const evaluated: EvaluatedThreshold[] = [];
+	const breaches: Breach[] = [];
+
+	for (const severity of severityOrder) {
+		const limit = thresholds[severityThresholdKeys[severity]];
+
+		if (limit === undefined) {
+			continue;
+		}
+
+		const count = counts[severity];
+		evaluated.push({severity, limit, count});
+
+		// Strictly greater: the limit is an inclusive maximum, so a count equal
+		// to it passes.
+		if (count > limit) {
+			breaches.push({kind: 'severity', severity, limit, count});
+		}
+	}
+
+	return {
+		passed: breaches.length === 0 && !analyzedNothing,
+		breaches,
+		evaluated,
+		analyzedNothing,
+	};
+}
+
+/** Width the severity column is padded to, so counts line up in a log. */
+const labelWidth = 10;
+
+/**
+ * Render one evaluated threshold as a single log line.
+ */
+function renderThresholdLine({
+	severity,
+	limit,
+	count,
+}: EvaluatedThreshold): string {
+	return `  ${severity.padEnd(labelWidth)}${count} findings, limit ${limit}`;
+}
+
+/**
+ * Render a gate verdict for the CI log.
+ *
+ * Returns an empty string when nothing was gated: printing a summary for a
+ * run with no thresholds would imply a gate that does not exist.
+ *
+ * Passing runs still list what was evaluated. A green log that says nothing
+ * is indistinguishable from one where the gate was misconfigured into doing
+ * nothing, which is the failure the whole feature guards against.
+ *
+ * @param result - The verdict to render
+ * @returns Text for the CI log, or `''` when no threshold was evaluated
+ */
+export function renderGateVerdict(result: GateResult): string {
+	if (result.evaluated.length === 0 && result.breaches.length === 0) {
+		return '';
+	}
+
+	const lines: string[] = [
+		`uxlint: gate ${result.passed ? 'passed' : 'failed'}`,
+		'',
+	];
+
+	const breachedSeverities = new Set(
+		result.breaches
+			.filter(breach => breach.kind === 'severity')
+			.map(breach => breach.severity),
+	);
+
+	for (const breach of result.breaches) {
+		if (breach.kind === 'severity') {
+			lines.push(
+				renderThresholdLine({
+					severity: breach.severity,
+					limit: breach.limit,
+					count: breach.count,
+				}),
+			);
+		}
+	}
+
+	// Thresholds that held are listed after the ones that did not, so the
+	// reason for a failure is at the top where it will be read.
+	for (const entry of result.evaluated) {
+		if (!breachedSeverities.has(entry.severity)) {
+			lines.push(renderThresholdLine(entry));
+		}
+	}
+
+	return lines.join('\n');
+}
