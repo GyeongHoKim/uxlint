@@ -10,7 +10,7 @@ export * from './errors.js';
 export * from './theme.js';
 
 // Configuration models
-export * from './config.js';
+export type * from './config.js';
 
 // Analysis models
 export * from './analysis.js';
