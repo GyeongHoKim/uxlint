@@ -144,9 +144,7 @@ test('every breached threshold is reported, not just the first', t => {
 });
 
 test('findings from partial and failed pages are counted', t => {
-	// A page that ran out of iterations, or threw on iteration 15, still
-	// observed what it observed. Severity is a property of the finding, not of
-	// how far the sweep got.
+	// Severity is a property of the finding, not of how far the sweep got.
 	const report = buildReport([
 		{
 			url: 'https://example.com/partial',
@@ -285,9 +283,8 @@ test('a partial page breaches when failOnPartialPage is set', t => {
 	const result = evaluateGate(report, {failOnPartialPage: true});
 
 	t.false(result.passed);
-	t.deepEqual(result.breaches, [
-		{kind: 'partial-pages', pages: [{pageUrl: 'https://example.com/cut'}]},
-	]);
+	t.deepEqual(result.breaches, [{kind: 'partial-pages'}]);
+	t.deepEqual(result.partialPages, [{pageUrl: 'https://example.com/cut'}]);
 });
 
 test('a failed page breaches when failOnFailedPage is set', t => {
@@ -303,15 +300,11 @@ test('a failed page breaches when failOnFailedPage is set', t => {
 	const result = evaluateGate(report, {failOnFailedPage: true});
 
 	t.false(result.passed);
-	t.deepEqual(result.breaches, [
+	t.deepEqual(result.breaches, [{kind: 'failed-pages'}]);
+	t.deepEqual(result.failedPages, [
 		{
-			kind: 'failed-pages',
-			pages: [
-				{
-					pageUrl: 'https://example.com/died',
-					error: 'navigation timed out after 30s',
-				},
-			],
+			pageUrl: 'https://example.com/died',
+			error: 'navigation timed out after 30s',
 		},
 	]);
 });
@@ -329,10 +322,10 @@ test('a failed-page breach carries the recorded reason', t => {
 		{url: 'https://example.com/y', status: 'failed', error: 'HTTP 503'},
 	]);
 
-	const [breach] = evaluateGate(report, {failOnFailedPage: true}).breaches;
+	const result = evaluateGate(report, {failOnFailedPage: true});
 
-	t.is(breach?.kind, 'failed-pages');
-	t.deepEqual(breach?.kind === 'failed-pages' ? breach.pages : [], [
+	t.deepEqual(result.breaches, [{kind: 'failed-pages'}]);
+	t.deepEqual(result.failedPages, [
 		{pageUrl: 'https://example.com/x', error: 'DNS lookup failed'},
 		{pageUrl: 'https://example.com/y', error: 'HTTP 503'},
 	]);
@@ -462,9 +455,7 @@ test('the verdict renders as compact lines for a terminal', t => {
 });
 
 test('duplicate page URLs keep their own failure reasons', t => {
-	// A config may legitimately list the same URL twice. Matching by URL alone
-	// gave every entry the first page's error -- the same mistake the report
-	// builder's duplicate guard already had to avoid.
+	// A config may legitimately list the same URL twice.
 	const report = buildReport([
 		{
 			url: 'https://example.com/x',
@@ -474,9 +465,7 @@ test('duplicate page URLs keep their own failure reasons', t => {
 		{url: 'https://example.com/x', status: 'failed', error: 'HTTP 503'},
 	]);
 
-	const [breach] = evaluateGate(report, {failOnFailedPage: true}).breaches;
-
-	t.deepEqual(breach?.kind === 'failed-pages' ? breach.pages : [], [
+	t.deepEqual(evaluateGate(report, {failOnFailedPage: true}).failedPages, [
 		{pageUrl: 'https://example.com/x', error: 'DNS lookup failed'},
 		{pageUrl: 'https://example.com/x', error: 'HTTP 503'},
 	]);

@@ -120,9 +120,10 @@ export function AnalysisRunner({
 					*/}
 					{verdictLines.length > 0 && (
 						<Box flexDirection="column">
-							{verdictLines.map(line => (
+							{verdictLines.map((line, index) => (
 								<Text
-									key={line}
+									// eslint-disable-next-line react/no-array-index-key -- verdict lines repeat when a URL is listed twice
+									key={index}
 									color={analysisState.gateResult?.passed ? 'green' : 'yellow'}
 								>
 									{line}

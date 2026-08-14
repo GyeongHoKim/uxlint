@@ -54,6 +54,8 @@ export function UXLintMachineProvider({
 	}
 
 	if (configError) {
+		// The delay lets the message render and gives the async log transport
+		// time to write; exiting immediately drops the entry.
 		setTimeout(() => process.exit(1), 1000);
 		return <Text color="red">{configError}</Text>;
 	}

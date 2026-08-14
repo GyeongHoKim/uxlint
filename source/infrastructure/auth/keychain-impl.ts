@@ -1,5 +1,4 @@
-// Type-only, so it is erased at compile time and pulls in no runtime module.
-// The value form of this import is what used to crash the CLI.
+// Type-only: erased at compile time, so it loads no native module.
 import type * as KeytarModule from 'keytar';
 import {AuthErrorCode, AuthenticationError} from '../../models/auth-error.js';
 import {logger} from '../logger.js';
@@ -119,10 +118,6 @@ export class KeytarKeychainService implements IKeychainService {
 	}
 
 	async isAvailable(): Promise<boolean> {
-		// This catch used to be unreachable: keytar was imported statically, so
-		// a machine without libsecret died at module load and never got here.
-		// With the load deferred, "keychain unavailable" is now something this
-		// method can actually report instead of a crash.
 		try {
 			const keytar = await loadKeytar();
 			const isAvailable = typeof keytar.getPassword === 'function';

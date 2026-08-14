@@ -244,10 +244,15 @@ export class ConfigIO {
 			);
 		}
 
-		// Validate subPageUrls
-		if (!Array.isArray(config['subPageUrls'])) {
+		// Validate subPageUrls. Element types matter: an unquoted YAML entry
+		// parses as a number and would otherwise surface much later as an
+		// unrelated runtime error.
+		if (
+			!Array.isArray(config['subPageUrls']) ||
+			config['subPageUrls'].some(url => typeof url !== 'string')
+		) {
 			throw new ConfigurationError(
-				'subPageUrls is required and must be an array',
+				'subPageUrls is required and must be an array of strings',
 				filePath,
 				'subPageUrls',
 			);

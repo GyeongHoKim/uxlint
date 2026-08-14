@@ -1,10 +1,8 @@
 /**
  * Unit tests for the CI runner's exit status
  *
- * `runCIAnalysis` used to call `process.exit` directly and return void, which
- * is why it had no tests: asserting on an exit status meant killing the test
- * process. It now resolves to the code and lets the caller exit, so the
- * decision can be checked without touching the process.
+ * `runCIAnalysis` resolves to the exit code and leaves the exit to its caller,
+ * which is what lets these assertions run without killing the test process.
  */
 
 import {promises as fsPromises} from 'node:fs';
@@ -211,10 +209,9 @@ test('no verdict is emitted when nothing was gated', async t => {
 });
 
 test('the report is saved and the transport closed before the verdict is emitted', async t => {
-	// Load-bearing ordering, not a convention. stdout carries MCP protocol
-	// messages while the transport is open, so emitting the verdict any
-	// earlier would interleave program output with JSON-RPC. Asserting the
-	// sequence is what keeps a later refactor from quietly breaking it.
+	// MCP protocol messages share stdout while the transport is open, so
+	// emitting the verdict any earlier interleaves program output with
+	// JSON-RPC. The ordering is a constraint, not a preference.
 	const {sandbox, builder, deps} = createDeps();
 	const order: string[] = [];
 
@@ -303,9 +300,7 @@ test('SC-004: a failed page with no thresholds still exits 0', async t => {
 });
 
 test('the AI service is closed even when saving the report throws', async t => {
-	// The service exists by this point, so a transport and a browser are live.
-	// Returning from the catch without closing leaks both for the life of the
-	// process.
+	// A transport and a browser are live by this point; both must be released.
 	const {sandbox, builder, deps} = createDeps();
 	let closed = false;
 
@@ -361,5 +356,63 @@ test('the AI service is closed when a page analysis throws', async t => {
 
 	t.is(await runCIAnalysis(baseConfig(), throwingDeps), 1);
 	t.true(closed);
+	sandbox.restore();
+});
+
+test('a close that throws does not trigger a second close', async t => {
+	// A rejecting close() must still leave a resolved exit code, and must not
+	// be retried against a torn-down instance.
+	const {sandbox, builder, deps} = createDeps();
+	let closeCalls = 0;
+
+	const failingCloseDeps = {
+		...deps,
+		async getAIService() {
+			const service = {
+				async analyzePage(
+					_config: UxLintConfig,
+					page: {url: string; features: string},
+				) {
+					builder.initializePageAnalysis(page.url, page.features);
+					return builder.completePageAnalysis();
+				},
+				async close() {
+					closeCalls++;
+					throw new Error('transport refused to shut down');
+				},
+			};
+
+			return service as never;
+		},
+		emitVerdict() {
+			// Swallowed: the assertion is about close(), not the message.
+		},
+	};
+
+	const code = await runCIAnalysis(baseConfig(), failingCloseDeps);
+
+	t.is(closeCalls, 1, 'close must not be attempted twice');
+	t.is(code, 1, 'the failure must stay a resolved exit code, not a rejection');
+	sandbox.restore();
+});
+
+test('an analysis failure reports its reason, not just an exit code', async t => {
+	// The likeliest CI failure is the analysis throwing; an exit code alone
+	// leaves the developer nothing to act on.
+	const {sandbox, deps} = createDeps();
+	const emitted: string[] = [];
+
+	const code = await runCIAnalysis(baseConfig(), {
+		...deps,
+		async getAIService() {
+			throw new Error('MCP client unavailable');
+		},
+		emitVerdict(verdict) {
+			emitted.push(verdict);
+		},
+	});
+
+	t.is(code, 1);
+	t.regex(emitted.join('\n'), /MCP client unavailable/);
 	sandbox.restore();
 });
