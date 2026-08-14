@@ -275,3 +275,172 @@ test('a verdict with no thresholds configured renders nothing', t => {
 	// summary would imply a gate exists.
 	t.is(renderGateVerdict(evaluateGate(clean, undefined)), '');
 });
+
+test('a partial page breaches when failOnPartialPage is set', t => {
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{url: 'https://example.com/cut', status: 'partial'},
+	]);
+
+	const result = evaluateGate(report, {failOnPartialPage: true});
+
+	t.false(result.passed);
+	t.deepEqual(result.breaches, [
+		{kind: 'partial-pages', pages: [{pageUrl: 'https://example.com/cut'}]},
+	]);
+});
+
+test('a failed page breaches when failOnFailedPage is set', t => {
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{
+			url: 'https://example.com/died',
+			status: 'failed',
+			error: 'navigation timed out after 30s',
+		},
+	]);
+
+	const result = evaluateGate(report, {failOnFailedPage: true});
+
+	t.false(result.passed);
+	t.deepEqual(result.breaches, [
+		{
+			kind: 'failed-pages',
+			pages: [
+				{
+					pageUrl: 'https://example.com/died',
+					error: 'navigation timed out after 30s',
+				},
+			],
+		},
+	]);
+});
+
+test('a failed-page breach carries the recorded reason', t => {
+	// FR-008: the reason has to reach the log, or the developer whose build
+	// broke has to go fetch the report artifact to learn anything.
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{
+			url: 'https://example.com/x',
+			status: 'failed',
+			error: 'DNS lookup failed',
+		},
+		{url: 'https://example.com/y', status: 'failed', error: 'HTTP 503'},
+	]);
+
+	const [breach] = evaluateGate(report, {failOnFailedPage: true}).breaches;
+
+	t.is(breach?.kind, 'failed-pages');
+	t.deepEqual(breach?.kind === 'failed-pages' ? breach.pages : [], [
+		{pageUrl: 'https://example.com/x', error: 'DNS lookup failed'},
+		{pageUrl: 'https://example.com/y', error: 'HTTP 503'},
+	]);
+});
+
+test('coverage gating can be switched off', t => {
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{url: 'https://example.com/cut', status: 'partial'},
+		{url: 'https://example.com/died', status: 'failed'},
+	]);
+
+	const result = evaluateGate(report, {
+		failOnPartialPage: false,
+		failOnFailedPage: false,
+	});
+
+	t.true(result.passed);
+	t.deepEqual(result.breaches, []);
+});
+
+test('coverage gating is on by default once thresholds exist', t => {
+	// Asymmetric with the severity limits by design: opting into gating at all
+	// should not silently accept a verdict built on pages that never finished.
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{url: 'https://example.com/cut', status: 'partial'},
+	]);
+
+	t.false(
+		evaluateGate(report, {}).passed,
+		'an empty block still gates coverage',
+	);
+	t.true(
+		evaluateGate(report, undefined).passed,
+		'no block at all gates nothing',
+	);
+});
+
+test('a run that analysed nothing fails even with coverage gating off', t => {
+	// FR-012. This is why analyzedNothing is a separate field rather than a
+	// breach kind: folding it in would let a user switch it off.
+	const report = buildReport([
+		{url: 'https://example.com/x', status: 'failed', error: 'boom'},
+		{url: 'https://example.com/y', status: 'failed', error: 'boom'},
+	]);
+
+	const result = evaluateGate(report, {
+		failOnPartialPage: false,
+		failOnFailedPage: false,
+	});
+
+	t.true(result.analyzedNothing);
+	t.false(result.passed, 'a report built from nothing is not evidence');
+});
+
+test('a partial page alone counts as something being analysed', t => {
+	const report = buildReport([
+		{url: 'https://example.com/cut', status: 'partial'},
+	]);
+
+	t.false(
+		evaluateGate(report, {failOnPartialPage: false}).analyzedNothing,
+		'a cut-short page still observed something',
+	);
+});
+
+test('a breached verdict names the affected pages and reasons', t => {
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{url: 'https://example.com/cut', status: 'partial'},
+		{url: 'https://example.com/died', status: 'failed', error: 'HTTP 503'},
+	]);
+
+	const rendered = renderGateVerdict(evaluateGate(report, {}));
+
+	t.regex(rendered, /gate failed/);
+	t.regex(rendered, /partial\s+1 page not fully analysed/);
+	t.regex(rendered, /https:\/\/example\.com\/cut/);
+	t.regex(rendered, /failed\s+1 page could not be analysed/);
+	t.regex(rendered, /https:\/\/example\.com\/died — HTTP 503/);
+});
+
+test('a verdict for a run that analysed nothing says so plainly', t => {
+	const report = buildReport([
+		{url: 'https://example.com/x', status: 'failed', error: 'boom'},
+	]);
+
+	const rendered = renderGateVerdict(
+		evaluateGate(report, {failOnFailedPage: false}),
+	);
+
+	t.regex(rendered, /gate failed/);
+	t.regex(rendered, /no page was analysed successfully/);
+});
+
+test('a passing verdict still warns about incomplete coverage', t => {
+	// Coverage gating is off, so the run passes -- but hiding the fact that a
+	// page failed would make the pass look better founded than it is.
+	const report = buildReport([
+		{url: 'https://example.com/a', findings: ['low']},
+		{url: 'https://example.com/died', status: 'failed', error: 'HTTP 503'},
+	]);
+
+	const rendered = renderGateVerdict(
+		evaluateGate(report, {maxLow: 5, failOnFailedPage: false}),
+	);
+
+	t.regex(rendered, /gate passed/);
+	t.regex(rendered, /1 page could not be analysed/);
+});
