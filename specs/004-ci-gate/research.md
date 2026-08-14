@@ -83,6 +83,10 @@ The verdict is also written to the Winston log, so the detail survives in both p
 
 **Constraint carried into the plan** — the ordering (close MCP → write report → print verdict → exit) is load-bearing and must be asserted by a test, not left to convention.
 
+**Approved 2026-08-14 by the project owner.** This reads `CLAUDE.md`'s "never use stdout or stderr for logging" narrowly: a gate verdict is program output, the way a linter's findings are, not logging. The distinction is what the whole decision rests on, so it is recorded here rather than left to be rediscovered in review. Anyone widening the rule back out has to answer SC-003 — how a developer learns which threshold they breached from the CI log alone.
+
+The approval covers the verdict only. Nothing else in this feature may write to stdout or stderr, and nothing may write to either while the MCP transport is open.
+
 ---
 
 ## Resolved unknowns
