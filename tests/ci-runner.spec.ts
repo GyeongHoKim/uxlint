@@ -146,3 +146,107 @@ test('writes the report before returning', async t => {
 	);
 	sandbox.restore();
 });
+
+test('a breached threshold fails the run', async t => {
+	const {sandbox, deps} = createDeps(b => page => {
+		b.initializePageAnalysis(page.url, page.features);
+		b.addFinding({
+			severity: 'critical',
+			category: 'Accessibility',
+			description: 'Critical issue',
+			personaRelevance: ['Test persona'],
+			recommendation: 'Fix it',
+			pageUrl: page.url,
+		});
+		return b.completePageAnalysis();
+	});
+	const emitted: string[] = [];
+
+	const code = await runCIAnalysis(baseConfig({thresholds: {maxCritical: 0}}), {
+		...deps,
+		emitVerdict(verdict) {
+			emitted.push(verdict);
+		},
+	});
+
+	t.is(code, 1);
+	t.regex(emitted.join('\n'), /gate failed/);
+	t.regex(emitted.join('\n'), /critical\s+1 findings, limit 0/);
+	sandbox.restore();
+});
+
+test('a threshold that holds passes the run and still reports', async t => {
+	const {sandbox, deps} = createDeps();
+	const emitted: string[] = [];
+
+	const code = await runCIAnalysis(baseConfig({thresholds: {maxCritical: 0}}), {
+		...deps,
+		emitVerdict(verdict) {
+			emitted.push(verdict);
+		},
+	});
+
+	t.is(code, 0);
+	t.regex(emitted.join('\n'), /gate passed/);
+	sandbox.restore();
+});
+
+test('no verdict is emitted when nothing was gated', async t => {
+	const {sandbox, deps} = createDeps();
+	const emitted: string[] = [];
+
+	await runCIAnalysis(baseConfig(), {
+		...deps,
+		emitVerdict(verdict) {
+			emitted.push(verdict);
+		},
+	});
+
+	t.deepEqual(
+		emitted,
+		[],
+		'printing a summary with no thresholds would imply a gate that does not exist',
+	);
+	sandbox.restore();
+});
+
+test('the report is saved and the transport closed before the verdict is emitted', async t => {
+	// Load-bearing ordering, not a convention. stdout carries MCP protocol
+	// messages while the transport is open, so emitting the verdict any
+	// earlier would interleave program output with JSON-RPC. Asserting the
+	// sequence is what keeps a later refactor from quietly breaking it.
+	const {sandbox, builder, deps} = createDeps();
+	const order: string[] = [];
+
+	sandbox.stub(builder, 'saveReport').callsFake(async () => {
+		order.push('saveReport');
+	});
+
+	const closingDeps = {
+		...deps,
+		async getAIService() {
+			const service = {
+				async analyzePage(
+					_config: UxLintConfig,
+					page: {url: string; features: string},
+				) {
+					builder.initializePageAnalysis(page.url, page.features);
+					return builder.completePageAnalysis();
+				},
+				async close() {
+					order.push('close');
+				},
+			};
+
+			return service as never;
+		},
+		emitVerdict() {
+			order.push('emitVerdict');
+		},
+	};
+
+	await runCIAnalysis(baseConfig({thresholds: {maxCritical: 0}}), closingDeps);
+
+	t.deepEqual(order, ['saveReport', 'close', 'emitVerdict']);
+	sandbox.restore();
+});

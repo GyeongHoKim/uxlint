@@ -5,9 +5,11 @@
  * @packageDocumentation
  */
 
+import process from 'node:process';
 import {logger} from './infrastructure/logger.js';
 import type {AnalysisStage} from './models/analysis.js';
 import type {UxLintConfig} from './models/config.js';
+import {evaluateGate, renderGateVerdict} from './models/gate-result.js';
 import {getAIService as defaultGetAIService} from './services/ai-service.js';
 import {
 	reportBuilder as defaultReportBuilder,
@@ -39,11 +41,39 @@ function createProgressCallback(
 export type CIAnalysisDependencies = {
 	getAIService: typeof defaultGetAIService;
 	reportBuilder: ReportBuilder;
+
+	/**
+	 * Where the gate verdict goes.
+	 *
+	 * Injected so a test can assert the verdict is written after the report
+	 * and after the MCP transport closes. That ordering is load-bearing —
+	 * stdout belongs to the MCP protocol while the transport is open — and it
+	 * must not rest on convention.
+	 */
+	emitVerdict?: (verdict: string) => void;
 };
+
+/**
+ * Write the gate verdict to stdout.
+ *
+ * This is the one place in the codebase that writes to stdout deliberately.
+ * CLAUDE.md reserves stdout and stderr for MCP protocol messages, and that
+ * rule still holds: a verdict is program output the way a linter's findings
+ * are, not logging, and it is emitted only after the MCP transport has been
+ * closed, where no protocol message can follow.
+ *
+ * The alternative — a verdict that reaches only the Winston log file — fails
+ * the requirement that a developer diagnose a failed gate from the CI log
+ * alone. Approved as a scoped exception; see specs/004-ci-gate/research.md R4.
+ */
+function defaultEmitVerdict(verdict: string): void {
+	process.stdout.write(`${verdict}\n`);
+}
 
 const defaultDependencies: CIAnalysisDependencies = {
 	getAIService: defaultGetAIService,
 	reportBuilder: defaultReportBuilder,
+	emitVerdict: defaultEmitVerdict,
 };
 
 /**
@@ -64,7 +94,11 @@ export async function runCIAnalysis(
 	config: UxLintConfig,
 	dependencies: CIAnalysisDependencies = defaultDependencies,
 ): Promise<number> {
-	const {getAIService, reportBuilder} = dependencies;
+	const {
+		getAIService,
+		reportBuilder,
+		emitVerdict = defaultEmitVerdict,
+	} = dependencies;
 	const {pages} = config;
 	const totalPages = pages.length;
 	const startTime = Date.now();
@@ -138,11 +172,26 @@ export async function runCIAnalysis(
 			failedPages: report.metadata.failedPages.length,
 		});
 
-		// Cleanup
+		// Cleanup. This must happen before the verdict is emitted: stdout
+		// belongs to the MCP protocol until the transport is shut down.
 		logger.debug('Cleaning up AI service');
 		await aiService.close();
 
-		return 0;
+		const gate = evaluateGate(report, config.thresholds);
+		const verdict = renderGateVerdict(gate);
+
+		logger.info('Gate evaluated', {
+			passed: gate.passed,
+			breaches: gate.breaches.length,
+			evaluated: gate.evaluated.length,
+			analyzedNothing: gate.analyzedNothing,
+		});
+
+		if (verdict) {
+			emitVerdict(verdict);
+		}
+
+		return gate.passed ? 0 : 1;
 	} catch (error) {
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error';
