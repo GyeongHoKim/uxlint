@@ -301,3 +301,65 @@ test('SC-004: a failed page with no thresholds still exits 0', async t => {
 	t.is(await runCIAnalysis(baseConfig(), deps), 0);
 	sandbox.restore();
 });
+
+test('the AI service is closed even when saving the report throws', async t => {
+	// The service exists by this point, so a transport and a browser are live.
+	// Returning from the catch without closing leaks both for the life of the
+	// process.
+	const {sandbox, builder, deps} = createDeps();
+	let closed = false;
+
+	sandbox.stub(builder, 'saveReport').rejects(new Error('disk full'));
+
+	const leakyDeps = {
+		...deps,
+		async getAIService() {
+			const service = {
+				async analyzePage(
+					_config: UxLintConfig,
+					page: {url: string; features: string},
+				) {
+					builder.initializePageAnalysis(page.url, page.features);
+					return builder.completePageAnalysis();
+				},
+				async close() {
+					closed = true;
+				},
+			};
+
+			return service as never;
+		},
+	};
+
+	const code = await runCIAnalysis(baseConfig(), leakyDeps);
+
+	t.is(code, 1);
+	t.true(closed, 'a failure after the transport opened must still close it');
+	sandbox.restore();
+});
+
+test('the AI service is closed when a page analysis throws', async t => {
+	const {sandbox, builder, deps} = createDeps();
+	let closed = false;
+
+	const throwingDeps = {
+		...deps,
+		async getAIService() {
+			const service = {
+				async analyzePage() {
+					throw new Error('transport died mid-run');
+				},
+				async close() {
+					closed = true;
+				},
+			};
+
+			return service as never;
+		},
+		reportBuilder: builder,
+	};
+
+	t.is(await runCIAnalysis(baseConfig(), throwingDeps), 1);
+	t.true(closed);
+	sandbox.restore();
+});

@@ -115,9 +115,15 @@ export function useAnalysis(
 	 * Uses AIService singleton with Manual Agent Loop pattern
 	 */
 	const runAnalysis = useCallback(async () => {
+		// Held outside the try so the finally can close the same instance. The
+		// old code re-fetched it from getAIService there, which builds a fresh
+		// MCP client -- and therefore spawns a browser -- if the cache has been
+		// evicted, just to close it again.
+		let aiService: AIService | undefined;
+
 		try {
 			// Get AI Service instance (lazy initialization)
-			const aiService = await getAIService(config);
+			aiService = await getAIService(config);
 
 			// Process each page sequentially - await in loop is intentional
 			for (let i = 0; i < config.pages.length; i++) {
@@ -230,6 +236,12 @@ export function useAnalysis(
 				breaches: gateResult.breaches.length,
 			});
 
+			// Shut the transport down before publishing the terminal state.
+			// Doing it after lets the UI reach its exit path first and leave the
+			// MCP subprocess behind.
+			await aiService.close();
+			aiService = undefined;
+
 			// Update state to complete with final report
 			updateAnalysisState(previous => ({
 				...previous,
@@ -256,9 +268,10 @@ export function useAnalysis(
 				finalReport: undefined,
 			}));
 		} finally {
-			// Cleanup AI Service
-			const aiService = await getAIService(config);
-			await aiService.close();
+			// Only reached when the happy path did not already close it.
+			if (aiService) {
+				await aiService.close();
+			}
 		}
 	}, [config, updateAnalysisState, getAIService, reportBuilder]);
 

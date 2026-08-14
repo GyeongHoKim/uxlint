@@ -75,7 +75,9 @@ The verdict. Produced by the evaluator, consumed by the renderer and by the exit
 
 `evaluated` exists for FR-009: a passing run must still show that the gate ran and what it saw. Without it a passing log is indistinguishable from a log where the gate was silently misconfigured — the exact failure mode US3 exists to prevent.
 
-`analyzedNothing` is separate from the coverage breaches because FR-012 makes it fail **regardless of configuration**, including when `failOnFailedPage` is explicitly `false`. Folding it into a coverage breach would let a user disable it.
+`analyzedNothing` is separate from the coverage breaches because FR-012 makes it fail even when `failOnFailedPage` is explicitly `false`. Folding it into a coverage breach would let a user disable it.
+
+It is still scoped to an active gate. When `thresholds` is absent the evaluator returns before this is computed, because FR-004 outranks it: a pipeline that never opted in must not start failing on upgrade, and a run where every page failed is exactly the case where that would bite hardest.
 
 ### Derivation
 

@@ -460,3 +460,24 @@ test('the verdict renders as compact lines for a terminal', t => {
 	t.is(lines[0], 'uxlint: gate failed');
 	t.true(lines.length > 1, 'the reason must survive the split');
 });
+
+test('duplicate page URLs keep their own failure reasons', t => {
+	// A config may legitimately list the same URL twice. Matching by URL alone
+	// gave every entry the first page's error -- the same mistake the report
+	// builder's duplicate guard already had to avoid.
+	const report = buildReport([
+		{
+			url: 'https://example.com/x',
+			status: 'failed',
+			error: 'DNS lookup failed',
+		},
+		{url: 'https://example.com/x', status: 'failed', error: 'HTTP 503'},
+	]);
+
+	const [breach] = evaluateGate(report, {failOnFailedPage: true}).breaches;
+
+	t.deepEqual(breach?.kind === 'failed-pages' ? breach.pages : [], [
+		{pageUrl: 'https://example.com/x', error: 'DNS lookup failed'},
+		{pageUrl: 'https://example.com/x', error: 'HTTP 503'},
+	]);
+});
