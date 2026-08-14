@@ -3,7 +3,7 @@ import type {ReactNode} from 'react';
 import {Text} from 'ink';
 import {configIO} from '../../infrastructure/config/config-io.js';
 import {logger} from '../../infrastructure/logger.js';
-import {isUxLintConfig, type UxLintConfig} from '../../models/config.js';
+import {type UxLintConfig} from '../../models/config.js';
 import {getConfigFormat} from '../../utils/get-config-format.js';
 import {UxlintMachineContext} from './uxlint-machine-context.js';
 
@@ -27,25 +27,27 @@ export function UXLintMachineProvider({
 			const format = getConfigFormat(configPath);
 			const parsed = configIO.parseConfigFile(configContent, format);
 
-			if (isUxLintConfig(parsed)) {
-				preloadedConfig = parsed;
-				logger.info('Config parsed successfully', {
-					configPath,
-					mainPageUrl: parsed.mainPageUrl,
-					pagesCount: parsed.pages.length,
-				});
-			} else {
-				logger.error('Invalid config file', {configPath});
-				configError = 'Invalid config file';
-			}
+			// Use validateConfig, not the isUxLintConfig guard. The guard is
+			// structural and knows nothing about thresholds, so a typo'd key
+			// would be accepted here and produce a misleading advisory verdict
+			// while the same file is rejected outright in CI mode. Both paths
+			// have to read a threshold the same way, which is the whole point
+			// of showing the verdict in interactive mode at all.
+			preloadedConfig = configIO.validateConfig(parsed, configPath);
+			logger.info('Config parsed successfully', {
+				configPath,
+				mainPageUrl: preloadedConfig.mainPageUrl,
+				pagesCount: preloadedConfig.pages.length,
+				hasThresholds: preloadedConfig.thresholds !== undefined,
+			});
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : 'Unknown error';
-			logger.error('Error parsing config file', {
+			logger.error('Invalid config file', {
 				configPath,
 				error: errorMessage,
 			});
-			configError = `Error parsing config file: ${errorMessage}`;
+			configError = errorMessage;
 		}
 	} else {
 		logger.info('No config file found, starting wizard', {cwd: process.cwd()});
