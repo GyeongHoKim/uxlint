@@ -5,12 +5,14 @@
  * @packageDocumentation
  */
 
-import process from 'node:process';
 import {logger} from './infrastructure/logger.js';
 import type {AnalysisStage} from './models/analysis.js';
 import type {UxLintConfig} from './models/config.js';
-import {getAIService} from './services/ai-service.js';
-import {reportBuilder} from './services/report-builder.js';
+import {getAIService as defaultGetAIService} from './services/ai-service.js';
+import {
+	reportBuilder as defaultReportBuilder,
+	type ReportBuilder,
+} from './services/report-builder.js';
 
 /**
  * Create a progress callback for page analysis
@@ -31,10 +33,38 @@ function createProgressCallback(
 }
 
 /**
- * Run analysis in CI mode without any UI
- * All output goes to logger (log files) only
+ * Collaborators the runner needs, injectable so the exit status can be
+ * asserted without a model, a browser, or a live MCP transport.
  */
-export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
+export type CIAnalysisDependencies = {
+	getAIService: typeof defaultGetAIService;
+	reportBuilder: ReportBuilder;
+};
+
+const defaultDependencies: CIAnalysisDependencies = {
+	getAIService: defaultGetAIService,
+	reportBuilder: defaultReportBuilder,
+};
+
+/**
+ * Run analysis in CI mode without any UI
+ *
+ * Returns the process exit code rather than calling `process.exit` itself.
+ * Terminating from in here made the decision untestable — asserting on an
+ * exit status meant killing the test process — and it also left no room for
+ * the caller to print anything after the MCP transport closes.
+ *
+ * All logging goes to log files only; the caller owns stdout.
+ *
+ * @param config - Validated configuration for this run
+ * @param dependencies - Injectable collaborators; defaults to the singletons
+ * @returns `0` when the run completed, `1` when it failed
+ */
+export async function runCIAnalysis(
+	config: UxLintConfig,
+	dependencies: CIAnalysisDependencies = defaultDependencies,
+): Promise<number> {
+	const {getAIService, reportBuilder} = dependencies;
 	const {pages} = config;
 	const totalPages = pages.length;
 	const startTime = Date.now();
@@ -112,7 +142,7 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 		logger.debug('Cleaning up AI service');
 		await aiService.close();
 
-		process.exit(0);
+		return 0;
 	} catch (error) {
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error';
@@ -125,6 +155,6 @@ export async function runCIAnalysis(config: UxLintConfig): Promise<void> {
 			elapsedMs: Date.now() - startTime,
 		});
 
-		process.exit(1);
+		return 1;
 	}
 }
