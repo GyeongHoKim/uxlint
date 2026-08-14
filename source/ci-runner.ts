@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 
-import process from 'node:process';
+import {writeTerminalMessage} from './infrastructure/console-output.js';
 import {logger} from './infrastructure/logger.js';
 import type {AnalysisStage} from './models/analysis.js';
 import type {UxLintConfig} from './models/config.js';
@@ -56,18 +56,12 @@ export type CIAnalysisDependencies = {
 /**
  * Write the gate verdict to stdout.
  *
- * This is the one place in the codebase that writes to stdout deliberately.
- * CLAUDE.md reserves stdout and stderr for MCP protocol messages, and that
- * rule still holds: a verdict is program output the way a linter's findings
- * are, not logging, and it is emitted only after the MCP transport has been
- * closed, where no protocol message can follow.
- *
- * The alternative — a verdict that reaches only the Winston log file — fails
- * the requirement that a developer diagnose a failed gate from the CI log
- * alone. Approved as a scoped exception; see specs/004-ci-gate/research.md R4.
+ * Routed through the one module allowed to touch stdout, and called only
+ * after `aiService.close()` — see `console-output.ts` for why that timing is
+ * what makes it legal.
  */
 function defaultEmitVerdict(verdict: string): void {
-	process.stdout.write(`${verdict}\n`);
+	writeTerminalMessage(verdict);
 }
 
 const defaultDependencies: CIAnalysisDependencies = {

@@ -85,7 +85,16 @@ The verdict is also written to the Winston log, so the detail survives in both p
 
 **Approved 2026-08-14 by the project owner.** This reads `CLAUDE.md`'s "never use stdout or stderr for logging" narrowly: a gate verdict is program output, the way a linter's findings are, not logging. The distinction is what the whole decision rests on, so it is recorded here rather than left to be rediscovered in review. Anyone widening the rule back out has to answer SC-003 — how a developer learns which threshold they breached from the CI log alone.
 
-The approval covers the verdict only. Nothing else in this feature may write to stdout or stderr, and nothing may write to either while the MCP transport is open.
+**Widened 2026-08-14, with a guardrail.** The original approval covered the verdict only. That line was drawn on incomplete information: it assumed config rejections at least reached the log file, and implementation showed they reached nothing at all — `process.exit` killed the process before Winston's rotating transport had opened its stream. A malformed threshold therefore failed silently, which fails SC-003 for the same reason a silent verdict would.
+
+The rule is now stated by what it protects rather than by a list of allowed messages: **a terminating message may be written when no MCP transport exists** — before one is created, or after `close()`. At those moments the stream has no other writer, so the premise behind the prohibition is absent.
+
+Because widening an exception is how exceptions erode, the boundary moved from prose into code:
+
+- `source/infrastructure/console-output.ts` is the only module that touches stdout, and its doc comment states the conditions.
+- `xo.config.js` blocks `console` and `process.stdout`/`process.stderr` across `source/**`, with that one file exempt. Verified by planting a violation elsewhere and watching the rule fire.
+
+Still forbidden, and not legalised by this: anything written while analysis runs, any progress or status output, and the report body.
 
 ---
 
