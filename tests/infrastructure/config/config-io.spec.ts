@@ -408,12 +408,15 @@ test('the same thresholds block validates identically from either format', t => 
 	);
 });
 
-test('isUxLintConfig does not check thresholds, so the CI path cannot rely on it alone', t => {
-	// Two validators exist for the same type and they disagree. The CI path
-	// used to accept a config through the structural guard only, which would
-	// have let a misspelled threshold key through untouched -- the exact
-	// silent-no-gate failure this feature exists to prevent. Pinned here so
-	// the divergence stays known rather than accidental.
+test('isUxLintConfig does not check thresholds, which is why no load path uses it', t => {
+	// Two validators exist for the same type and they disagree. Both config
+	// load paths -- CI and interactive -- used to accept a config through the
+	// structural guard alone, which let a misspelled threshold key through
+	// untouched: the exact silent-no-gate failure this feature exists to
+	// prevent. Both now use validateConfig, leaving the guard with no
+	// production caller. Pinned here so the divergence stays known rather than
+	// accidental, and so removing the guard is a deliberate decision rather
+	// than a surprise.
 	const misspelled = {...validConfigObject, thresholds: {maxCritcal: 0}};
 
 	t.true(
