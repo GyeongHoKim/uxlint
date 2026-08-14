@@ -40,11 +40,11 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 - [ ] T002 [P] Write failing unit tests for `Thresholds` validation in `tests/models/thresholds.spec.ts` covering: integer/non-negative rules, boolean rules, unknown-key rejection, non-object `thresholds`, and absent-vs-zero distinction (data-model.md validation rules)
 - [ ] T003 [P] Write failing unit tests for the `GateResult` shape in `tests/models/gate-result.spec.ts` asserting `evaluated` is populated even when `passed` is true (FR-009)
-- [ ] T004 Create `source/models/thresholds.ts` with the `Thresholds` type, the severity→field lookup, the two coverage defaults (`failOnPartial`/`failOnFailedPage` default `true`), and the validation predicate — makes T002 pass
+- [ ] T004 Create `source/models/thresholds.ts` with the `Thresholds` type, the severity→field lookup (FR-002), the two coverage defaults (`failOnPartialPage`/`failOnFailedPage` default `true`, FR-003), and the validation predicate — makes T002 pass
 - [ ] T005 Create `source/models/gate-result.ts` with the `Breach` union (severity / partial-pages / failed-pages) and the `GateResult` type — makes T003 pass
 - [ ] T006 Add the optional `thresholds` property to `UxLintConfig` in `source/models/config.ts`, leaving `isUxLintConfig` unchanged (research R2 records why the divergence is deliberate)
-- [ ] T007 Change `runCIAnalysis` in `source/ci-runner.ts` to return an exit code instead of calling `process.exit`, and make `source/cli.tsx:145` perform the exit — behaviour-preserving refactor, no gate logic yet (research R1)
-- [ ] T008 Write a test in `tests/ci-runner.spec.ts` confirming `runCIAnalysis` resolves to `0` on success and `1` when analysis throws, with no `process.exit` call — this is the first test `ci-runner` has ever had
+- [ ] T007 Write a failing test in `tests/ci-runner.spec.ts` asserting `runCIAnalysis` **resolves to** `0` on success and `1` when analysis throws, and never calls `process.exit` — the first test `ci-runner` has ever had, and it must fail before T008 because today the function returns `void` and exits the process
+- [ ] T008 Change `runCIAnalysis` in `source/ci-runner.ts` to return an exit code instead of calling `process.exit`, and make `source/cli.tsx:145` perform the exit — behaviour-preserving refactor, no gate logic yet (research R1). Makes T007 pass
 
 **Checkpoint**: Exit status is now a value a test can read. User stories can begin.
 
@@ -64,14 +64,14 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 - [ ] T010 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting every breached threshold appears in `breaches`, not just the first (FR-007)
 - [ ] T011 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting findings from partial and failed pages are counted, using a report fixture whose findings come only from a failed page (FR-011, research R3)
 - [ ] T012 [P] [US1] Write a failing test in `tests/models/gate-result.spec.ts` asserting an absent `thresholds` yields `passed: true` with empty `evaluated`, so FR-004 holds at the evaluator level
-- [ ] T013 [P] [US1] Write a failing performance test in `tests/models/gate-result.spec.ts` asserting `evaluateGate` completes within 50ms on a fixture of 500 findings across 50 pages (SC-006)
+- [ ] T013 [P] [US1] Write a failing performance test in `tests/models/gate-result.spec.ts` for the SC-006 budget on a fixture of 500 findings across 50 pages. **Do not assert a bare 50ms wall clock** — a loaded CI runner will flake it. Calibrate first (time a trivial loop in the same process) and assert the evaluator's time against that, or assert a generous ceiling and log the observed figure so a real regression is still visible. The budget is the design target; the test's job is to catch an order-of-magnitude regression, not to police jitter
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Implement `evaluateGate(report, thresholds)` in `source/models/gate-result.ts` following data-model.md derivation steps 1–3 and 6, tallying `report.prioritizedFindings` — makes T009–T013 pass
-- [ ] T015 [US1] Implement the verdict renderer in `source/models/gate-result.ts` producing the exact layout in `contracts/config-thresholds.md` (breach lines and the passing summary)
-- [ ] T016 [P] [US1] Write failing tests in `tests/models/gate-result.spec.ts` for the renderer: a breached run lists every breach, a passing run still lists evaluated thresholds (FR-009)
-- [ ] T017 [US1] Wire `evaluateGate` into `source/ci-runner.ts` after `saveReport`, returning non-zero on breach — the report must already be on disk when the gate runs (FR-010)
+- [ ] T014 [US1] Implement `evaluateGate(report, thresholds)` in `source/models/gate-result.ts` following data-model.md derivation steps 1–3 and 6, tallying `report.prioritizedFindings` — makes T009–T013 pass (SC-002)
+- [ ] T015 [P] [US1] Write failing tests in `tests/models/gate-result.spec.ts` for the verdict renderer: a breached run lists every breach, a passing run still lists evaluated thresholds (FR-009, SC-003)
+- [ ] T016 [US1] Implement the verdict renderer in `source/models/gate-result.ts` producing the exact layout in `contracts/config-thresholds.md` (breach lines and the passing summary) — makes T015 pass (SC-003)
+- [ ] T017 [US1] Wire `evaluateGate` into `source/ci-runner.ts` after `saveReport`, returning non-zero on breach — the report must already be on disk when the gate runs (FR-005, FR-010, SC-002)
 - [ ] T018 [US1] Print the rendered verdict from `source/cli.tsx` after the MCP transport closes and immediately before exit, and mirror it to the Winston logger (research R4)
 - [ ] T019 [US1] Write a test asserting the ordering — report written, then verdict printed, then exit — in `tests/ci-runner.spec.ts`. The stdout/MCP constraint makes this ordering load-bearing, so it must not rest on convention (plan.md Risks)
 
@@ -87,13 +87,13 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T020 [P] [US2] Write failing tests in `tests/models/gate-result.spec.ts` for coverage breaches: `failOnPartial` with partial pages breaches, `failOnFailedPage` with failed pages breaches, both disabled with no severity limits passes (US2 scenarios 1–3)
+- [ ] T020 [P] [US2] Write failing tests in `tests/models/gate-result.spec.ts` for coverage breaches: `failOnPartialPage` with partial pages breaches, `failOnFailedPage` with failed pages breaches, both disabled with no severity limits passes (US2 scenarios 1–3)
 - [ ] T021 [P] [US2] Write a failing test in `tests/models/gate-result.spec.ts` asserting a failed-page breach carries each page's recorded `error` string (FR-008)
 - [ ] T022 [P] [US2] Write a failing test in `tests/models/gate-result.spec.ts` asserting `analyzedNothing` fails the gate **even when both coverage flags are `false`** (FR-012 — this is why it is a separate field, not a breach kind)
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Extend `evaluateGate` in `source/models/gate-result.ts` with derivation steps 4–5 and the `analyzedNothing` rule from step 1 — makes T020–T022 pass
+- [ ] T023 [US2] Extend `evaluateGate` in `source/models/gate-result.ts` with derivation steps 4–5 (FR-003) and the `analyzedNothing` rule from step 1, which data-model.md defines concretely as `analyzedPages` empty and `partialPages` empty and `report.pages.length > 0` — makes T020–T022 pass (FR-012, SC-007)
 - [ ] T024 [US2] Extend the renderer in `source/models/gate-result.ts` to emit the coverage breach lines and the nothing-analysed line from `contracts/config-thresholds.md`
 - [ ] T025 [US2] Report failed and partial counts as a warning in the passing path too, so disabling coverage gating still surfaces them (US2 scenario 3)
 
@@ -124,7 +124,7 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T031 Surface threshold results in interactive mode without changing its exit status, in `source/hooks/use-analysis.ts` and the relevant component (FR-014)
+- [ ] T031 Surface threshold results in interactive mode without changing its exit status, in `source/hooks/use-analysis.ts` and the relevant component (FR-014). Lives in Polish rather than a user story by design — spec Assumptions records why: a person watching a terminal already sees the findings, so this exists only so the two modes agree about what the thresholds mean
 - [ ] T032 [P] Document the `thresholds` block in `README.md`: schema, defaults, absent-vs-zero, and a worked example (FR-015)
 - [ ] T033 [P] Add the `thresholds` example to the config samples in `README.md` for both YAML and JSON
 - [ ] T034 Verify SC-004 against the T001 baseline: all three no-thresholds runs exit exactly as recorded

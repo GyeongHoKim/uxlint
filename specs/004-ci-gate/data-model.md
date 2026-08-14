@@ -16,7 +16,7 @@ The pipeline owner's declared limits. Every field is optional; **absent means "n
 | `maxHigh` | non-negative integer | high findings are not gated |
 | `maxMedium` | non-negative integer | medium findings are not gated |
 | `maxLow` | non-negative integer | low findings are not gated |
-| `failOnPartial` | boolean | defaults to `true` |
+| `failOnPartialPage` | boolean | defaults to `true` |
 | `failOnFailedPage` | boolean | defaults to `true` |
 
 Attaches to `UxLintConfig` as an optional `thresholds` property, so a config without the block is unchanged (FR-004).
@@ -81,10 +81,12 @@ The verdict. Produced by the evaluator, consumed by the renderer and by the exit
 
 Given a `UxReport` and a `Thresholds`:
 
-1. `analyzedNothing` ← `metadata.analyzedPages` and `metadata.partialPages` are both empty **and** at least one page was attempted. (An empty report from an empty page list is a configuration problem the loader already rejects.)
+1. `analyzedNothing` ← `metadata.analyzedPages` is empty **and** `metadata.partialPages` is empty **and** `report.pages.length > 0`.
+
+   The third clause is what "at least one page was attempted" means concretely, and it must be spelled out rather than inferred: `report.pages` holds every analysis regardless of status, so after 4.0.1 a run where every page failed still populates it. Without that clause an empty report and an all-failed report would be indistinguishable. In practice `report.pages` is never empty — config validation rejects an empty `pages` list — but the rule must not depend on a guarantee enforced somewhere else.
 2. Severity counts ← tally `report.prioritizedFindings` by severity. This includes findings from partial and failed pages (R3, FR-011).
 3. For each declared `max*`: record in `evaluated`; if `count > limit`, append a severity `Breach`. **Strictly greater** — equality passes (FR-006).
-4. If `failOnPartial` and `metadata.partialPages` is non-empty → coverage breach.
+4. If `failOnPartialPage` and `metadata.partialPages` is non-empty → coverage breach.
 5. If `failOnFailedPage` and `metadata.failedPages` is non-empty → coverage breach, with each page's recorded error.
 6. `passed` ← `breaches` is empty **and** `analyzedNothing` is false.
 
