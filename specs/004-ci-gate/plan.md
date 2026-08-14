@@ -62,6 +62,7 @@ specs/004-ci-gate/
 │   └── config-thresholds.md   # Phase 1 — user-facing config + output contract
 ├── checklists/
 │   └── requirements.md  # Spec quality checklist
+├── baseline.md          # Recorded pre-change exit behaviour, written by tasks.md T001
 └── tasks.md             # Phase 2 — created by /speckit-tasks, not here
 ```
 

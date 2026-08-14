@@ -73,7 +73,7 @@ echo "exit=$?"
 
 **Expect** — non-zero exit; the message names `maxCritcal`; **no browser launches and no model call is made** (SC-005). The `time` output should be well under a second, which is the observable proof that validation ran before analysis.
 
-Repeat with `maxCritical: -1`, `maxCritical: 1.5`, and `failOnPartial: "yes"` — each names its own key and value.
+Repeat with `maxCritical: -1`, `maxCritical: 1.5`, and `failOnPartialPage: "yes"` — each names its own key and value.
 
 ## Scenario 5 — Existing configs are untouched
 

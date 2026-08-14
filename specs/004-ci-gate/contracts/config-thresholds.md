@@ -12,7 +12,7 @@ thresholds:
   maxHigh: 3
   maxMedium: 10
   maxLow: 20
-  failOnPartial: true # default true when `thresholds` is present
+  failOnPartialPage: true # default true when `thresholds` is present
   failOnFailedPage: true # default true when `thresholds` is present
 ```
 
@@ -23,7 +23,7 @@ thresholds:
     "maxHigh": 3,
     "maxMedium": 10,
     "maxLow": 20,
-    "failOnPartial": true,
+    "failOnPartialPage": true,
     "failOnFailedPage": true
   }
 }
@@ -40,7 +40,7 @@ Every key is optional. `thresholds: {}` is valid and gates on coverage only.
 | `maxCritical: 0` | Any critical finding fails the run. |
 | `count == limit` | **Passes.** The limit is an inclusive maximum (FR-006). |
 | `count > limit` | Fails, and the breach names the limit and the count. |
-| `failOnPartial: true` | Any partial page fails the run. |
+| `failOnPartialPage: true` | Any partial page fails the run. |
 | `failOnFailedPage: true` | Any failed page fails the run; output includes each page's recorded reason. |
 | No page completed or partially completed | Fails regardless of every setting above (FR-012). |
 
@@ -56,7 +56,7 @@ Rejected **before analysis starts**, so a misconfigured pipeline costs no model 
 | `maxCritical: -1` | negative |
 | `maxCritical: 1.5` | not an integer |
 | `maxHigh: null` | not a number |
-| `failOnPartial: "yes"` | not a boolean |
+| `failOnPartialPage: "yes"` | not a boolean |
 | `maxCritcal: 0` (typo) | unrecognised key |
 | `thresholds: []` | not an object |
 | `thresholds: null` | not an object |
