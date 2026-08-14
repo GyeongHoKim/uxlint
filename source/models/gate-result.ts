@@ -172,10 +172,12 @@ export function evaluateGate(
 	const partialPages: AffectedPage[] = metadata.partialPages.map(pageUrl => ({
 		pageUrl,
 	}));
-	const failedPages: AffectedPage[] = metadata.failedPages.map(pageUrl => ({
-		pageUrl,
-		error: report.pages.find(page => page.pageUrl === pageUrl)?.error,
-	}));
+	// Read the errors off the analyses themselves rather than looking each URL
+	// up in `report.pages`. A config may list the same URL twice, and a lookup
+	// by URL hands every entry the first match's reason.
+	const failedPages: AffectedPage[] = report.pages
+		.filter(page => page.status === 'failed')
+		.map(page => ({pageUrl: page.pageUrl, error: page.error}));
 
 	// "Nothing was analysed" means every page that was attempted ended in
 	// failure. The third clause is what makes an all-failed run distinguishable

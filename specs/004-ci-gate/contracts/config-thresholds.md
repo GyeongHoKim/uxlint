@@ -42,7 +42,7 @@ Every key is optional. `thresholds: {}` is valid and gates on coverage only.
 | `count > limit` | Fails, and the breach names the limit and the count. |
 | `failOnPartialPage: true` | Any partial page fails the run. |
 | `failOnFailedPage: true` | Any failed page fails the run; output includes each page's recorded reason. |
-| No page completed or partially completed | Fails regardless of every setting above (FR-012). |
+| No page completed or partially completed | Fails regardless of every setting above, including both coverage flags set to `false` (FR-012). Requires `thresholds` to be present at all — with no block the gate never runs. |
 
 Findings are counted across **all** pages, including partial and failed ones (FR-011).
 

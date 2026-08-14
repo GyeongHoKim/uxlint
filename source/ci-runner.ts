@@ -103,10 +103,16 @@ export async function runCIAnalysis(
 		reportOutput: config.report.output,
 	});
 
+	// Held outside the try so the finally can close it. Anything that throws
+	// after the service exists -- a page analysis, saving the report -- used to
+	// return straight from the catch and leave the MCP transport and its
+	// browser alive for the life of the process.
+	let aiService: Awaited<ReturnType<typeof getAIService>> | undefined;
+
 	try {
 		// Get AI Service instance
 		logger.debug('Initializing AI service');
-		const aiService = await getAIService(config);
+		aiService = await getAIService(config);
 		logger.debug('AI service initialized');
 
 		// Process each page sequentially (not in parallel)
@@ -170,6 +176,7 @@ export async function runCIAnalysis(
 		// belongs to the MCP protocol until the transport is shut down.
 		logger.debug('Cleaning up AI service');
 		await aiService.close();
+		aiService = undefined;
 
 		const gate = evaluateGate(report, config.thresholds);
 		const verdict = renderGateVerdict(gate);
@@ -199,5 +206,11 @@ export async function runCIAnalysis(
 		});
 
 		return 1;
+	} finally {
+		// Only reached when the happy path did not already close it.
+		if (aiService) {
+			logger.debug('Closing AI service after a failed run');
+			await aiService.close();
+		}
 	}
 }

@@ -49,7 +49,7 @@ The pipeline owner decides whether a run that could not analyse everything shoul
 1. **Given** incomplete-coverage gating is enabled, **When** a run contains at least one failed page, **Then** the process exits non-zero and the output names the failed pages and their recorded reasons
 2. **Given** incomplete-coverage gating is enabled, **When** a run contains at least one partial page, **Then** the process exits non-zero and the output names the partial pages
 3. **Given** incomplete-coverage gating is disabled, **When** a run contains failed and partial pages but no severity breach, **Then** the process exits zero and the output still reports the counts as a warning
-4. **Given** every page in a run failed, **When** the run finishes, **Then** the process exits non-zero irrespective of threshold configuration — a report built from nothing cannot be evidence of anything
+4. **Given** a `thresholds` block is present and every page in a run failed, **When** the run finishes, **Then** the process exits non-zero even with both coverage settings disabled — a report built from nothing cannot be evidence of anything. With no `thresholds` block the gate does not run at all, per US1 scenario 4
 
 ---
 
@@ -94,7 +94,7 @@ A pipeline owner adding thresholds for the first time writes them into their con
 - **FR-009**: When a run passes the gate, the output MUST still report which thresholds were evaluated and the observed counts, so an active gate is visible in a passing log.
 - **FR-010**: The report file MUST be written before the process exits, whether or not the gate failed.
 - **FR-011**: Threshold counts MUST be taken from all findings in the report, including those collected from partial and failed pages.
-- **FR-012**: A run in which no page was analysed successfully MUST exit non-zero regardless of threshold configuration.
+- **FR-012**: When the gate is active, a run in which no page was analysed successfully MUST exit non-zero regardless of the coverage settings — including when both are explicitly disabled. This does **not** override FR-004: a config with no thresholds block is not gated at all, so it exits as it always did. "Regardless of configuration" means the user cannot switch this rule off, not that it applies to users who never opted in.
 - **FR-013**: Invalid threshold configuration — a non-numeric value, a negative value, a fractional value, or an unrecognised key — MUST stop the run before analysis begins, naming the offending key and value.
 - **FR-014**: In interactive runs, threshold results MUST be surfaced to the user, and the exit status MUST remain unchanged from today's behaviour.
 - **FR-015**: The configuration documentation MUST describe the thresholds section, its defaults, and a worked example.
