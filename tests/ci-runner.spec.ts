@@ -250,3 +250,54 @@ test('the report is saved and the transport closed before the verdict is emitted
 	t.deepEqual(order, ['saveReport', 'close', 'emitVerdict']);
 	sandbox.restore();
 });
+
+/**
+ * SC-004: adding this feature must not change the exit status of any config
+ * that has no thresholds block. The baseline recorded in
+ * specs/004-ci-gate/baseline.md says every completed run exited 0 regardless
+ * of findings, and a run that threw exited 1. These pin exactly that.
+ */
+test('SC-004: a clean run with no thresholds still exits 0', async t => {
+	const {sandbox, deps} = createDeps();
+
+	t.is(await runCIAnalysis(baseConfig(), deps), 0);
+	sandbox.restore();
+});
+
+test('SC-004: a run full of critical findings and no thresholds still exits 0', async t => {
+	const {sandbox, deps} = createDeps(b => page => {
+		b.initializePageAnalysis(page.url, page.features);
+		for (let index = 0; index < 20; index++) {
+			b.addFinding({
+				severity: 'critical',
+				category: 'Accessibility',
+				description: `Critical issue ${index}`,
+				personaRelevance: ['Test persona'],
+				recommendation: 'Fix it',
+				pageUrl: page.url,
+			});
+		}
+
+		return b.completePageAnalysis();
+	});
+
+	t.is(
+		await runCIAnalysis(baseConfig(), deps),
+		0,
+		'twenty critical findings must not fail a pipeline that never opted in',
+	);
+	sandbox.restore();
+});
+
+test('SC-004: a failed page with no thresholds still exits 0', async t => {
+	const {sandbox, deps} = createDeps(b => page => {
+		b.initializePageAnalysis(page.url, page.features);
+		return b.failCurrentPage('navigation timed out', {
+			url: page.url,
+			features: page.features,
+		});
+	});
+
+	t.is(await runCIAnalysis(baseConfig(), deps), 0);
+	sandbox.restore();
+});

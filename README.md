@@ -275,8 +275,80 @@ Required fields are marked as required. All text fields accept natural language.
 - `persona` (string, required): Can be a short paragraph describing goals, motives, accessibility needs, devices, constraints, etc.
 - `report` (object, required): Report output configuration.
   - `output` (string, required): File path where the report will be written (e.g., `./ux-report.md`).
+- `thresholds` (object, optional): CI gate limits. See [Failing CI on UX regressions](#failing-ci-on-ux-regressions).
 
 **Note**: AI configuration has been moved to environment variables for security. See [Environment Variables](#environment-variables) section below.
+
+### Failing CI on UX regressions
+
+By default a run always exits `0` — it reports, it does not gate. Add a `thresholds` block to make the pipeline fail when a run crosses a limit you set.
+
+```yaml
+thresholds:
+  maxCritical: 0 # no critical findings permitted
+  maxHigh: 3 # at most three high findings
+  maxMedium: 10
+  maxLow: 20
+  failOnPartialPage: true # a page cut short before finishing fails the run
+  failOnFailedPage: true # a page that could not be analysed fails the run
+```
+
+```json
+{
+	"thresholds": {
+		"maxCritical": 0,
+		"maxHigh": 3,
+		"failOnFailedPage": true
+	}
+}
+```
+
+Every key is optional, and each behaves as follows:
+
+|                                          |                                                                                                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No `thresholds` key at all               | The gate is off. Exit status is unchanged from before this feature existed.                                                                              |
+| A severity key you leave out             | That severity is not gated.                                                                                                                              |
+| `maxCritical: 0`                         | Any critical finding fails the run. **Absent and `0` are different**: absent means "not gated", `0` means "none permitted".                              |
+| A count equal to the limit               | **Passes.** Limits are inclusive maximums, so `maxHigh: 3` admits exactly three.                                                                         |
+| `failOnPartialPage` / `failOnFailedPage` | Default to `true` once `thresholds` is present. A verdict resting on pages that never finished is not evidence, so they are on unless you turn them off. |
+| No page analysed successfully            | Always fails, whatever you configured.                                                                                                                   |
+
+Findings are counted across every page, including ones that were cut short or failed — a page that found a critical issue and then crashed still found it.
+
+A failing run prints why, so the CI log alone is enough to diagnose it:
+
+```
+uxlint: gate failed
+
+  critical  2 findings, limit 0
+  high      3 findings, limit 1
+  failed    1 page could not be analysed
+              https://shop.example/checkout — navigation timed out after 30s
+```
+
+A passing run prints what it checked, so an active gate is visible in a green log:
+
+```
+uxlint: gate passed
+
+  critical  0 findings, limit 0
+  high      1 findings, limit 3
+```
+
+The report file is always written, pass or fail.
+
+**Interactive mode is unaffected.** `uxlint --interactive` shows the same verdict but never changes its exit status — a person watching a terminal already sees the findings.
+
+**Typos are rejected before analysis starts.** An unrecognised key, a negative limit, or a non-integer stops the run in under a second with no browser launched and no model call made:
+
+```
+$ uxlint
+uxlint: thresholds.maxCritcal is not a recognised threshold. Expected one of:
+        maxCritical, maxHigh, maxMedium, maxLow, failOnPartialPage, failOnFailedPage
+```
+
+A key that was merely ignored would leave you believing you had a gate when you had none.
 
 ### Environment Variables
 
@@ -429,6 +501,9 @@ persona: >-
   log in to access your dashboard and create your first repository.
 report:
   output: './ux-report.md'
+thresholds:
+  maxCritical: 0
+  maxHigh: 3
 ```
 
 ### Example: JSON
@@ -467,6 +542,10 @@ report:
 	"persona": "You are a developer looking to host your open source project on GitHub. You want to understand how easy it is to get started, explore existing projects, and set up your repository. Your approach: First, visit the pricing page to understand what features are available in the free plan. Next, explore the Explore page to see what kinds of projects are popular and get inspiration. Then, sign up for a free account to start hosting your own projects. Finally, log in to access your dashboard and create your first repository.",
 	"report": {
 		"output": "./ux-report.md"
+	},
+	"thresholds": {
+		"maxCritical": 0,
+		"maxHigh": 3
 	}
 }
 ```

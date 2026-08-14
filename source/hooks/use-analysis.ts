@@ -8,6 +8,7 @@
 import {useCallback, useRef, useState} from 'react';
 import {logger} from '../infrastructure/logger.js';
 import type {AnalysisStage, AnalysisState} from '../models/analysis.js';
+import {evaluateGate} from '../models/gate-result.js';
 import type {UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
 import {
@@ -217,11 +218,24 @@ export function useAnalysis(
 				outputPath: config.report.output,
 			});
 
+			// Evaluate the gate for display only. Interactive mode never changes
+			// its exit status on a breach: a person watching a terminal is not a
+			// pipeline, and they can see the findings for themselves. Showing the
+			// verdict exists so the two modes cannot disagree about what a
+			// configured threshold means.
+			const gateResult = evaluateGate(report, config.thresholds);
+
+			logger.info('Gate evaluated (interactive, advisory only)', {
+				passed: gateResult.passed,
+				breaches: gateResult.breaches.length,
+			});
+
 			// Update state to complete with final report
 			updateAnalysisState(previous => ({
 				...previous,
 				currentStage: 'complete',
 				finalReport: report,
+				gateResult,
 				waitingMessage: undefined,
 				isWaitingForLLM: false,
 			}));
