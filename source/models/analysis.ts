@@ -5,6 +5,7 @@
  * @packageDocumentation
  */
 
+import type {GateResult} from './gate-result.js';
 import type {LLMResponseData} from './llm-response.js';
 
 /**
@@ -242,6 +243,15 @@ export type AnalysisState = {
 	 * Final aggregated report once the workflow finishes
 	 */
 	finalReport?: UxReport;
+
+	/**
+	 * Gate verdict for the finished run.
+	 *
+	 * Advisory in interactive mode — it is displayed but never changes the
+	 * exit status, because the person watching already sees the findings. It
+	 * exists so the interactive and CI readings of a threshold agree.
+	 */
+	gateResult?: GateResult;
 };
 
 /**

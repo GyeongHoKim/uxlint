@@ -444,3 +444,19 @@ test('a passing verdict still warns about incomplete coverage', t => {
 	t.regex(rendered, /gate passed/);
 	t.regex(rendered, /1 page could not be analysed/);
 });
+
+test('the verdict renders as compact lines for a terminal', t => {
+	// Interactive mode shows the same verdict the CI log gets, so the two
+	// modes cannot disagree about what a threshold means. Splitting on
+	// newlines is how the Ink component consumes it.
+	const report = buildReport([
+		{url: 'https://example.com/a', findings: ['critical']},
+	]);
+
+	const lines = renderGateVerdict(evaluateGate(report, {maxCritical: 0}))
+		.split('\n')
+		.filter(Boolean);
+
+	t.is(lines[0], 'uxlint: gate failed');
+	t.true(lines.length > 1, 'the reason must survive the split');
+});

@@ -11,6 +11,7 @@ import type {ThemeConfig} from '../models/theme.js';
 import type {UxLintConfig} from '../models/config.js';
 import type {UxReport} from '../models/analysis.js';
 import {useAnalysis} from '../hooks/use-analysis.js';
+import {renderGateVerdict} from '../models/gate-result.js';
 import {AnalysisProgress} from './analysis-progress.js';
 
 /**
@@ -89,6 +90,10 @@ export function AnalysisRunner({
 		onError,
 	]);
 
+	const verdictLines = analysisState.gateResult
+		? renderGateVerdict(analysisState.gateResult).split('\n').filter(Boolean)
+		: [];
+
 	return (
 		<Box flexDirection="column" gap={1}>
 			<AnalysisProgress
@@ -107,6 +112,28 @@ export function AnalysisRunner({
 			{isTerminalStage && analysisState.currentStage === 'complete' ? (
 				<Box flexDirection="column" gap={1} marginTop={1}>
 					<Text color="green">✓ Report saved to: {config.report.output}</Text>
+
+					{/*
+						Advisory only. Interactive mode keeps its exit status whatever
+						the gate says — the point is that a threshold means the same
+						thing here as it does in CI, not that a person gets blocked.
+					*/}
+					{verdictLines.length > 0 && (
+						<Box flexDirection="column">
+							{verdictLines.map(line => (
+								<Text
+									key={line}
+									color={analysisState.gateResult?.passed ? 'green' : 'yellow'}
+								>
+									{line}
+								</Text>
+							))}
+							<Text dimColor>
+								(advisory — interactive mode does not fail on thresholds)
+							</Text>
+						</Box>
+					)}
+
 					{!onComplete && <Text dimColor>Press any key to exit</Text>}
 				</Box>
 			) : null}

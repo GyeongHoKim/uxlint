@@ -124,13 +124,13 @@ Single project: `source/` and `tests/` at repository root, per plan.md Structure
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T031 Surface threshold results in interactive mode without changing its exit status, in `source/hooks/use-analysis.ts` and the relevant component (FR-014). Lives in Polish rather than a user story by design — spec Assumptions records why: a person watching a terminal already sees the findings, so this exists only so the two modes agree about what the thresholds mean
-- [ ] T032 [P] Document the `thresholds` block in `README.md`: schema, defaults, absent-vs-zero, and a worked example (FR-015)
-- [ ] T033 [P] Add the `thresholds` example to the config samples in `README.md` for both YAML and JSON
-- [ ] T034 Verify SC-004 against the T001 baseline: all three no-thresholds runs exit exactly as recorded
-- [ ] T035 Run `npm run test:coverage` and confirm the 80% c8 floor still holds
-- [ ] T036 Run quality gates in constitution order: `npm run compile` → `npm run format` → `npm run lint`
-- [ ] T037 Walk `specs/004-ci-gate/quickstart.md` scenarios 1–6 manually and record outcomes
+- [X] T031 Surface threshold results in interactive mode without changing its exit status, in `source/hooks/use-analysis.ts` and the relevant component (FR-014). Lives in Polish rather than a user story by design — spec Assumptions records why: a person watching a terminal already sees the findings, so this exists only so the two modes agree about what the thresholds mean
+- [X] T032 [P] Document the `thresholds` block in `README.md`: schema, defaults, absent-vs-zero, and a worked example (FR-015)
+- [X] T033 [P] Add the `thresholds` example to the config samples in `README.md` for both YAML and JSON
+- [X] T034 Verify SC-004 against the T001 baseline: all three no-thresholds runs exit exactly as recorded
+- [X] T035 Run `npm run test:coverage` and confirm the 80% c8 floor still holds. **The premise was wrong.** The floor is configured in `package.json`'s `c8` block but never enforced — `test:coverage` omits `--check-coverage`, so it reports and exits 0. The repo sits at 68.74% on `main` and 68.55% with this feature (new files are at 100%; the dip is `cli.tsx` and `console-output.ts`, whose real exercise happens in a spawned process c8 does not instrument). Raising the floor means covering `source/components` at 35%, which is its own piece of work, not this feature's
+- [X] T036 Run quality gates in constitution order: `npm run compile` → `npm run format` → `npm run lint`
+- [X] T037 Walk `specs/004-ci-gate/quickstart.md` scenarios 1–6 manually and record outcomes. Scenarios 4 (typo rejected in 0.6s, no browser, no model call) and 5 (no-thresholds regression) are done and pinned by tests. Scenarios 1–3 and 6 need a configured LLM provider and a reachable target, which this environment has neither of — their behaviour is covered by the `MockLanguageModelV4`-free unit tests over `evaluateGate` and `runCIAnalysis` instead. Recorded rather than claimed
 
 ---
 
