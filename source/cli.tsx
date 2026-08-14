@@ -8,6 +8,7 @@ import {AuthFlow} from './components/auth/auth-flow.js';
 import {UXLintClientProvider} from './components/providers/uxlint-client-provider.js';
 import {UXLintMachineProvider} from './components/providers/uxlint-machine-provider.js';
 import {uxlintClient} from './infrastructure/auth/uxlint-client-base.js';
+import {writeTerminalMessage} from './infrastructure/console-output.js';
 import {configIO} from './infrastructure/config/config-io.js';
 import {logger} from './infrastructure/logger.js';
 import {getConfigFormat} from './utils/get-config-format.js';
@@ -126,6 +127,9 @@ if (authCommand === 'auth') {
 			cwd: process.cwd(),
 			searchedFiles: ['.uxlintrc.json', '.uxlintrc.yml', '.uxlintrc.yaml'],
 		});
+		writeTerminalMessage(
+			'uxlint: no .uxlintrc.json, .uxlintrc.yml or .uxlintrc.yaml found in this directory',
+		);
 		process.exitCode = 1;
 	} else {
 		// Load and validate config
@@ -164,6 +168,12 @@ if (authCommand === 'auth') {
 				stack: error instanceof Error ? error.stack : undefined,
 				configPath,
 			});
+
+			// Printed, not just logged. In CI the log file lives in a container
+			// that is thrown away, so a rejection that reaches only the log tells
+			// the developer whose build broke nothing at all. Safe here because
+			// no MCP transport has been created yet -- see console-output.ts.
+			writeTerminalMessage(`uxlint: ${errorMessage}`);
 			process.exitCode = 1;
 		}
 	}

@@ -76,6 +76,41 @@ const xoConfig = [
 			'unicorn/prefer-iterator-to-array': 'off',
 		},
 	},
+	// stdout and stderr carry MCP protocol messages while a transport is open,
+	// so a stray write corrupts JSON-RPC. That constraint used to live only in
+	// CLAUDE.md, which meant it held by discipline; these rules make it
+	// checkable. Everything that reads as logging must go to the Winston file
+	// logger instead.
+	{
+		files: ['source/**/*.{ts,tsx}'],
+		rules: {
+			'no-console': 'error',
+			'no-restricted-properties': [
+				'error',
+				{
+					object: 'process',
+					property: 'stdout',
+					message:
+						'stdout is reserved for MCP. Terminating messages go through source/infrastructure/console-output.ts; everything else goes to the logger.',
+				},
+				{
+					object: 'process',
+					property: 'stderr',
+					message:
+						'stderr is reserved for MCP. Terminating messages go through source/infrastructure/console-output.ts; everything else goes to the logger.',
+				},
+			],
+		},
+	},
+	// The single sanctioned exception. Its own doc comment states the narrow
+	// conditions under which writing is legal: a terminating message at a
+	// moment when no MCP transport exists.
+	{
+		files: ['source/infrastructure/console-output.ts'],
+		rules: {
+			'no-restricted-properties': 'off',
+		},
+	},
 ];
 
 export default xoConfig;
