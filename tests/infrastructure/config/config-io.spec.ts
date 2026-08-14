@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import test from 'ava';
 import sinon from 'sinon';
 import {ConfigIO} from '../../../source/infrastructure/config/config-io.js';
+import {isUxLintConfig} from '../../../source/models/config.js';
 import {ConfigurationError} from '../../../source/models/errors.js';
 
 test('ConfigIO.findConfigFile() returns path when config exists', t => {
@@ -303,4 +304,127 @@ test('ConfigIO.parseConfigFile() reports genuine YAML syntax errors', t => {
 	t.throws(() => configIO.parseConfigFile('a:\n\t- b\n', 'yaml'), {
 		instanceOf: ConfigurationError,
 	});
+});
+
+/**
+ * A minimal configuration that passes every pre-existing rule, so threshold
+ * tests fail for threshold reasons only.
+ */
+const validConfigObject = {
+	mainPageUrl: 'https://example.com',
+	subPageUrls: [],
+	pages: [{url: 'https://example.com', features: 'features'}],
+	persona: 'Test persona',
+	report: {output: './ux-report.md'},
+};
+
+const validateWith = (thresholds?: unknown) =>
+	new ConfigIO().validateConfig(
+		thresholds === undefined
+			? validConfigObject
+			: {...validConfigObject, thresholds},
+		'.uxlintrc.yml',
+	);
+
+test('validateConfig leaves an absent thresholds block absent', t => {
+	// FR-004: absent must not quietly become a default set of limits.
+	t.is(validateWith().thresholds, undefined);
+});
+
+test('validateConfig accepts a fully populated thresholds block', t => {
+	const thresholds = {
+		maxCritical: 0,
+		maxHigh: 3,
+		maxMedium: 10,
+		maxLow: 20,
+		failOnPartialPage: true,
+		failOnFailedPage: false,
+	};
+
+	t.deepEqual(validateWith(thresholds).thresholds, thresholds);
+});
+
+test('validateConfig accepts an empty thresholds block', t => {
+	t.deepEqual(validateWith({}).thresholds, {});
+});
+
+for (const [label, thresholds, expectedField] of [
+	['a fractional limit', {maxCritical: 1.5}, 'thresholds.maxCritical'],
+	['a negative limit', {maxHigh: -1}, 'thresholds.maxHigh'],
+	['a string limit', {maxLow: '0'}, 'thresholds.maxLow'],
+	[
+		'a non-boolean flag',
+		{failOnPartialPage: 'yes'},
+		'thresholds.failOnPartialPage',
+	],
+	['an unrecognised key', {maxCritcal: 0}, 'thresholds.maxCritcal'],
+	['a non-object block', [], 'thresholds'],
+] as const) {
+	test(`validateConfig rejects ${label}`, t => {
+		const error = t.throws(
+			() => {
+				validateWith(thresholds);
+			},
+			{instanceOf: ConfigurationError},
+		);
+
+		t.is(
+			error?.configField,
+			expectedField,
+			'the error must name the offending key so the user can fix it',
+		);
+	});
+}
+
+test('a rejected threshold names the received value in its message', t => {
+	const error = t.throws(
+		() => {
+			validateWith({maxHigh: -1});
+		},
+		{instanceOf: ConfigurationError},
+	);
+
+	t.regex(error?.message ?? '', /maxHigh/);
+	t.regex(error?.message ?? '', /-1/);
+});
+
+test('the same thresholds block validates identically from either format', t => {
+	// FR-001: the two supported file formats must not diverge in meaning.
+	const yamlParsed = new ConfigIO().parseConfigFile(
+		'mainPageUrl: https://example.com\nsubPageUrls: []\npages:\n  - url: https://example.com\n    features: features\npersona: Test persona\nreport:\n  output: ./ux-report.md\nthresholds:\n  maxCritical: 0\n  failOnFailedPage: false\n',
+		'yaml',
+	);
+	const jsonParsed = new ConfigIO().parseConfigFile(
+		JSON.stringify({
+			...validConfigObject,
+			thresholds: {maxCritical: 0, failOnFailedPage: false},
+		}),
+		'json',
+	);
+
+	t.deepEqual(
+		new ConfigIO().validateConfig(yamlParsed, '.uxlintrc.yml').thresholds,
+		new ConfigIO().validateConfig(jsonParsed, '.uxlintrc.json').thresholds,
+	);
+});
+
+test('isUxLintConfig does not check thresholds, so the CI path cannot rely on it alone', t => {
+	// Two validators exist for the same type and they disagree. The CI path
+	// used to accept a config through the structural guard only, which would
+	// have let a misspelled threshold key through untouched -- the exact
+	// silent-no-gate failure this feature exists to prevent. Pinned here so
+	// the divergence stays known rather than accidental.
+	const misspelled = {...validConfigObject, thresholds: {maxCritcal: 0}};
+
+	t.true(
+		isUxLintConfig(misspelled),
+		'the guard is structural and knows nothing about thresholds',
+	);
+	t.throws(
+		() => {
+			new ConfigIO().validateConfig(misspelled, '.uxlintrc.yml');
+		},
+		{instanceOf: ConfigurationError},
+		'validateConfig is the one that catches it',
+	);
 });

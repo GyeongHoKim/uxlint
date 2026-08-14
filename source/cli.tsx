@@ -10,7 +10,6 @@ import {UXLintMachineProvider} from './components/providers/uxlint-machine-provi
 import {uxlintClient} from './infrastructure/auth/uxlint-client-base.js';
 import {configIO} from './infrastructure/config/config-io.js';
 import {logger} from './infrastructure/logger.js';
-import {isUxLintConfig} from './models/config.js';
 import {getConfigFormat} from './utils/get-config-format.js';
 
 const cli = meow(
@@ -114,49 +113,58 @@ if (authCommand === 'auth') {
 	// CI Mode: Run without UI
 	logger.info('CI mode selected');
 
-	// CI mode - no config file = error
+	// CI mode - no config file = error.
+	//
+	// Every exit below sets process.exitCode rather than calling
+	// process.exit. The log file is the only output channel this tool has --
+	// stdout belongs to MCP -- and Winston's rotating file transport writes
+	// asynchronously, so process.exit killed the process before the entry
+	// reached disk. A CI failure then left no trace anywhere. Setting the code
+	// and letting Node exit once the loop drains keeps the log intact.
 	if (!hasConfig || !configPath) {
 		logger.error('Configuration file not found in CI mode', {
 			cwd: process.cwd(),
 			searchedFiles: ['.uxlintrc.json', '.uxlintrc.yml', '.uxlintrc.yaml'],
 		});
-		process.exit(1);
-	}
+		process.exitCode = 1;
+	} else {
+		// Load and validate config
+		try {
+			logger.debug('Reading config file', {configPath});
+			const configContent = configIO.readConfigFile(configPath);
+			const format = getConfigFormat(configPath);
+			const raw = configIO.parseConfigFile(configContent, format);
 
-	// Load and validate config
-	try {
-		logger.debug('Reading config file', {configPath});
-		const configContent = configIO.readConfigFile(configPath);
-		const format = getConfigFormat(configPath);
-		const parsed = configIO.parseConfigFile(configContent, format);
+			// Use validateConfig, not the isUxLintConfig type guard. The guard is
+			// structural and knows nothing about thresholds, so a misspelled key
+			// would sail through it and leave the user with a gate they think
+			// exists but does not. validateConfig also names the offending field,
+			// which is what makes a rejection actionable.
+			const parsed = configIO.validateConfig(raw, configPath);
 
-		if (!isUxLintConfig(parsed)) {
-			logger.error('Invalid configuration file format', {configPath});
-			process.exit(1);
+			logger.info('Config loaded successfully', {
+				configPath,
+				mainPageUrl: parsed.mainPageUrl,
+				pagesCount: parsed.pages.length,
+				hasThresholds: parsed.thresholds !== undefined,
+			});
+
+			// Run CI analysis without UI. The runner returns its verdict rather
+			// than terminating, so the exit status is decided here.
+			//
+			// The old call site was `void runCIAnalysis(parsed)`, which dropped
+			// the outcome on the floor -- harmless only because the runner used
+			// to exit the process itself.
+			process.exitCode = await runCIAnalysis(parsed);
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : 'Unknown error';
+			logger.error('CI mode failed', {
+				error: errorMessage,
+				stack: error instanceof Error ? error.stack : undefined,
+				configPath,
+			});
+			process.exitCode = 1;
 		}
-
-		logger.info('Config loaded successfully', {
-			configPath,
-			mainPageUrl: parsed.mainPageUrl,
-			pagesCount: parsed.pages.length,
-		});
-
-		// Run CI analysis without UI. The runner returns its verdict rather
-		// than terminating, so the exit happens here.
-		//
-		// The old call site was `void runCIAnalysis(parsed)`, which dropped
-		// the outcome on the floor -- harmless only because the runner used to
-		// exit the process itself.
-		const exitCode = await runCIAnalysis(parsed);
-		process.exit(exitCode);
-	} catch (error) {
-		const errorMessage =
-			error instanceof Error ? error.message : 'Unknown error';
-		logger.error('CI mode failed', {
-			error: errorMessage,
-			stack: error instanceof Error ? error.stack : undefined,
-			configPath,
-		});
-		process.exit(1);
 	}
 }
