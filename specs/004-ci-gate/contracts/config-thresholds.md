@@ -81,7 +81,7 @@ Written to stdout after the MCP transport is closed, and to the Winston log (res
 
 **Breached** — every breach listed, not just the first (FR-007):
 
-```
+```text
 uxlint: gate failed
 
   critical  2 findings, limit 0
@@ -96,14 +96,14 @@ Coverage is listed whether or not it was gated on. A line for a flag that is
 switched off is marked `(not gated)`, so a page reported for information cannot
 be mistaken for the cause of the failure:
 
-```
+```text
   failed    1 page could not be analysed (not gated)
               https://shop.test/checkout — navigation timed out after 30s
 ```
 
 **Passed** — still reports what was evaluated, so an active gate is visible in a green log (FR-009):
 
-```
+```text
 uxlint: gate passed
 
   critical  0 findings, limit 0
@@ -112,7 +112,7 @@ uxlint: gate passed
 
 **Nothing analysed** (FR-012):
 
-```
+```text
 uxlint: gate failed
 
   no page was analysed successfully — the report is not evidence of anything
