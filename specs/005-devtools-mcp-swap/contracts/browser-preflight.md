@@ -54,6 +54,8 @@ Failed to move to new namespace: PID namespaces supported, Network namespace sup
 
 **Unrecognised failures must not be treated as sandbox failures.** Falling back on a guess would disable a browser security protection in response to an unrelated fault.
 
+**Canonical term**: this condition is called the **sandbox relaxation** in user-facing messages and log entries. `ready-without-sandbox` is the verdict name in code; "relaxing a browser security protection" is the spec's wording for the requirement. Use one term in output so a user grepping their logs finds every occurrence.
+
 ### What this step must not do
 
 Infer the condition from `process.getuid() === 0`. R8 measured a **non-root** container failing identically and a **root** container with relaxed seccomp succeeding with no workaround. An identity check is wrong in both directions; the spec's FR-009 was corrected to require behavioural detection.
