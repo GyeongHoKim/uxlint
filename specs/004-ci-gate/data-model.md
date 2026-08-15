@@ -104,7 +104,7 @@ None. All three entities are immutable values computed once per run. `GateResult
 
 ## Relationship to existing models
 
-```
+```text
 UxLintConfig ──(new optional field)──> Thresholds
                                             │
 UxReport ───────────────────────────────────┤

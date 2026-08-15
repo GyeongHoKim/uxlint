@@ -8,7 +8,7 @@ Records what `uxlint` does with exit codes today, so SC-004 ("existing configs p
 
 The task asked for three live runs. **None were runnable in this environment**, for a reason worth recording:
 
-```
+```text
 $ node dist/source/cli.js
 Error: libsecret-1.so.0: cannot open shared object file: No such file or directory
     at Object..node (node:internal/modules/cjs/loader:2030:18)

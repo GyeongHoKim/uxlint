@@ -318,7 +318,7 @@ Findings are counted across every page, including ones that were cut short or fa
 
 A failing run prints why, so the CI log alone is enough to diagnose it:
 
-```
+```text
 uxlint: gate failed
 
   critical  2 findings, limit 0
@@ -333,7 +333,7 @@ the run failed.
 
 A passing run prints what it checked, so an active gate is visible in a green log:
 
-```
+```text
 uxlint: gate passed
 
   critical  0 findings, limit 0
@@ -346,7 +346,7 @@ The report file is always written, pass or fail.
 
 **Typos are rejected before analysis starts.** An unrecognised key, a negative limit, or a non-integer stops the run in under a second with no browser launched and no model call made:
 
-```
+```text
 $ uxlint
 uxlint: thresholds.maxCritcal is not a recognised threshold. Expected one of:
         maxCritical, maxHigh, maxMedium, maxLow, failOnPartialPage, failOnFailedPage
