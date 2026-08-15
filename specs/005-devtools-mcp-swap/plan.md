@@ -77,26 +77,39 @@ specs/005-devtools-mcp-swap/
 source/
 ├── models/
 │   ├── browser-preflight.ts     # NEW — verdict type, unmet-requirement kinds, message rendering
-│   └── analysis.ts              # MODIFIED — ReportMetadata gains the provenance field
+│   ├── analysis.ts              # MODIFIED — ReportMetadata gains the provenance field
+│   ├── config.ts                # MODIFIED — executable path, external-data opt-in, TLS tolerance
+│   └── uxlint-machine.ts        # MODIFIED — preflight-failure state and guard
 ├── services/
 │   ├── browser-preflight.ts     # NEW — probes Chrome: presence, version, sandbox capability
 │   ├── mcp-client.ts            # REWRITTEN — chrome-devtools-mcp transport, launch args, stderr disposition
-│   ├── ai-service.ts            # MODIFIED — prompt tool names; setPageSnapshot description
+│   ├── ai-service.ts            # MODIFIED — prompt tool names; setPageSnapshot description; mid-run browser loss
 │   └── report-builder.ts        # MODIFIED — records provenance into metadata
 ├── infrastructure/
+│   ├── config/config-io.ts      # MODIFIED — validateConfig covers the three new settings (D17)
 │   └── console-output.ts        # EXISTING — the only module permitted to write to stdout
 ├── ci-runner.ts                 # MODIFIED — preflight before analysis; stale Playwright comment
-└── cli.tsx                      # MODIFIED — preflight failure path for interactive mode
+├── app.tsx                      # MODIFIED — renders preflight guidance via the machine's error path
+└── cli.tsx                      # MODIFIED — preflight ordering before the analysis actor starts
 
 tests/
 ├── models/browser-preflight.spec.ts        # NEW
+├── models/uxlint-machine.spec.ts           # MODIFIED — preflight-failure transition
 ├── services/browser-preflight.spec.ts      # NEW — probe outcomes via injected runner
 ├── services/mcp-client.spec.ts             # NEW — launch argument vector assertions
-├── services/ai-service.spec.ts             # MODIFIED — tool names
+├── services/ai-service.spec.ts             # MODIFIED — tool names; mid-run browser loss
+├── services/report-builder.spec.ts         # MODIFIED — provenance, and existing fields unchanged
+├── infrastructure/config/config-io.spec.ts # MODIFIED — validation of the three new settings
+├── ci-runner.spec.ts                       # MODIFIED — unmet verdict exits with zero model calls
 ├── models/llm-response.spec.ts             # MODIFIED — fixtures use new tool names
+├── components/app.spec.tsx                 # NEW — visual regression for preflight guidance
 ├── components/*.spec.tsx                   # MODIFIED — fixtures use new tool names
 └── integration/browser-preflight.spec.ts   # NEW — real Chrome probe, skipped when absent
 ```
+
+**Interactive error path** — the interactive failure surface is `source/app.tsx` (which already renders `<Text color="red">Error: …</Text>`) driven by the guarded `error` state in `source/models/uxlint-machine.ts`. Preflight failure joins that path rather than being rendered ad hoc from `cli.tsx`; `cli.tsx` owns only the ordering, so that an interactive failure also spends zero model tokens.
+
+**`tests/integration/` is new to this repo.** It holds exactly one test — the real-browser probe — because that is the only test here that touches a browser. Everything else injects a process runner and stays deterministic.
 
 **Structure Decision**: The existing single-project layout is kept. Preflight is split model/service the way the codebase already splits them — the verdict and its rendering are a pure model (unit-testable with no process spawning), while the probing that touches the filesystem and spawns Chrome is a service behind an injected runner so tests stay deterministic.
 
