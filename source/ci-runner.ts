@@ -12,6 +12,7 @@ import type {UxLintConfig} from './models/config.js';
 import {
 	describeSandboxRelaxation,
 	describeUnmetRequirement,
+	type PreflightVerdict,
 } from './models/browser-preflight.js';
 import {evaluateGate, renderGateVerdict} from './models/gate-result.js';
 import {getAIService as defaultGetAIService} from './services/ai-service.js';
@@ -90,6 +91,69 @@ const defaultDependencies: CIAnalysisDependencies = {
 };
 
 /**
+ * A verdict that permits the run to continue.
+ *
+ * Excluding `unmet` at the type level means the caller cannot reach the
+ * browser identity it needs for provenance without having handled the
+ * unusable case first.
+ */
+type UsableBrowser = Exclude<PreflightVerdict, {kind: 'unmet'}>;
+
+/**
+ * Establish that this environment can run a browser, reporting if it cannot.
+ *
+ * Extracted from the runner so the runner stays legible, and because the
+ * three outcomes here have nothing to do with analysis: the environment is
+ * usable, usable with a disclosed compromise, or not usable at all.
+ *
+ * @param config - Validated configuration for this run
+ * @param runPreflight - The preflight probe
+ * @param emitVerdict - Where user-facing messages go
+ * @returns The verdict when the run may proceed, or undefined when it may not
+ */
+async function checkBrowser(
+	config: UxLintConfig,
+	runPreflight: typeof defaultRunPreflight,
+	emitVerdict: (verdict: string) => void,
+): Promise<UsableBrowser | undefined> {
+	let preflight: PreflightVerdict;
+
+	// Guarded rather than left to the caller's catch. The probe touches the
+	// filesystem -- a temporary profile directory, an executable check -- and
+	// a read-only or full /tmp makes it throw. cli.tsx would catch that and
+	// exit 1, but with a bare message that says nothing about a browser, which
+	// is the exact failure shape preflight exists to eliminate.
+	try {
+		preflight = await runPreflight(config.browser);
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : 'Unknown error';
+		logger.error('Preflight could not run', {error: reason});
+		emitVerdict(
+			`uxlint: the browser preflight check could not run — ${reason}. This is an environment problem rather than a missing browser.`,
+		);
+		return undefined;
+	}
+
+	if (preflight.kind === 'unmet') {
+		const message = describeUnmetRequirement(preflight.requirement);
+		logger.error('Preflight failed', {
+			requirement: preflight.requirement.kind,
+			message,
+		});
+		// No transport is open yet, so stdout is ours to write to.
+		emitVerdict(message);
+		return undefined;
+	}
+
+	if (preflight.kind === 'ready-without-sandbox') {
+		logger.warn('Sandbox relaxation', {cause: preflight.cause});
+		emitVerdict(describeSandboxRelaxation(preflight.cause));
+	}
+
+	return preflight;
+}
+
+/**
  * Run analysis in CI mode without any UI
  *
  * Returns the exit code; the caller performs the exit. All logging goes to
@@ -119,41 +183,11 @@ export async function runCIAnalysis(
 		reportOutput: config.report.output,
 	});
 
-	// Preflight runs before the AI service is created, so a failure here
-	// costs no model usage at all (SC-003).
-	//
-	// Guarded rather than left to the caller's catch. The probe touches the
-	// filesystem -- a temporary profile directory, an executable check -- and
-	// a read-only or full /tmp makes it throw. cli.tsx would catch that and
-	// exit 1, but with a bare message that says nothing about a browser, which
-	// is the exact failure shape preflight exists to eliminate.
-	let preflight;
-	try {
-		preflight = await runPreflight(config.browser);
-	} catch (error) {
-		const reason = error instanceof Error ? error.message : 'Unknown error';
-		logger.error('Preflight could not run', {error: reason});
-		emitVerdict(
-			`uxlint: the browser preflight check could not run — ${reason}. This is an environment problem rather than a missing browser.`,
-		);
+	// Preflight runs before the AI service is created, so a failure here costs
+	// no model usage at all (SC-003).
+	const preflight = await checkBrowser(config, runPreflight, emitVerdict);
+	if (!preflight) {
 		return 1;
-	}
-
-	if (preflight.kind === 'unmet') {
-		const message = describeUnmetRequirement(preflight.requirement);
-		logger.error('Preflight failed', {
-			requirement: preflight.requirement.kind,
-			message,
-		});
-		// No transport is open yet, so stdout is ours to write to.
-		emitVerdict(message);
-		return 1;
-	}
-
-	if (preflight.kind === 'ready-without-sandbox') {
-		const notice = describeSandboxRelaxation(preflight.cause);
-		logger.warn('Sandbox relaxation', {cause: preflight.cause});
-		emitVerdict(notice);
 	}
 
 	// Held outside the try so the finally closes it on every path.
