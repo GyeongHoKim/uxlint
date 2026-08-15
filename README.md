@@ -327,6 +327,10 @@ uxlint: gate failed
               https://shop.example/checkout — navigation timed out after 30s
 ```
 
+Pages are listed whether or not you gated on them. A line for a flag you
+switched off is marked `(not gated)`, so it cannot be mistaken for the reason
+the run failed.
+
 A passing run prints what it checked, so an active gate is visible in a green log:
 
 ```

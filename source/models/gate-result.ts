@@ -311,13 +311,19 @@ export function renderGateVerdict(result: GateResult): string {
 		}
 	}
 
-	// Coverage is reported whether or not it was gated on. A run that passed
-	// only because a page failed to load should not look like a clean run.
+	// Coverage is reported whether or not it was gated on: a run that passed
+	// only because a page failed to load should not look clean. Pages present
+	// without a matching breach mean the flag is off, and the line says so —
+	// otherwise informational pages read exactly like the cause of a failure.
+	const gatedKinds = new Set(result.breaches.map(breach => breach.kind));
+	const qualify = (kind: Breach['kind']) =>
+		gatedKinds.has(kind) ? '' : ' (not gated)';
+
 	if (result.partialPages.length > 0) {
 		lines.push(
 			`  ${'partial'.padEnd(labelWidth)}${pluralPages(
 				result.partialPages.length,
-			)} not fully analysed`,
+			)} not fully analysed${qualify('partial-pages')}`,
 			...result.partialPages.map(page => `${pageIndent}${page.pageUrl}`),
 		);
 	}
@@ -326,7 +332,7 @@ export function renderGateVerdict(result: GateResult): string {
 		lines.push(
 			`  ${'failed'.padEnd(labelWidth)}${pluralPages(
 				result.failedPages.length,
-			)} could not be analysed`,
+			)} could not be analysed${qualify('failed-pages')}`,
 			...result.failedPages.map(
 				page =>
 					`${pageIndent}${page.pageUrl}${page.error ? ` — ${page.error}` : ''}`,

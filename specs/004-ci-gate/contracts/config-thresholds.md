@@ -92,6 +92,15 @@ uxlint: gate failed
               https://shop.test/checkout — navigation timed out after 30s
 ```
 
+Coverage is listed whether or not it was gated on. A line for a flag that is
+switched off is marked `(not gated)`, so a page reported for information cannot
+be mistaken for the cause of the failure:
+
+```
+  failed    1 page could not be analysed (not gated)
+              https://shop.test/checkout — navigation timed out after 30s
+```
+
 **Passed** — still reports what was evaluated, so an active gate is visible in a green log (FR-009):
 
 ```
