@@ -6,6 +6,7 @@
  * See source/infrastructure/config/env-io.ts for AI configuration types.
  */
 
+import type {BrowserSettings} from './browser.js';
 import type {Thresholds} from './thresholds.js';
 
 /**
@@ -83,4 +84,13 @@ export type UxLintConfig = {
 	 * pipeline.
 	 */
 	thresholds?: Thresholds;
+
+	/**
+	 * Optional browser settings.
+	 *
+	 * Absent means the documented defaults apply: search the platform's usual
+	 * locations, tolerate untrusted TLS certificates as every earlier release
+	 * did, and send nothing derived from the analysed URL to a third party.
+	 */
+	browser?: BrowserSettings;
 };

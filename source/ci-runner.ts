@@ -9,8 +9,14 @@ import {writeTerminalMessage} from './infrastructure/console-output.js';
 import {logger} from './infrastructure/logger.js';
 import type {AnalysisStage} from './models/analysis.js';
 import type {UxLintConfig} from './models/config.js';
+import {
+	describeSandboxRelaxation,
+	describeUnmetRequirement,
+} from './models/browser-preflight.js';
 import {evaluateGate, renderGateVerdict} from './models/gate-result.js';
 import {getAIService as defaultGetAIService} from './services/ai-service.js';
+import {runPreflight as defaultRunPreflight} from './services/browser-preflight.js';
+import {browserServerIdentity} from './services/mcp-client.js';
 import {
 	reportBuilder as defaultReportBuilder,
 	type ReportBuilder,
@@ -51,6 +57,18 @@ export type CIAnalysisDependencies = {
 	 * must not rest on convention.
 	 */
 	emitVerdict?: (verdict: string) => void;
+
+	/**
+	 * Checks the environment can run a browser.
+	 *
+	 * Injected so a test can assert that an unmet verdict exits without ever
+	 * reaching the model. That is the whole point of preflight: the browser
+	 * server connects and serves its tools with no browser installed, and
+	 * reports the absence as a tool result the agent loop then tries to work
+	 * around, so without this the failure costs a page of model calls and
+	 * never mentions a browser.
+	 */
+	runPreflight?: typeof defaultRunPreflight;
 };
 
 /**
@@ -68,6 +86,7 @@ const defaultDependencies: CIAnalysisDependencies = {
 	getAIService: defaultGetAIService,
 	reportBuilder: defaultReportBuilder,
 	emitVerdict: defaultEmitVerdict,
+	runPreflight: defaultRunPreflight,
 };
 
 /**
@@ -88,6 +107,7 @@ export async function runCIAnalysis(
 		getAIService,
 		reportBuilder,
 		emitVerdict = defaultEmitVerdict,
+		runPreflight = defaultRunPreflight,
 	} = dependencies;
 	const {pages} = config;
 	const totalPages = pages.length;
@@ -99,20 +119,49 @@ export async function runCIAnalysis(
 		reportOutput: config.report.output,
 	});
 
+	// Preflight runs before the AI service is created, so a failure here
+	// costs no model usage at all (SC-003).
+	const preflight = await runPreflight(config.browser);
+
+	if (preflight.kind === 'unmet') {
+		const message = describeUnmetRequirement(preflight.requirement);
+		logger.error('Preflight failed', {
+			requirement: preflight.requirement.kind,
+			message,
+		});
+		// No transport is open yet, so stdout is ours to write to.
+		emitVerdict(message);
+		return 1;
+	}
+
+	if (preflight.kind === 'ready-without-sandbox') {
+		const notice = describeSandboxRelaxation(preflight.cause);
+		logger.warn('Sandbox relaxation', {cause: preflight.cause});
+		emitVerdict(notice);
+	}
+
 	// Held outside the try so the finally closes it on every path.
 	let aiService: Awaited<ReturnType<typeof getAIService>> | undefined;
 	let failure: string | undefined;
 
+	const server = browserServerIdentity();
+	reportBuilder.setProvenance({
+		browserServer: server.name,
+		browserServerVersion: server.version,
+		browserVersion: preflight.browser.version,
+		externalDataConsulted: config.browser?.allowExternalData ?? false,
+	});
+
 	try {
 		// Get AI Service instance
 		logger.debug('Initializing AI service');
-		aiService = await getAIService(config);
+		aiService = await getAIService(config, preflight);
 		logger.debug('AI service initialized');
 
 		// Process each page sequentially (not in parallel)
 		// Sequential processing is required because:
-		// 1. The Playwright MCP server manages a single browser instance
-		// 2. Each page analysis uses browser_navigate which changes the active page
+		// 1. The browser MCP server manages a single browser instance
+		// 2. Each page analysis navigates, which changes the active page
 		// 3. Parallel execution would cause race conditions in the browser state
 		// 4. AI service maintains state (report builder) that accumulates findings
 		for (const [index, page] of pages.entries()) {

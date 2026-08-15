@@ -60,6 +60,7 @@
 		"@inkjs/ui": "^2.0.0",
 		"@xstate/react": "^6.1.0",
 		"ai": "^7.0.60",
+		"chrome-devtools-mcp": "1.7.0",
 		"dotenv": "^17.4.2",
 		"ink": "^7.1.1",
 		"ink-big-text": "^2.0.0",

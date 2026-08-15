@@ -128,6 +128,16 @@ export default function App() {
 				<Text color={context.exitCode === 0 ? 'green' : 'red'}>
 					{context.exitCode === 0 ? '✓ Done!' : '✗ Completed with errors'}
 				</Text>
+				{/*
+					The machine has always recorded the error here, but nothing
+					rendered it, so a run that failed for a fixable reason said only
+					"Completed with errors". A preflight failure has to arrive as the
+					guidance it carries -- naming the missing browser and how to
+					install it -- rather than as a verdict with the reason discarded.
+				*/}
+				{context.error ? (
+					<Text color="red">{context.error.message}</Text>
+				) : null}
 			</Box>
 		);
 	}

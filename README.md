@@ -52,6 +52,58 @@ sudo yum install libsecret-devel
 sudo pacman -S libsecret
 ```
 
+## Browser requirements
+
+uxlint drives a real Chrome to analyse your pages. **Chrome is not bundled and is not downloaded for you** — it must already be installed.
+
+- **Chrome stable**, version 144 or newer.
+- Default locations searched: `/opt/google/chrome/chrome` (Linux), `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` (macOS), `C:\Program Files\Google\Chrome\Application\chrome.exe` (Windows).
+- Installed elsewhere? Set `browser.executablePath`.
+
+uxlint checks for a usable browser before it starts analysing, so a missing or unusable one fails immediately with instructions rather than partway through a run.
+
+### In a container
+
+Add Chrome to your image. A minimal Debian-based example:
+
+```dockerfile
+FROM node:24-slim
+RUN apt-get update && apt-get install -y --no-install-recommends wget gnupg ca-certificates \
+ && wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+ && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+ && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable \
+ && rm -rf /var/lib/apt/lists/*
+```
+
+Most containers do not permit Chrome's security sandbox to start — this affects containers running as an ordinary user as well as ones running as root. uxlint detects this and disables the sandbox so the run can proceed, and says so in its output. Pages are then rendered without sandbox isolation. If that matters for the sites you analyse, run with a relaxed seccomp profile instead (for example `--security-opt seccomp=unconfined`), which lets the sandbox start normally and leaves it enabled.
+
+### What leaves your machine
+
+By default, **nothing derived from the URLs you analyse is sent anywhere except the target site itself**. Specifically, uxlint disables:
+
+- field-data lookups that would send analysed URLs to the Google CrUX API,
+- usage statistics reporting by the browser tooling,
+- the browser tooling's own update check against the npm registry.
+
+Set `browser.allowExternalData: true` to opt in to the first two. When you do, the report records that the run consulted external data.
+
+### Browser settings
+
+```yaml
+browser:
+  executablePath: /opt/google/chrome/chrome # optional; default locations searched when absent
+  acceptInsecureCerts: true # default true — tolerate self-signed/expired certificates
+  allowExternalData: false # default false — send nothing derived from analysed URLs to third parties
+```
+
+| Setting               | Default | Meaning                                                                                                                                                                                |
+| --------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executablePath`      | unset   | Where Chrome lives, when it is not in a default location. When set, it is the **only** path searched.                                                                                  |
+| `acceptInsecureCerts` | `true`  | Tolerate untrusted TLS certificates. This is what every earlier release did unconditionally; it is now visible and switchable. Set `false` to have certificate problems fail the page. |
+| `allowExternalData`   | `false` | Permit external data lookups. Leave off when analysing staging hosts, internal tools, or URLs carrying preview tokens.                                                                 |
+
+An unrecognised key or a wrong type in this block stops the run before any page is analysed, naming the offending key.
+
 ## Quick start
 
 ```bash
@@ -276,6 +328,7 @@ Required fields are marked as required. All text fields accept natural language.
 - `report` (object, required): Report output configuration.
   - `output` (string, required): File path where the report will be written (e.g., `./ux-report.md`).
 - `thresholds` (object, optional): CI gate limits. See [Failing CI on UX regressions](#failing-ci-on-ux-regressions).
+- `browser` (object, optional): Browser settings. See [Browser requirements](#browser-requirements).
 
 **Note**: AI configuration has been moved to environment variables for security. See [Environment Variables](#environment-variables) section below.
 

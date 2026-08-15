@@ -1,0 +1,175 @@
+import test from 'ava';
+import {
+	browserServerIdentity,
+	buildLaunchSpec,
+	resetMCPClient,
+	resolveBrowserSettings,
+	type BrowserLaunchSettings,
+} from '../../source/services/mcp-client.js';
+import type {PreflightVerdict} from '../../source/models/browser-preflight.js';
+
+const ready: PreflightVerdict = {
+	kind: 'ready',
+	browser: {
+		executablePath: '/opt/google/chrome/chrome',
+		version: 'Google Chrome 151.0.7922.137',
+		majorVersion: 151,
+	},
+};
+
+const readyWithoutSandbox: PreflightVerdict = {
+	kind: 'ready-without-sandbox',
+	browser: {
+		executablePath: '/opt/google/chrome/chrome',
+		version: 'Google Chrome 151.0.7922.137',
+		majorVersion: 151,
+	},
+	cause: 'Running as root without --no-sandbox is not supported.',
+};
+
+const defaults: BrowserLaunchSettings = {
+	acceptInsecureCerts: true,
+	allowExternalData: false,
+};
+
+test('the static argument vector matches the launch contract', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	t.true(spec.args.includes('--headless'));
+	t.true(spec.args.includes('--isolated'));
+	t.true(spec.args.includes('--no-performance-crux'));
+	t.true(spec.args.includes('--no-usage-statistics'));
+});
+
+test('--slim is never passed, because it removes the audit tools 007 needs', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	t.false(spec.args.includes('--slim'));
+});
+
+test('no argument carries a floating version reference', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	for (const argument of spec.args) {
+		t.false(
+			argument.includes('@latest'),
+			`${argument} pins to a moving target`,
+		);
+	}
+});
+
+test('the update check is disabled in the server environment', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	// Without this the server fetches registry.npmjs.org from a detached
+	// child on startup, which breaks the offline guarantee from inside the
+	// dependency rather than from our own code.
+	t.is(spec.env['CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS'], '1');
+});
+
+test('the child stderr disposition is set explicitly', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	// The transport default is `inherit`, which writes the server's startup
+	// banner into the Ink render and into a stream this project reserves.
+	t.not(spec.stderr, undefined);
+});
+
+test('the server is spawned from the installed dependency, never through npx', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	t.not(spec.command, 'npx');
+	t.true(spec.serverEntryPoint.endsWith('.js'));
+	t.true(spec.args.includes(spec.serverEntryPoint));
+});
+
+test('the sandbox is left enabled when the verdict says it works', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	t.false(spec.args.some(argument => argument.includes('--no-sandbox')));
+});
+
+test('the sandbox is relaxed only when the verdict says it cannot start', t => {
+	const spec = buildLaunchSpec(readyWithoutSandbox, defaults);
+
+	t.true(spec.args.includes('--chromeArg=--no-sandbox'));
+});
+
+test('a configured executable path is passed through', t => {
+	const spec = buildLaunchSpec(ready, {
+		...defaults,
+		executablePath: '/custom/chrome',
+	});
+
+	t.true(spec.args.includes('--executablePath'));
+	t.true(spec.args.includes('/custom/chrome'));
+});
+
+test('no executable path is passed when the user configured none', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	t.false(spec.args.includes('--executablePath'));
+});
+
+test('TLS tolerance follows the setting, defaulting to today behaviour', t => {
+	const tolerant = buildLaunchSpec(ready, defaults);
+	const strict = buildLaunchSpec(ready, {
+		...defaults,
+		acceptInsecureCerts: false,
+	});
+
+	t.true(tolerant.args.includes('--acceptInsecureCerts'));
+	t.false(strict.args.includes('--acceptInsecureCerts'));
+});
+
+test('opting in to external data drops both suppression flags', t => {
+	const spec = buildLaunchSpec(ready, {...defaults, allowExternalData: true});
+
+	t.false(spec.args.includes('--no-performance-crux'));
+	t.false(spec.args.includes('--no-usage-statistics'));
+});
+
+test('absent browser settings resolve to the documented defaults', t => {
+	const resolved = resolveBrowserSettings(undefined);
+
+	t.true(
+		resolved.acceptInsecureCerts,
+		'TLS tolerance matches earlier releases',
+	);
+	t.false(resolved.allowExternalData, 'nothing leaves the machine unasked');
+	t.is(resolved.executablePath, undefined);
+});
+
+test('explicit browser settings override the defaults', t => {
+	const resolved = resolveBrowserSettings({
+		acceptInsecureCerts: false,
+		allowExternalData: true,
+		executablePath: '/custom/chrome',
+	});
+
+	t.false(resolved.acceptInsecureCerts);
+	t.true(resolved.allowExternalData);
+	t.is(resolved.executablePath, '/custom/chrome');
+});
+
+test('a partially specified block keeps the defaults for what it omits', t => {
+	const resolved = resolveBrowserSettings({allowExternalData: true});
+
+	t.true(resolved.acceptInsecureCerts);
+	t.true(resolved.allowExternalData);
+});
+
+test('the report records the version of the server that actually ran', t => {
+	const identity = browserServerIdentity();
+
+	t.is(identity.name, 'chrome-devtools-mcp');
+	// Read from the installed package, so a dependency bump cannot leave
+	// reports claiming a version that never ran.
+	t.regex(identity.version, /^\d+\.\d+\.\d+/);
+});
+
+test('resetting the client cache is safe to call when nothing is cached', t => {
+	t.notThrows(() => {
+		resetMCPClient();
+	});
+});

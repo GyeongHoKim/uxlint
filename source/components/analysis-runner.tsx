@@ -96,6 +96,16 @@ export function AnalysisRunner({
 
 	return (
 		<Box flexDirection="column" gap={1}>
+			{/*
+				A relaxed browser sandbox is not an error and does not stop the
+				run, but it cannot be silent either: pages are being rendered
+				without sandbox isolation, and only the person watching can decide
+				whether that is acceptable for the target they pointed us at.
+			*/}
+			{analysisState.notice ? (
+				<Text color="yellow">{analysisState.notice}</Text>
+			) : null}
+
 			<AnalysisProgress
 				theme={theme}
 				stage={analysisState.currentStage}

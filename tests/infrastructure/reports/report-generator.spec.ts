@@ -34,6 +34,12 @@ const buildReport = (pages: PageAnalysis[]): UxReport => ({
 			.map(page => page.pageUrl),
 		totalFindings: 0,
 		persona: 'Test persona',
+		tooling: {
+			browserServer: 'chrome-devtools-mcp',
+			browserServerVersion: '1.7.0',
+			browserVersion: 'Google Chrome 151.0.0.0',
+			externalDataConsulted: false,
+		},
 	},
 	pages,
 	summary: 'Test summary',

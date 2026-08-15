@@ -457,3 +457,68 @@ test('validateConfig accepts an all-string subPageUrls list', t => {
 		['https://example.com/a', 'https://example.com/b'],
 	);
 });
+
+const validateBrowser = (browser?: unknown) =>
+	new ConfigIO().validateConfig(
+		browser === undefined ? validConfigObject : {...validConfigObject, browser},
+		'.uxlintrc.yml',
+	);
+
+test('validateConfig leaves an absent browser block absent', t => {
+	// Absent means the documented defaults apply; it must not quietly become
+	// a materialised settings object.
+	t.is(validateBrowser().browser, undefined);
+});
+
+test('validateConfig accepts a fully populated browser block', t => {
+	const browser = {
+		executablePath: '/opt/google/chrome/chrome',
+		acceptInsecureCerts: false,
+		allowExternalData: true,
+	};
+
+	t.deepEqual(validateBrowser(browser).browser, browser);
+});
+
+test('validateConfig accepts an empty browser block', t => {
+	t.deepEqual(validateBrowser({}).browser, {});
+});
+
+for (const [label, browser, expectedField] of [
+	[
+		'a non-string executable path',
+		{executablePath: 42},
+		'browser.executablePath',
+	],
+	['an empty executable path', {executablePath: ''}, 'browser.executablePath'],
+	[
+		'a non-boolean certificate setting',
+		{acceptInsecureCerts: 'yes'},
+		'browser.acceptInsecureCerts',
+	],
+	[
+		'a non-boolean external data setting',
+		{allowExternalData: 1},
+		'browser.allowExternalData',
+	],
+	['an unrecognised key', {allowExternalDta: true}, 'browser.allowExternalDta'],
+	['a non-object block', [], 'browser'],
+] as const) {
+	test(`validateConfig rejects browser settings with ${label}`, t => {
+		// D17 is why this matters: a setting no validator checks is
+		// indistinguishable from one that was never written. A user who
+		// believes they opted out of external data must not be wrong silently.
+		const error = t.throws(
+			() => {
+				validateBrowser(browser);
+			},
+			{instanceOf: ConfigurationError},
+		);
+
+		t.is(
+			error?.configField,
+			expectedField,
+			'the error must name the offending key so the user can fix it',
+		);
+	});
+}

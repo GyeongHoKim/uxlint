@@ -723,3 +723,79 @@ test('AIService refuses to analyse after close instead of using a dead client', 
 
 	sandbox.restore();
 });
+
+test('a browser lost mid-run fails only the affected page (FR-016)', async t => {
+	const builder = new ReportBuilder({
+		...fsPromises,
+		writeFile: sinon.stub().resolves(),
+	});
+
+	// The first page completes; the second loses the browser. A browser that
+	// dies partway through is a page failure, not a run failure -- the pages
+	// already analysed are real observations and must survive.
+	let pagesSeen = 0;
+	const dyingClient = {
+		async tools() {
+			pagesSeen++;
+			if (pagesSeen > 1) {
+				throw new Error('Protocol error (Target.closeTarget): Target closed');
+			}
+
+			return {};
+		},
+		async close() {
+			// No-op
+		},
+	} as unknown as ReturnType<typeof createMockMCPClient>;
+
+	const completing = new MockLanguageModelV4({
+		doGenerate: async () => ({
+			finishReason: {unified: 'tool-calls', raw: undefined},
+			usage: {
+				inputTokens: {
+					total: 10,
+					noCache: 10,
+					cacheRead: undefined,
+					cacheWrite: undefined,
+				},
+				outputTokens: {total: 20, text: 20, reasoning: undefined},
+			},
+			content: [
+				{
+					type: 'tool-call',
+					toolCallId: 'call-1',
+					toolName: 'completePageAnalysis',
+					input: '{}',
+				},
+			],
+			warnings: [],
+		}),
+	});
+
+	const service = new AIService(completing, dyingClient, builder);
+	const config: UxLintConfig = {
+		mainPageUrl: 'https://example.com',
+		subPageUrls: ['https://example.com/second'],
+		pages: [
+			{url: 'https://example.com', features: 'first'},
+			{url: 'https://example.com/second', features: 'second'},
+		],
+		persona: 'Test persona',
+		report: {output: './report.md'},
+	};
+
+	const first = await service.analyzePage(config, config.pages[0]!);
+	const second = await service.analyzePage(config, config.pages[1]!);
+
+	t.is(first.status, 'complete');
+	t.is(second.status, 'failed');
+	t.true(second.error?.includes('Target closed'));
+
+	const report = builder.generateFinalReport();
+	t.deepEqual(
+		report.metadata.analyzedPages,
+		['https://example.com'],
+		'the page analysed before the browser died must still be in the report',
+	);
+	t.deepEqual(report.metadata.failedPages, ['https://example.com/second']);
+});

@@ -8,6 +8,14 @@
 import {useCallback, useRef, useState} from 'react';
 import {logger} from '../infrastructure/logger.js';
 import type {AnalysisStage, AnalysisState} from '../models/analysis.js';
+import {
+	describeSandboxRelaxation,
+	describeUnmetRequirement,
+	type PreflightVerdict,
+} from '../models/browser-preflight.js';
+import {BrowserPreflightError} from '../models/errors.js';
+import {runPreflight as defaultRunPreflight} from '../services/browser-preflight.js';
+import {browserServerIdentity} from '../services/mcp-client.js';
 import {evaluateGate} from '../models/gate-result.js';
 import type {UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
@@ -49,14 +57,19 @@ export type UseAnalysisResult = {
  * @param config - UxLint configuration
  * @param getAIService - Optional function to get AIService instance (for testing)
  * @param reportBuilder - Optional ReportBuilder instance (for testing, defaults to singleton)
+ * @param runPreflight - Optional browser preflight check (for testing, defaults to the real probe)
  * @returns Analysis state and control functions
  */
 export function useAnalysis(
 	config: UxLintConfig,
 	getAIService: (
 		config: UxLintConfig,
+		verdict: PreflightVerdict,
 	) => Promise<AIService> = defaultGetAIService,
 	reportBuilder: ReportBuilder = defaultReportBuilder,
+	runPreflight: (
+		settings: UxLintConfig['browser'],
+	) => Promise<PreflightVerdict> = defaultRunPreflight,
 ): UseAnalysisResult {
 	const [analysisState, setAnalysisState] = useState<AnalysisState>({
 		currentPageIndex: 0,
@@ -122,8 +135,35 @@ export function useAnalysis(
 		let aiService: AIService | undefined;
 
 		try {
+			// Preflight before the service exists, so an environment that cannot
+			// run a browser costs no model usage here either -- SC-003 applies to
+			// the interactive path as much as to CI.
+			const preflight = await runPreflight(config.browser);
+
+			if (preflight.kind === 'unmet') {
+				throw new BrowserPreflightError(
+					describeUnmetRequirement(preflight.requirement),
+				);
+			}
+
+			if (preflight.kind === 'ready-without-sandbox') {
+				logger.warn('Sandbox relaxation', {cause: preflight.cause});
+				updateAnalysisState(previous => ({
+					...previous,
+					notice: describeSandboxRelaxation(preflight.cause),
+				}));
+			}
+
+			const server = browserServerIdentity();
+			reportBuilder.setProvenance({
+				browserServer: server.name,
+				browserServerVersion: server.version,
+				browserVersion: preflight.browser.version,
+				externalDataConsulted: config.browser?.allowExternalData ?? false,
+			});
+
 			// Get AI Service instance (lazy initialization)
-			aiService = await getAIService(config);
+			aiService = await getAIService(config, preflight);
 
 			// Process each page sequentially - await in loop is intentional
 			for (let i = 0; i < config.pages.length; i++) {
@@ -273,7 +313,7 @@ export function useAnalysis(
 				await aiService.close();
 			}
 		}
-	}, [config, updateAnalysisState, getAIService, reportBuilder]);
+	}, [config, updateAnalysisState, getAIService, reportBuilder, runPreflight]);
 
 	return {
 		analysisState,

@@ -13,6 +13,7 @@ import {z} from 'zod/v4';
 import {getRandomWaitingMessage} from '../constants/waiting-messages.js';
 import {logger} from '../infrastructure/logger.js';
 import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
+import type {PreflightVerdict} from '../models/browser-preflight.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
 import {getLanguageModel} from './llm-provider.js';
@@ -164,7 +165,7 @@ export class AIService {
 			// Initialize page analysis in report builder
 			this.reportBuilder.initializePageAnalysis(page.url, page.features);
 
-			// Get MCP tools from Playwright
+			// Get browser tools from the MCP server
 			onProgress?.('navigating', `Navigating to ${page.url}`);
 			const mcpTools = await this.mcpClient.tools();
 
@@ -397,7 +398,7 @@ Usage: Call this tool multiple times, once per issue. Do not batch findings toge
 
 			setPageSnapshot: tool({
 				description:
-					'Save the page snapshot data. Call this once per page after using browser_snapshot to capture the page structure.',
+					'Save the page snapshot data. Call this once per page after using take_snapshot to capture the page structure.',
 				inputSchema: z.object({
 					snapshot: z.string(),
 				}),
@@ -453,8 +454,8 @@ ${page.features}
 ## Workflow - Complete ALL Steps
 
 **Step 1: Navigate and Capture**
-1. Call browser_navigate to load the page
-2. Call browser_snapshot to capture the page structure
+1. Call navigate_page to load the page
+2. Call take_snapshot to capture the page structure
 3. Call setPageSnapshot with the snapshot data
 
 **Step 2: Analyze and Document**
@@ -481,7 +482,10 @@ const aiServiceInstances = new Map<string, AIService>();
 /**
  * Get or create AIService instance for a given configuration
  */
-export async function getAIService(config: UxLintConfig): Promise<AIService> {
+export async function getAIService(
+	config: UxLintConfig,
+	verdict: PreflightVerdict,
+): Promise<AIService> {
 	// Import envIO dynamically to get AI config for cache key
 	const {envIO} = await import('../infrastructure/config/env-io.js');
 	const aiConfig = envIO.loadAiConfig();
@@ -491,7 +495,7 @@ export async function getAIService(config: UxLintConfig): Promise<AIService> {
 
 	if (!aiServiceInstances.has(cacheKey)) {
 		const model = await getLanguageModel(config);
-		const client = await getMCPClient();
+		const client = await getMCPClient(verdict, config.browser);
 		const service = new AIService(model, client, reportBuilder, cacheKey);
 		aiServiceInstances.set(cacheKey, service);
 	}

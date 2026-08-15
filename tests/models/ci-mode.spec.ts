@@ -24,6 +24,12 @@ const createMockReport = (): UxReport => ({
 		failedPages: [],
 		totalFindings: 0,
 		persona: 'test persona',
+		tooling: {
+			browserServer: 'chrome-devtools-mcp',
+			browserServerVersion: '1.7.0',
+			browserVersion: 'Google Chrome 151.0.0.0',
+			externalDataConsulted: false,
+		},
 	},
 	pages: [],
 	summary: 'Test summary',
