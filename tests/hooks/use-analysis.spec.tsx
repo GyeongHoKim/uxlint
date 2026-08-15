@@ -19,6 +19,20 @@ import {AIService} from '../../source/services/ai-service.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
 import {createMockMCPClient} from '../utils.js';
 
+/**
+ * Preflight stubbed ready: these tests exercise the analysis flow, not the
+ * environment, and the real probe spawns a browser.
+ */
+const stubPreflight = async () =>
+	({
+		kind: 'ready',
+		browser: {
+			executablePath: '/opt/google/chrome/chrome',
+			version: 'Google Chrome 151.0.7922.137',
+			majorVersion: 151,
+		},
+	}) as const;
+
 test.serial(
 	'useAnalysis updates iteration number within same page',
 	async t => {
@@ -109,7 +123,7 @@ test.serial(
 		}> = [];
 
 		const {result}: RenderHookResult<UseAnalysisResult, unknown> = renderHook(
-			() => useAnalysis(config, mockGetAIService, reportBuilder),
+			() => useAnalysis(config, mockGetAIService, reportBuilder, stubPreflight),
 		);
 
 		// Subscribe to state changes - must be done before runAnalysis
@@ -258,7 +272,13 @@ test.serial(
 		};
 
 		const {result}: RenderHookResult<UseAnalysisResult, unknown> = renderHook(
-			() => useAnalysis(config, async () => aiService, reportBuilder),
+			() =>
+				useAnalysis(
+					config,
+					async () => aiService,
+					reportBuilder,
+					stubPreflight,
+				),
 		);
 
 		await act(async () => {
@@ -330,7 +350,13 @@ test.serial(
 		};
 
 		const {result}: RenderHookResult<UseAnalysisResult, unknown> = renderHook(
-			() => useAnalysis(config, async () => aiService, reportBuilder),
+			() =>
+				useAnalysis(
+					config,
+					async () => aiService,
+					reportBuilder,
+					stubPreflight,
+				),
 		);
 
 		await act(async () => {

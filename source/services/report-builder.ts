@@ -8,7 +8,12 @@
 import type * as fs from 'node:fs';
 import {promises as fsPromises} from 'node:fs';
 import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
-import type {PageAnalysis, UxFinding, UxReport} from '../models/analysis.js';
+import type {
+	PageAnalysis,
+	RunProvenance,
+	UxFinding,
+	UxReport,
+} from '../models/analysis.js';
 
 // Type definition for fs dependency injection
 type FsAsyncMethods = typeof fs.promises;
@@ -18,11 +23,26 @@ type FsAsyncMethods = typeof fs.promises;
  * Handles business logic for generating UX reports from analyses
  * Supports both batch generation and incremental building for LLM tools
  */
+/**
+ * Provenance for a report generated without a run behind it.
+ *
+ * Only reachable from tests and from a report built before `setProvenance`
+ * was called. Stated explicitly rather than left absent so that a reader can
+ * tell "nothing recorded this" from "this ran on an unknown toolchain".
+ */
+const unknownProvenance: RunProvenance = {
+	browserServer: 'unknown',
+	browserServerVersion: 'unknown',
+	browserVersion: 'unknown',
+	externalDataConsulted: false,
+};
+
 export class ReportBuilder {
 	// Incremental building state
 	private currentPageAnalysis: Partial<PageAnalysis> | undefined;
 	private allAnalyses: PageAnalysis[] = [];
 	private persona = '';
+	private provenance: RunProvenance | undefined;
 
 	constructor(private readonly fsAsync?: FsAsyncMethods) {}
 
@@ -220,6 +240,17 @@ export class ReportBuilder {
 	 * @param persona - Target persona from config
 	 * @returns Aggregated UX report with prioritized findings
 	 */
+	/**
+	 * Record what produced this run.
+	 *
+	 * Set once per run, before pages are analysed. Provenance is written into
+	 * every report including one where every page failed -- a report that can
+	 * explain nothing else must still explain what produced it.
+	 */
+	setProvenance(provenance: RunProvenance): void {
+		this.provenance = provenance;
+	}
+
 	generateReport(analyses: PageAnalysis[], persona: string): UxReport {
 		const successfulAnalyses = analyses.filter(a => a.status === 'complete');
 		const partialAnalyses = analyses.filter(a => a.status === 'partial');
@@ -250,6 +281,7 @@ export class ReportBuilder {
 				failedPages: failedAnalyses.map(a => a.pageUrl),
 				totalFindings: allFindings.length,
 				persona,
+				tooling: this.provenance ?? unknownProvenance,
 			},
 			pages: analyses,
 			summary,
@@ -264,6 +296,7 @@ export class ReportBuilder {
 		this.currentPageAnalysis = undefined;
 		this.allAnalyses = [];
 		this.persona = '';
+		this.provenance = undefined;
 	}
 
 	/**

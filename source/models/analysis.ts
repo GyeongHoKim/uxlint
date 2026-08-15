@@ -42,7 +42,7 @@ export type PageAnalysis = {
 	features: string;
 
 	/**
-	 * Accessibility tree JSON from Playwright MCP
+	 * Accessibility tree text captured from the browser
 	 */
 	snapshot: string;
 
@@ -143,6 +143,38 @@ export type ReportMetadata = {
 	 * Persona description from config
 	 */
 	persona: string;
+
+	/**
+	 * What produced this report.
+	 *
+	 * The only field this feature adds. A report found weeks later has to be
+	 * able to explain itself: without it, a difference between two reports
+	 * cannot be attributed to the site rather than to a changed toolchain.
+	 */
+	tooling: RunProvenance;
+};
+
+/**
+ * Identity of the tooling behind a run.
+ */
+export type RunProvenance = {
+	/** Package that provided the browser server */
+	browserServer: string;
+
+	/** Exact pinned version of that package */
+	browserServerVersion: string;
+
+	/** Version banner of the browser that actually ran */
+	browserVersion: string;
+
+	/**
+	 * Whether the run was permitted to consult external data sources.
+	 *
+	 * Records the setting rather than an observation of traffic, because the
+	 * question a reader of an old report needs answered is what this run was
+	 * allowed to do.
+	 */
+	externalDataConsulted: boolean;
 };
 
 /**
@@ -216,6 +248,14 @@ export type AnalysisState = {
 	 * Fatal error that aborts entire analysis
 	 */
 	error?: Error;
+
+	/**
+	 * Non-fatal notice the user has to see.
+	 *
+	 * Currently only the sandbox relaxation: the run proceeds, but a browser
+	 * security protection was disabled to let it, and that cannot be silent.
+	 */
+	notice?: string;
 
 	/**
 	 * Last LLM response data for UI display

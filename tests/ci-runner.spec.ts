@@ -11,6 +11,7 @@ import test from 'ava';
 import sinon from 'sinon';
 import {runCIAnalysis} from '../source/ci-runner.js';
 import type {PageAnalysis} from '../source/models/analysis.js';
+import type {PreflightVerdict} from '../source/models/browser-preflight.js';
 import type {UxLintConfig} from '../source/models/config.js';
 import {ReportBuilder} from '../source/services/report-builder.js';
 
@@ -69,8 +70,23 @@ const createDeps = (
 				return aiService as never;
 			},
 			reportBuilder: builder,
+			// Preflight is stubbed ready so these tests exercise the analysis
+			// path rather than the environment. The real probe spawns a browser,
+			// which no unit test should depend on.
+			async runPreflight() {
+				return readyVerdict;
+			},
 		},
 	};
+};
+
+const readyVerdict: PreflightVerdict = {
+	kind: 'ready',
+	browser: {
+		executablePath: '/opt/google/chrome/chrome',
+		version: 'Google Chrome 151.0.7922.137',
+		majorVersion: 151,
+	},
 };
 
 test('resolves to 0 when analysis completes', async t => {
@@ -414,5 +430,111 @@ test('an analysis failure reports its reason, not just an exit code', async t =>
 
 	t.is(code, 1);
 	t.regex(emitted.join('\n'), /MCP client unavailable/);
+	sandbox.restore();
+});
+
+test('an unmet preflight exits non-zero without ever reaching the model', async t => {
+	const {sandbox, deps} = createDeps();
+	let aiServiceCalls = 0;
+
+	const noBrowser = {
+		...deps,
+		async getAIService() {
+			aiServiceCalls++;
+			throw new Error('the model must never be reached');
+		},
+		async runPreflight() {
+			const verdict: PreflightVerdict = {
+				kind: 'unmet',
+				requirement: {
+					kind: 'browser-absent',
+					searchedPaths: ['/opt/google/chrome/chrome'],
+				},
+			};
+			return verdict;
+		},
+	};
+
+	const code = await runCIAnalysis(baseConfig(), noBrowser);
+
+	t.is(code, 1);
+	t.is(
+		aiServiceCalls,
+		0,
+		'preflight must fail before any model usage is incurred',
+	);
+	sandbox.restore();
+});
+
+test('an unmet preflight names the missing browser in the emitted message', async t => {
+	const {sandbox, deps} = createDeps();
+	const emitted: string[] = [];
+
+	const noBrowser = {
+		...deps,
+		emitVerdict(verdict: string) {
+			emitted.push(verdict);
+		},
+		async runPreflight() {
+			const verdict: PreflightVerdict = {
+				kind: 'unmet',
+				requirement: {
+					kind: 'browser-absent',
+					searchedPaths: ['/opt/google/chrome/chrome'],
+				},
+			};
+			return verdict;
+		},
+	};
+
+	await runCIAnalysis(baseConfig(), noBrowser);
+
+	// The pipeline owner reads only this. It has to carry the remedy.
+	t.true(
+		emitted.some(message => message.includes('/opt/google/chrome/chrome')),
+	);
+	t.true(emitted.some(message => /install/i.test(message)));
+	sandbox.restore();
+});
+
+test('a relaxed sandbox is disclosed rather than applied silently', async t => {
+	const {sandbox, deps} = createDeps();
+	const emitted: string[] = [];
+
+	const relaxed = {
+		...deps,
+		emitVerdict(verdict: string) {
+			emitted.push(verdict);
+		},
+		async runPreflight() {
+			const verdict: PreflightVerdict = {
+				kind: 'ready-without-sandbox',
+				browser: {
+					executablePath: '/opt/google/chrome/chrome',
+					version: 'Google Chrome 151.0.7922.137',
+					majorVersion: 151,
+				},
+				cause: 'Running as root without --no-sandbox is not supported.',
+			};
+			return verdict;
+		},
+	};
+
+	const code = await runCIAnalysis(baseConfig(), relaxed);
+
+	t.is(code, 0, 'the run still proceeds');
+	t.true(emitted.some(message => message.includes('Sandbox relaxation')));
+	sandbox.restore();
+});
+
+test('a report records what produced it', async t => {
+	const {sandbox, builder, deps} = createDeps();
+
+	await runCIAnalysis(baseConfig(), deps);
+
+	const report = builder.generateFinalReport();
+	t.is(report.metadata.tooling.browserServer, 'chrome-devtools-mcp');
+	t.is(report.metadata.tooling.browserVersion, 'Google Chrome 151.0.7922.137');
+	t.false(report.metadata.tooling.externalDataConsulted);
 	sandbox.restore();
 });

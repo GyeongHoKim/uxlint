@@ -8,6 +8,7 @@ import {join} from 'node:path';
 import process from 'node:process';
 import {load as parseYaml, dump as yamlDump} from 'js-yaml';
 import type {UxLintConfig} from '../../models/config.js';
+import {validateBrowserSettings} from '../../models/browser.js';
 import {ConfigurationError} from '../../models/errors.js';
 import {validateThresholds} from '../../models/thresholds.js';
 import type {SaveOptions} from '../../models/wizard-state.js';
@@ -307,6 +308,19 @@ export class ConfigIO {
 				thresholdsIssue.message,
 				filePath,
 				thresholdsIssue.key,
+			);
+		}
+
+		// Same reasoning for the browser block. A misspelled key here would
+		// otherwise leave the setting silently unapplied -- the user would
+		// believe they had opted out of external data, or pointed uxlint at a
+		// particular browser, and nothing would say they had not.
+		const browserIssue = validateBrowserSettings(config['browser']);
+		if (browserIssue) {
+			throw new ConfigurationError(
+				browserIssue.message,
+				filePath,
+				browserIssue.key,
 			);
 		}
 

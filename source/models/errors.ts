@@ -177,6 +177,24 @@ export class ConfigurationError extends UxlintError {
 }
 
 /**
+ * Error thrown when the environment cannot run a browser.
+ *
+ * Carries the rendered guidance rather than a bare cause: this message is
+ * the only thing the user sees, and it has to tell them what to install or
+ * change, not merely that something went wrong.
+ */
+export class BrowserPreflightError extends UxlintError {
+	get code() {
+		return 'BROWSER_PREFLIGHT_ERROR';
+	}
+
+	constructor(message: string) {
+		super(message);
+		this.name = 'BrowserPreflightError';
+	}
+}
+
+/**
  * Error thrown when network operations fail
  */
 export class NetworkError extends UxlintError {

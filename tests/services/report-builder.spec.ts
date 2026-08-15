@@ -211,3 +211,66 @@ test('reset still clears the whole run', t => {
 
 	sandbox.restore();
 });
+
+test('every report records what produced it, including one where nothing succeeded', t => {
+	const builder = new ReportBuilder();
+	builder.setProvenance({
+		browserServer: 'chrome-devtools-mcp',
+		browserServerVersion: '1.7.0',
+		browserVersion: 'Google Chrome 151.0.7922.137',
+		externalDataConsulted: false,
+	});
+
+	builder.initializePageAnalysis('https://example.com', 'features');
+	builder.failCurrentPage('browser died', {
+		url: 'https://example.com',
+		features: 'features',
+	});
+
+	const report = builder.generateFinalReport();
+
+	// A report that can explain nothing else must still explain itself.
+	t.is(report.metadata.analyzedPages.length, 0);
+	t.is(report.metadata.tooling.browserServerVersion, '1.7.0');
+	t.is(report.metadata.tooling.browserVersion, 'Google Chrome 151.0.7922.137');
+});
+
+test('provenance records the external data setting, not an observation', t => {
+	const builder = new ReportBuilder();
+	builder.setProvenance({
+		browserServer: 'chrome-devtools-mcp',
+		browserServerVersion: '1.7.0',
+		browserVersion: 'Google Chrome 151.0.7922.137',
+		externalDataConsulted: true,
+	});
+
+	const report = builder.generateFinalReport();
+
+	// The question a reader of an old report needs answered is what the run
+	// was permitted to do, which is knowable; whether a request actually went
+	// out is not recoverable after the fact.
+	t.true(report.metadata.tooling.externalDataConsulted);
+});
+
+test('adding provenance leaves every pre-existing metadata field intact', t => {
+	const builder = new ReportBuilder();
+	builder.setPersona('Test persona');
+	builder.setProvenance({
+		browserServer: 'chrome-devtools-mcp',
+		browserServerVersion: '1.7.0',
+		browserVersion: 'Google Chrome 151.0.7922.137',
+		externalDataConsulted: false,
+	});
+	builder.initializePageAnalysis('https://example.com', 'features');
+	builder.completePageAnalysis();
+
+	const {metadata} = builder.generateFinalReport();
+
+	// FR-003: the swap may add a field but must not disturb one that exists.
+	t.is(typeof metadata.timestamp, 'number');
+	t.deepEqual(metadata.analyzedPages, ['https://example.com']);
+	t.deepEqual(metadata.partialPages, []);
+	t.deepEqual(metadata.failedPages, []);
+	t.is(metadata.totalFindings, 0);
+	t.is(metadata.persona, 'Test persona');
+});
