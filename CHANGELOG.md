@@ -1,3 +1,24 @@
+# [4.1.0](https://github.com/GyeongHoKim/uxlint/compare/v4.0.1...v4.1.0) (2026-08-15)
+
+
+### Bug Fixes
+
+* close the AI service on every failure path, and scope FR-012 correctly ([67ebaaf](https://github.com/GyeongHoKim/uxlint/commit/67ebaaf337be18530293a40eba514a77875fb4c7))
+* load keytar on first use instead of at import ([a70dd6a](https://github.com/GyeongHoKim/uxlint/commit/a70dd6abf5ff50422f910dab8d030e0dad7699a9))
+* make the config barrel export type-only ([1b85372](https://github.com/GyeongHoKim/uxlint/commit/1b85372d32661a1deb62b042273fc31bcb912979))
+* restore subPageUrls element validation and harden teardown ([4c1648d](https://github.com/GyeongHoKim/uxlint/commit/4c1648dd860cf40edbe040d71323ab953aa19de7))
+* validate thresholds on the interactive config path too ([3af97fd](https://github.com/GyeongHoKim/uxlint/commit/3af97fd74f59538a5734f9df9f4617249e4704da))
+
+
+### Features
+
+* document the CI gate and surface it in interactive mode ([6bedce8](https://github.com/GyeongHoKim/uxlint/commit/6bedce80e5a9b58d6d3a4d8ac44b8d4f63b42d7b))
+* fail CI runs built on incomplete coverage ([00c91dd](https://github.com/GyeongHoKim/uxlint/commit/00c91dd062d49865a9fce2925540eb0e90fe0797))
+* fail CI runs that exceed a severity budget ([1be0a4d](https://github.com/GyeongHoKim/uxlint/commit/1be0a4d22fc13d89ac46a88d9bbc116eabae978f))
+* mark coverage lines that were not gated on ([dd50a79](https://github.com/GyeongHoKim/uxlint/commit/dd50a79c48f44532a14c347594ad18987b48e920))
+* reject malformed thresholds before analysis starts ([ae78962](https://github.com/GyeongHoKim/uxlint/commit/ae78962926adef7c76fc2fd7dc2753f677a2acd4))
+* report config rejections on stdout, and enforce the stdout boundary ([5ba7526](https://github.com/GyeongHoKim/uxlint/commit/5ba7526a47d19bbb80a1ff1e2a80af7316c5abe3))
+
 ## [4.0.1](https://github.com/GyeongHoKim/uxlint/compare/v4.0.0...v4.0.1) (2026-08-13)
 
 
