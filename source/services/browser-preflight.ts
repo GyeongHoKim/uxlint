@@ -19,6 +19,8 @@
 
 import {execFile} from 'node:child_process';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import process from 'node:process';
 import {promisify} from 'node:util';
 import {logger} from '../infrastructure/logger.js';
@@ -78,10 +80,21 @@ export function defaultChromePaths(
 	}
 
 	if (platform === 'win32') {
-		return [
-			String.raw`C:\Program Files\Google\Chrome\Application\chrome.exe`,
-			String.raw`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
-		];
+		// The server probes every one of these prefixes, so preflight has to
+		// as well. Listing only the C: pair rejected a Windows user whose
+		// Chrome sits on D: -- preflight blocking a run the server would have
+		// completed is worse than no preflight at all.
+		const suffix = String.raw`\Google\Chrome\Application\chrome.exe`;
+		const prefixes = [
+			process.env['PROGRAMFILES'],
+			process.env['PROGRAMFILES(X86)'],
+			String.raw`C:\Program Files`,
+			String.raw`C:\Program Files (x86)`,
+			String.raw`D:\Program Files`,
+			String.raw`D:\Program Files (x86)`,
+		].filter((prefix): prefix is string => prefix !== undefined);
+
+		return [...new Set(prefixes.map(prefix => `${prefix}${suffix}`))];
 	}
 
 	return ['/opt/google/chrome/chrome'];
@@ -112,9 +125,9 @@ const defaultDependencies: PreflightDependencies = {
 			};
 		}
 	},
-	isExecutable(path) {
+	isExecutable(candidate) {
 		try {
-			fs.accessSync(path, fs.constants.X_OK);
+			fs.accessSync(candidate, fs.constants.X_OK);
 			return true;
 		} catch {
 			return false;
@@ -122,6 +135,27 @@ const defaultDependencies: PreflightDependencies = {
 	},
 	platform: process.platform,
 };
+
+/**
+ * Create a throwaway Chrome profile directory for the launch probe.
+ */
+function makeTemporaryProfile(): string {
+	return fs.mkdtempSync(path.join(os.tmpdir(), 'uxlint-preflight-'));
+}
+
+/**
+ * Remove the throwaway profile, ignoring failures.
+ *
+ * A profile left behind is untidy; a preflight that throws while cleaning up
+ * would turn a healthy environment into a failed run, which is worse.
+ */
+function removeTemporaryProfile(directory: string): void {
+	try {
+		fs.rmSync(directory, {recursive: true, force: true});
+	} catch {
+		// Nothing to do: the temp directory is the OS's problem from here.
+	}
+}
 
 /**
  * Check whether this environment can run a browser.
@@ -195,12 +229,28 @@ export async function runPreflight(
 	// Probe 2 -- can the sandbox actually start here. Measured at 38-66ms when
 	// it cannot and ~700ms when it can, so the environments that need the
 	// fallback are the ones that answer fastest.
-	const launchProbe = await runProcess(executablePath, [
-		'--headless',
-		'--disable-gpu',
-		'--dump-dom',
-		'about:blank',
-	]);
+	//
+	// The throwaway profile is not hygiene, it is correctness. Without
+	// --user-data-dir the probe uses the developer's real Chrome profile, and
+	// a Chrome already running on that profile makes the probe either fail on
+	// the profile lock -- aborting a run on a perfectly healthy machine with
+	// "a browser was found but would not start" -- or hand the command to the
+	// running instance and exit 0 without launching anything, returning
+	// `ready` while verifying nothing. The server passes --isolated for the
+	// same reason.
+	const profileDirectory = makeTemporaryProfile();
+	let launchProbe: ProbeResult;
+	try {
+		launchProbe = await runProcess(executablePath, [
+			'--headless',
+			'--disable-gpu',
+			`--user-data-dir=${profileDirectory}`,
+			'--dump-dom',
+			'about:blank',
+		]);
+	} finally {
+		removeTemporaryProfile(profileDirectory);
+	}
 
 	if (launchProbe.ok) {
 		return {kind: 'ready', browser};

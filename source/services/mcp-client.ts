@@ -1,5 +1,6 @@
 import {createRequire} from 'node:module';
 import process from 'node:process';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {
 	createMCPClient,
 	type experimental_MCPClient as MCPClient,
@@ -64,6 +65,13 @@ export type McpLaunchSpec = {
 	 * server writes a five-line banner on every start. Inherited, those lines
 	 * land in the middle of an Ink render and in a stream this project
 	 * reserves for the MCP protocol.
+	 *
+	 * Discarded rather than piped. `@ai-sdk/mcp` sets the child's stdio and
+	 * then never attaches a reader to `child.stderr`, so a pipe fills and the
+	 * child blocks on write once the OS buffer is full -- the analysis would
+	 * hang with no error, and the server has hundreds of `console.error`
+	 * sites feeding it. Capturing the banner into the log would be nicer, but
+	 * not at the cost of a deadlock that only appears on chatty runs.
 	 */
 	stderr: 'ignore' | 'pipe';
 };
@@ -138,15 +146,84 @@ export function buildLaunchSpec(
 		serverEntryPoint,
 		args,
 		env: {
-			...(process.env as Record<string, string>),
+			// Only what the server and the browser it launches actually need.
+			// Forwarding all of process.env would hand this project's model
+			// credentials and cloud tokens to a third-party subprocess tree,
+			// which is a wider exposure than the transport's own default of
+			// HOME/LOGNAME/PATH/SHELL/TERM/USER -- and a strange thing to do
+			// in the feature whose subject is what leaves the machine.
+			...forwardedEnvironment(),
 			// The server otherwise spawns a detached child that fetches
 			// registry.npmjs.org on startup. Pinning our own dependency does
 			// not stop it, so an offline run would still reach for the
 			// network -- from inside the dependency rather than from us.
 			CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS: '1',
 		},
-		stderr: 'pipe',
+		stderr: 'ignore',
 	};
+}
+
+/**
+ * Environment variables the browser server is given.
+ *
+ * Chrome needs a home directory, a PATH and display-related variables to
+ * launch; nothing here carries a credential.
+ */
+const forwardedEnvironmentKeys = [
+	'HOME',
+	'LOGNAME',
+	'PATH',
+	'SHELL',
+	'TERM',
+	'USER',
+	'TMPDIR',
+	'LANG',
+	'DISPLAY',
+	'XAUTHORITY',
+	'XDG_RUNTIME_DIR',
+	'SYSTEMROOT',
+	'PROGRAMFILES',
+	'PROGRAMFILES(X86)',
+	'LOCALAPPDATA',
+	'APPDATA',
+	'USERPROFILE',
+];
+
+/**
+ * Build the subprocess environment from the allowed keys that are set.
+ */
+function forwardedEnvironment(): Record<string, string> {
+	const forwarded: Record<string, string> = {};
+
+	for (const key of forwardedEnvironmentKeys) {
+		const value = process.env[key];
+		if (value !== undefined) {
+			forwarded[key] = value;
+		}
+	}
+
+	return forwarded;
+}
+
+/**
+ * Resolve a package-relative entry point to a filesystem path.
+ *
+ * Goes through `fileURLToPath` rather than reading `URL.pathname`. A URL's
+ * pathname is percent-encoded, so an install under a directory with a space
+ * yields `/home/user/my%20projects/...` and Node cannot load it; on Windows
+ * the same property returns `/C:/Users/...`, a leading-slash string that is
+ * not a valid path at all. Both forms fail at server startup with an error
+ * about a missing module rather than about the real cause.
+ *
+ * @param packageJsonPath - Absolute path to the package's package.json
+ * @param relativeEntry - Entry point as declared in that package's `bin`
+ * @returns Absolute filesystem path to the entry point
+ */
+export function entryPointPath(
+	packageJsonPath: string,
+	relativeEntry: string,
+): string {
+	return fileURLToPath(new URL(relativeEntry, pathToFileURL(packageJsonPath)));
 }
 
 /**
@@ -169,7 +246,7 @@ function resolveServerEntryPoint(): string {
 		);
 	}
 
-	return new URL(relativeEntry, `file://${packageJsonPath}`).pathname;
+	return entryPointPath(packageJsonPath, relativeEntry);
 }
 
 /**

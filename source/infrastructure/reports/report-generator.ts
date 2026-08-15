@@ -75,6 +75,21 @@ export function generateMarkdownReport(report: UxReport): string {
 		sections.push(`**Failed Pages**: ${metadata.failedPages.length}`);
 	}
 
+	// Provenance belongs in the artefact, not only in the in-memory report.
+	// The saved markdown is the only thing anyone reads weeks later, and a
+	// report that cannot say which browser tooling produced it cannot support
+	// the comparison between two runs that it exists to enable.
+	sections.push(
+		`**Browser Tooling**: ${metadata.tooling.browserServer}@${metadata.tooling.browserServerVersion}`,
+		`**Browser**: ${metadata.tooling.browserVersion}`,
+	);
+
+	if (metadata.tooling.externalDataConsulted) {
+		sections.push(
+			'**External Data**: this run was permitted to consult external data sources',
+		);
+	}
+
 	// Executive Summary and Statistics
 	sections.push(
 		'',

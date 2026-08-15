@@ -1,7 +1,9 @@
+import process from 'node:process';
 import test from 'ava';
 import {
 	browserServerIdentity,
 	buildLaunchSpec,
+	entryPointPath,
 	resetMCPClient,
 	resolveBrowserSettings,
 	type BrowserLaunchSettings,
@@ -172,4 +174,65 @@ test('resetting the client cache is safe to call when nothing is cached', t => {
 	t.notThrows(() => {
 		resetMCPClient();
 	});
+});
+
+test('an install path containing a space resolves to a loadable path', t => {
+	// URL.pathname percent-encodes, so this used to yield `my%20projects` and
+	// the server died at startup with a missing-module error that named
+	// neither the space nor the real cause.
+	const resolved = entryPointPath(
+		'/home/user/my projects/app/node_modules/chrome-devtools-mcp/package.json',
+		'build/src/bin/chrome-devtools-mcp.js',
+	);
+
+	t.false(resolved.includes('%20'));
+	t.true(resolved.includes('my projects'));
+});
+
+test('a non-ASCII install path survives resolution', t => {
+	const resolved = entryPointPath(
+		'/home/사용자/앱/node_modules/chrome-devtools-mcp/package.json',
+		'build/src/bin/chrome-devtools-mcp.js',
+	);
+
+	t.true(resolved.includes('사용자'));
+	t.false(resolved.includes('%'));
+});
+
+test('the resolved entry point is the package bin, under the package root', t => {
+	const resolved = entryPointPath(
+		'/opt/app/node_modules/chrome-devtools-mcp/package.json',
+		'build/src/bin/chrome-devtools-mcp.js',
+	);
+
+	t.is(
+		resolved,
+		'/opt/app/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js',
+	);
+});
+
+test('no model or cloud credential is forwarded to the browser subprocess', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	// Passing all of process.env would hand this project's credentials to a
+	// third-party subprocess tree -- a strange thing to do in the feature
+	// whose subject is what leaves the machine.
+	for (const key of Object.keys(spec.env)) {
+		t.notRegex(key, /api_key|token|secret|password/i, `${key} is forwarded`);
+	}
+});
+
+test('the subprocess still gets what a browser needs to launch', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	t.is(spec.env['PATH'], process.env['PATH']);
+	t.is(spec.env['CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS'], '1');
+});
+
+test('the server stderr is discarded rather than piped into a buffer nobody drains', t => {
+	const spec = buildLaunchSpec(ready, defaults);
+
+	// The transport never attaches a reader, so a pipe fills and the child
+	// blocks on write once the OS buffer is full.
+	t.is(spec.stderr, 'ignore');
 });

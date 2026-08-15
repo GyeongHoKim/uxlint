@@ -111,3 +111,28 @@ test('a fully analysed page renders no partial or failure noise', t => {
 	t.notRegex(markdown, /Failed Pages/);
 	t.regex(markdown, /### https:\/\/example\.com\/ok/);
 });
+
+test('the saved report states what produced it', t => {
+	// Asserting the rendered markdown, not the in-memory object. The object
+	// carried provenance from the start while the artefact did not, and a
+	// test that reads the object cannot tell the difference.
+	const markdown = generateMarkdownReport(buildReport([]));
+
+	t.true(markdown.includes('chrome-devtools-mcp@1.7.0'));
+	t.true(markdown.includes('Google Chrome 151.0.0.0'));
+});
+
+test('a report says so when the run could consult external data', t => {
+	const report = buildReport([]);
+	report.metadata.tooling.externalDataConsulted = true;
+
+	const markdown = generateMarkdownReport(report);
+
+	t.regex(markdown, /External Data/);
+});
+
+test('a report stays silent about external data when none was permitted', t => {
+	const markdown = generateMarkdownReport(buildReport([]));
+
+	t.false(markdown.includes('External Data'));
+});

@@ -194,8 +194,11 @@ test('each platform searches the location its Chrome actually installs into', t 
 	]);
 
 	const windows = defaultChromePaths('win32');
-	t.is(windows.length, 2, 'both Program Files locations are searched');
-	t.true(windows.every(path => path.endsWith('chrome.exe')));
+	t.true(
+		windows.length >= 4,
+		'both Program Files variants on both drives are searched',
+	);
+	t.true(windows.every(candidate => candidate.endsWith('chrome.exe')));
 });
 
 test('an unlisted platform falls back to the Linux location rather than searching nothing', t => {
@@ -211,4 +214,36 @@ test('the real process runner reports a failure instead of throwing', async t =>
 	});
 
 	t.is(verdict.kind, 'unmet');
+});
+
+test('the launch probe uses a throwaway profile, never the user real one', async t => {
+	const seen: string[][] = [];
+
+	await runPreflight(undefined, {
+		async runProcess(_executablePath, args) {
+			seen.push(args);
+			return {ok: true, stdout: chromeVersion, stderr: ''};
+		},
+		isExecutable: always(true),
+		platform: 'linux',
+	});
+
+	// Without this, a developer with Chrome already open either fails the
+	// probe on the profile lock -- aborting a run on a healthy machine -- or
+	// has the command handed to the running instance, which exits 0 without
+	// launching anything and returns `ready` having verified nothing.
+	const launchArgs = seen[1] ?? [];
+	t.true(
+		launchArgs.some(argument => argument.startsWith('--user-data-dir=')),
+		'the probe must isolate itself from the real profile',
+	);
+});
+
+test('windows searches every prefix the server searches, including other drives', t => {
+	const paths = defaultChromePaths('win32');
+
+	// Listing only the C: pair rejected a Windows user whose Chrome sits on
+	// D:, blocking a run the server would have completed.
+	t.true(paths.some(path => path.startsWith('D:')));
+	t.true(paths.every(path => path.endsWith('chrome.exe')));
 });
