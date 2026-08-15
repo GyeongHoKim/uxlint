@@ -20,6 +20,10 @@ test('a CI-mode rejection survives process.exit', async t => {
 	);
 	const logDirectory = path.join(workDirectory, 'logs');
 
+	t.teardown(async () =>
+		fsPromises.rm(workDirectory, {recursive: true, force: true}),
+	);
+
 	await fsPromises.writeFile(
 		path.join(workDirectory, '.uxlintrc.yml'),
 		[
@@ -58,6 +62,4 @@ test('a CI-mode rejection survives process.exit', async t => {
 		/maxCritcal/,
 		'the offending key must reach the log, or the rejection tells the user nothing',
 	);
-
-	await fsPromises.rm(workDirectory, {recursive: true, force: true});
 });
