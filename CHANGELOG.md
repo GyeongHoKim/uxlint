@@ -1,3 +1,16 @@
+# [4.2.0](https://github.com/GyeongHoKim/uxlint/compare/v4.1.0...v4.2.0) (2026-08-15)
+
+
+### Bug Fixes
+
+* address the review findings on the browser swap ([d8b805b](https://github.com/GyeongHoKim/uxlint/commit/d8b805b99b4f9c1a65bbd92631b985947df76107))
+* drop the invented Chrome floor and correct the provenance field name ([11b2900](https://github.com/GyeongHoKim/uxlint/commit/11b2900065792796fd24300c884b3ea9e6e092c1)), closes [#35](https://github.com/GyeongHoKim/uxlint/issues/35)
+
+
+### Features
+
+* drive analysis with chrome-devtools-mcp behind a preflight check ([6a35d53](https://github.com/GyeongHoKim/uxlint/commit/6a35d536ed4af4e69d24c1f00cec8f6afe3a9deb))
+
 # [4.1.0](https://github.com/GyeongHoKim/uxlint/compare/v4.0.1...v4.1.0) (2026-08-15)
 
 
