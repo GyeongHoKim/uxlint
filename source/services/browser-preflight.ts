@@ -27,7 +27,6 @@ import {logger} from '../infrastructure/logger.js';
 import type {BrowserSettings} from '../models/browser.js';
 import {
 	classifyLaunchFailure,
-	minimumChromeMajorVersion,
 	parseChromeMajorVersion,
 	type PreflightVerdict,
 } from '../models/browser-preflight.js';
@@ -197,7 +196,9 @@ export async function runPreflight(
 		};
 	}
 
-	// Probe 1 -- presence and version. Measured at ~31ms.
+	// Probe 1 -- presence and version. Measured at ~31ms. The version is read
+	// for the report's provenance, not to gate on: see browser-preflight.ts
+	// for why this project does not invent a floor.
 	const versionProbe = await runProcess(executablePath, ['--version']);
 	const banner = (versionProbe.stdout || versionProbe.stderr).trim();
 	const majorVersion = parseChromeMajorVersion(banner);
@@ -208,18 +209,6 @@ export async function runPreflight(
 			requirement: {
 				kind: 'browser-unstartable',
 				cause: banner || 'the browser did not report a version',
-			},
-		};
-	}
-
-	if (majorVersion < minimumChromeMajorVersion) {
-		return {
-			kind: 'unmet',
-			requirement: {
-				kind: 'browser-too-old',
-				detectedVersion: banner,
-				detectedMajorVersion: majorVersion,
-				requiredMajorVersion: minimumChromeMajorVersion,
 			},
 		};
 	}

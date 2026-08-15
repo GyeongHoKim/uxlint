@@ -22,7 +22,7 @@ Dependent verification, also outstanding: T017–T022 (US1), T045–T047, T053, 
 
 ## Implementation-time findings
 
-### T005 — The pinned server states no numeric Chrome floor
+### T005 — The pinned server states no numeric Chrome floor, and none is imposed
 
 `chrome-devtools-mcp@1.7.0`'s README, under Requirements:
 
@@ -30,7 +30,7 @@ Dependent verification, also outstanding: T017–T022 (US1), T045–T047, T053, 
 - Chrome current stable version or newer.
 ```
 
-That is a moving target, not a number, so it cannot be encoded directly. The only numbered Chrome versions the package documents are for features uxlint does not use:
+That is a moving target, not a number. The only numbered Chrome versions the package documents are for features uxlint does not use:
 
 | Version | Feature | Used by uxlint? |
 | --- | --- | --- |
@@ -38,9 +38,11 @@ That is a moving target, not a number, so it cannot be encoded directly. The onl
 | 149+ | `--allowedUrlPattern` | No |
 | 150+ | `--categoryExperimentalWebmcp` | No |
 
-**Decision**: `MINIMUM_CHROME_MAJOR_VERSION = 144`, being the oldest numbered Chrome the pinned server's own documentation acknowledges. The task forbade inventing a floor, and this is the least invented number available — but it is a judgement call, not a quoted requirement, and it is recorded here as such.
+**Decision: no version floor.** An earlier draft set one at 144 — the oldest number the docs mention — and flagged in review that it would reject browsers that work. Two independent reviewers reached the same conclusion, and they were right: 144 is the requirement for a feature this project does not use, so gating on it fails runs that would have succeeded and contradicts US1's promise that nothing a user can see changes.
 
-**Known consequence**: this rejects browsers that would probably work. Basic navigation and snapshotting have no documented version dependency, so a user on Chrome 130 is likely to be blocked from a run that would have succeeded. That is a behaviour change for such users and sits in tension with US1 (behaviour preservation). Flagged for review — a plausible alternative is to warn rather than block on version alone, and reserve blocking for absence and unstartability, which are unambiguous.
+Whether a browser is usable is now settled by launching it, which is the same principle FR-009 applies to the sandbox: measure the property being relied on rather than infer it from a declared number. A browser too old to drive fails the launch probe and is reported as `browser-unstartable`, carrying the browser's own explanation.
+
+The version is still read and recorded in the report's provenance. It is information, not a gate.
 
 ### T045 — SC-003: a missing browser fails fast and for free
 

@@ -19,21 +19,19 @@ as a *tool result*. The agent loop feeds that back to the model, which keeps try
 | Input | Source |
 | --- | --- |
 | Configured executable path | User configuration; optional (FR-008) |
-| Minimum major version | Product constant, taken from the pinned server's stated Chrome requirement |
 | Platform default search paths | Product constant, per OS |
 
 ## Behaviour
 
 ### Step 1 — Resolve and version-check (measured: 31 ms)
 
-Search order: configured path → platform defaults → `PATH`. Run `--version` on the winner and parse the major version.
+Search order: a configured path is used **exclusively**; otherwise the platform defaults are searched. `PATH` is not consulted — matching a configured path against something else would analyse pages with a browser the user did not ask for. Run `--version` on the winner and parse the major version for provenance.
 
 | Outcome | Verdict |
 | --- | --- |
 | Nothing found | `unmet: browser-absent` — message lists the paths searched and the install remedy |
 | Configured path supplied but absent | `unmet: browser-absent`, phrased as a bad setting rather than a missing install |
-| Found, major < floor | `unmet: browser-too-old` — message carries detected **and** required versions |
-| Found, major ≥ floor | continue to step 2 |
+| Found, reports a version | continue to step 2 — there is no version floor to compare against, by design |
 
 ### Step 2 — Sandbox capability (measured: 38–66 ms on failure, ~700 ms on success)
 

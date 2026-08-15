@@ -34,7 +34,7 @@ const unknownProvenance: RunProvenance = {
 	browserServer: 'unknown',
 	browserServerVersion: 'unknown',
 	browserVersion: 'unknown',
-	externalDataConsulted: false,
+	externalDataAllowed: false,
 };
 
 export class ReportBuilder {

@@ -12,18 +12,20 @@
  * @packageDocumentation
  */
 
-/**
- * Oldest Chrome major version this project accepts.
+/*
+ * There is deliberately no minimum version constant here.
  *
- * The pinned server states its requirement as "Chrome current stable version
- * or newer" -- a moving target with no number in it. 144 is the oldest
- * numbered Chrome its own documentation acknowledges (for `--autoConnect`,
- * which this project does not use), so it is the least invented floor
- * available rather than a quoted requirement. See
- * `specs/005-devtools-mcp-swap/baseline.md` (T005) for the reasoning and its
- * known consequence.
+ * An earlier draft blocked on Chrome 144, reasoning that it was the oldest
+ * numbered version the pinned server's documentation mentions. It mentions it
+ * for `--autoConnect`, a feature this project does not use; the server's
+ * actual requirement is "current stable or newer", which is a moving target
+ * with no number in it. Blocking on 144 therefore rejected browsers that work.
+ *
+ * Whether a browser is too old is settled the same way the sandbox question
+ * is: by launching it and seeing. A browser too old to drive fails the launch
+ * probe and is reported as unstartable, carrying the browser's own
+ * explanation -- which beats a number this project invented.
  */
-export const minimumChromeMajorVersion = 144;
 
 /**
  * What Chrome prints when the sandbox cannot start because the process is
@@ -57,22 +59,15 @@ export type BrowserIdentity = {
 /**
  * A requirement the environment did not meet.
  *
- * The three kinds are kept apart because their remedies are different:
- * install a browser, upgrade one, or fix the environment that stops the one
- * you have from starting. Collapsing them would produce a message that is
- * true and useless.
+ * The two kinds are kept apart because their remedies are different: install
+ * a browser, or fix the environment that stops the one you have from
+ * starting. Collapsing them would produce a message that is true and useless.
  */
 export type UnmetRequirement =
 	| {
 			kind: 'browser-absent';
 			searchedPaths: string[];
 			configuredPath?: string;
-	  }
-	| {
-			kind: 'browser-too-old';
-			detectedVersion: string;
-			detectedMajorVersion: number;
-			requiredMajorVersion: number;
 	  }
 	| {
 			kind: 'browser-unstartable';
@@ -163,20 +158,11 @@ export function describeUnmetRequirement(
 			].join(' ');
 		}
 
-		case 'browser-too-old': {
-			return [
-				`The browser found is too old: detected ${requirement.detectedVersion}`,
-				`(major version ${requirement.detectedMajorVersion}),`,
-				`but version ${requirement.requiredMajorVersion} or newer is required.`,
-				'Upgrade Chrome, or point uxlint at a newer installation.',
-			].join(' ');
-		}
-
 		case 'browser-unstartable': {
 			return [
 				'A browser was found but would not start.',
 				`The browser reported: ${requirement.cause}`,
-				'This is an environment problem rather than a missing install -- the executable exists but cannot run here.',
+				'The executable exists but cannot run here -- this is an environment problem, or a browser too old to drive, rather than a missing install.',
 			].join(' ');
 		}
 	}

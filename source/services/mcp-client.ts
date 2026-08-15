@@ -297,6 +297,15 @@ async function createBrowserMCPClient(
  * Takes the preflight verdict rather than reading it from anywhere global:
  * the same value that decides whether the sandbox is relaxed is the value the
  * disclosure is rendered from, so the two cannot drift apart.
+ *
+ * **Invariant: preflight runs once per process.** The cache below is keyed on
+ * nothing, so a second call with a different verdict would silently reuse the
+ * first launch -- including its sandbox decision. Both entry points honour
+ * this today (one preflight, then one run, then exit). A retry path in the
+ * interactive UI would break it, and should key the cache on the verdict
+ * rather than assume; the same applies to the `getAIService` cache, which is
+ * keyed only on provider and model. Phase 4 of the roadmap replaces both with
+ * per-run instances.
  */
 export async function getMCPClient(
 	verdict: PreflightVerdict,

@@ -56,11 +56,15 @@ sudo pacman -S libsecret
 
 uxlint drives a real Chrome to analyse your pages. **Chrome is not bundled and is not downloaded for you** — it must already be installed.
 
-- **Chrome stable**, version 144 or newer.
+- **Chrome stable**, current stable or newer — matching the browser tooling's own requirement. uxlint does not enforce a version number: whether a browser is usable is settled by launching it, and one too old to drive is reported with the browser's own explanation.
 - Default locations searched: `/opt/google/chrome/chrome` (Linux), `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` (macOS), `C:\Program Files\Google\Chrome\Application\chrome.exe` (Windows).
 - Installed elsewhere? Set `browser.executablePath`.
 
 uxlint checks for a usable browser before it starts analysing, so a missing or unusable one fails immediately with instructions rather than partway through a run.
+
+### On WSL
+
+Point uxlint at a Linux-native Chrome with `browser.executablePath` (for example `/usr/bin/google-chrome`). uxlint searches Linux locations only, so it will not silently pick up a Windows Chrome through `/mnt/c` — a Windows browser driven from a Linux process is a known source of `Target closed` failures, and reaching it is not something you want to happen by accident.
 
 ### In a container
 
@@ -85,7 +89,7 @@ By default, **nothing derived from the URLs you analyse is sent anywhere except 
 - usage statistics reporting by the browser tooling,
 - the browser tooling's own update check against the npm registry.
 
-Set `browser.allowExternalData: true` to opt in to the first two. When you do, the report records that the run consulted external data.
+Set `browser.allowExternalData: true` to opt in to the first two. When you do, the report records that the run was _permitted_ to consult external data — uxlint does not observe the traffic, so it reports the permission rather than claiming the lookups happened.
 
 ### Browser settings
 

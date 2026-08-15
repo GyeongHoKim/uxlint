@@ -12,12 +12,12 @@ What the environment must provide. Owned by the product, not by user configurati
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `minimumMajorVersion` | number | Taken from the pinned server's stated Chrome requirement, not invented (plan, Open Risks) |
 | `executablePath` | string \| undefined | User override for a browser outside the default location (FR-008). Undefined means "resolve normally" |
+
+**There is deliberately no minimum version field.** The pinned server states its requirement as "current stable or newer" — a moving target with no number in it — so any floor would be this project's invention and would reject browsers that work. Usability is established by launching, which is the same principle FR-009 applies to the sandbox.
 
 **Validation rules**
 
-- `minimumMajorVersion` is a positive integer.
 - When `executablePath` is supplied it must exist and be executable; a supplied-but-missing path is a distinct failure from "no browser found", because the remedy is different (fix the setting, versus install a browser).
 
 ---
@@ -39,21 +39,20 @@ PreflightVerdict =
 
 | Kind | Trigger | Message must carry |
 | --- | --- | --- |
-| `browser-absent` | No browser resolved at the configured path, the platform defaults, or `PATH` | The paths searched, and how to install (FR-005, FR-007) |
-| `browser-too-old` | Resolved, but major version below the floor | Detected version **and** required minimum (US2 scenario 3) |
-| `browser-unstartable` | Resolves and reports a version, but will not launch for a reason the sandbox fallback does not fix | Chrome's own stderr first line, verbatim (R8 showed it is precise and ours would not be) |
+| `browser-absent` | No browser resolved at the configured path or the platform defaults | The paths searched, and how to install (FR-005, FR-007) |
+| `browser-unstartable` | Resolves and reports a version, but will not launch for a reason the sandbox fallback does not fix — including being too old to drive | Chrome's own explanation, verbatim (R8 showed it is precise and ours would not be) |
 
 **Why `ready-without-sandbox` is a success state and not a warning flag**: FR-009 requires both that the run proceeds and that the relaxation is disclosed. Modelling it as a distinct verdict makes the disclosure impossible to forget — a caller cannot render the verdict without encountering `cause`. A boolean on a `ready` verdict would let the disclosure be dropped silently, which is the failure mode the clarification specifically ruled out.
 
 **State transitions**
 
 ```text
-                    ┌─ browser resolves ─┐
-start ─ resolve ────┤                    ├─ version ok ─ launch probe ─┬─ launches ──────────→ ready
-                    └─ not found ────────┴─ too old ──→ unmet          ├─ sandbox error ─────→ ready-without-sandbox
-                                              ↓                        └─ other launch error ─→ unmet(browser-unstartable)
-                                            unmet
+                    ┌─ browser resolves ─┬─ version read ─ launch probe ─┬─ launches ──────────→ ready
+start ─ resolve ────┤                    │                              ├─ sandbox error ─────→ ready-without-sandbox
+                    └─ not found ────────┴─→ unmet(browser-absent)       └─ other failure ─────→ unmet(browser-unstartable)
 ```
+
+The version is read for the report's provenance, not to gate on.
 
 The launch probe distinguishes the middle branch from the bottom by matching Chrome's stderr against the two sandbox-failure signatures measured in R8 (`Running as root without --no-sandbox`, and the namespace `Operation not permitted` form). **Anything unrecognised is `browser-unstartable`, not a sandbox problem** — guessing "probably sandbox" would silently disable a security protection for an unrelated fault.
 
@@ -91,10 +90,10 @@ Added to `ReportMetadata` in `source/models/analysis.ts`, alongside `timestamp` 
 | `tooling.browserServer` | string | Package identity of the browser server |
 | `tooling.browserServerVersion` | string | Exact pinned version |
 | `tooling.browserVersion` | string | The Chrome build that actually ran, from the preflight verdict |
-| `tooling.externalDataConsulted` | boolean | Whether any external lookup was enabled for the run (FR-014, carried inside provenance rather than beside it) |
+| `tooling.externalDataAllowed` | boolean | Whether any external lookup was enabled for the run (FR-014, carried inside provenance rather than beside it) |
 
 **Constraints**
 
 - Every existing `ReportMetadata` field keeps its name, type and meaning (FR-003).
 - Provenance is populated for every report, including runs where every page failed — a report that explains nothing else must still explain what produced it.
-- `externalDataConsulted` records the *setting*, not an observation of traffic. It answers "was this run permitted to consult external data", which is the question a reader of an old report needs.
+- `externalDataAllowed` records the *setting*, not an observation of traffic. It answers "was this run permitted to consult external data", which is the question a reader of an old report needs.

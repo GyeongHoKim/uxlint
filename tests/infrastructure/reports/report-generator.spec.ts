@@ -38,7 +38,7 @@ const buildReport = (pages: PageAnalysis[]): UxReport => ({
 			browserServer: 'chrome-devtools-mcp',
 			browserServerVersion: '1.7.0',
 			browserVersion: 'Google Chrome 151.0.0.0',
-			externalDataConsulted: false,
+			externalDataAllowed: false,
 		},
 	},
 	pages,
@@ -124,7 +124,7 @@ test('the saved report states what produced it', t => {
 
 test('a report says so when the run could consult external data', t => {
 	const report = buildReport([]);
-	report.metadata.tooling.externalDataConsulted = true;
+	report.metadata.tooling.externalDataAllowed = true;
 
 	const markdown = generateMarkdownReport(report);
 

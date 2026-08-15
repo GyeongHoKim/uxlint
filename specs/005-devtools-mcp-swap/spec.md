@@ -59,11 +59,11 @@ A pipeline owner adds uxlint to a slim container. The image has no Chrome. The r
 
 1. **Given** an environment with no usable browser, **When** a non-interactive run starts, **Then** it exits non-zero before any page is analysed, with a message naming the missing browser and how to install it
 2. **Given** an environment with no usable browser, **When** an interactive run starts, **Then** the same guidance is shown in the terminal UI rather than as a stack trace or a silent hang
-3. **Given** an environment whose browser is older than the supported floor, **When** a run starts, **Then** it stops with a message stating both the detected version and the minimum required
+3. **Given** an environment whose browser is too old to drive, **When** a run starts, **Then** it stops with a message carrying the browser's own explanation of why it would not start, rather than a comparison against a version number uxlint invented
 4. **Given** a container in which the browser's security sandbox cannot start — whether the run is as root or as an ordinary user — **When** a run starts, **Then** analysis proceeds normally rather than the browser terminating on startup, and the output states that the browser's security sandbox was disabled to make that possible
-7. **Given** a container whose configuration does permit the browser's sandbox to start, **When** a run starts, **Then** the sandbox is left enabled and no relaxation notice is emitted — the fallback is applied only where it is actually needed
-5. **Given** a usable browser installed outside the default location, **When** the user points uxlint at it explicitly, **Then** preflight accepts it and the run proceeds
-6. **Given** the browser becomes unavailable partway through a run, **When** the remaining pages are processed, **Then** those pages are recorded as failed with the reason, and the report is still written — a mid-run browser loss is a page failure, not a preflight failure
+5. **Given** a container whose configuration does permit the browser's sandbox to start, **When** a run starts, **Then** the sandbox is left enabled and no relaxation notice is emitted — the fallback is applied only where it is actually needed
+6. **Given** a usable browser installed outside the default location, **When** the user points uxlint at it explicitly, **Then** preflight accepts it and the run proceeds
+7. **Given** the browser becomes unavailable partway through a run, **When** the remaining pages are processed, **Then** those pages are recorded as failed with the reason, and the report is still written — a mid-run browser loss is a page failure, not a preflight failure
 
 ---
 
@@ -118,7 +118,7 @@ A team member looks at a report from three weeks ago and can determine which bro
 - **FR-001**: Analysis MUST be driven by a single browser tooling source; the previous browser server MUST be removed from the product and its dependency dropped.
 - **FR-002**: The captured page-structure snapshot MUST continue to be recorded for every completed page, and MUST remain non-empty for a page that renders.
 - **FR-003**: No existing report field may be removed, renamed, or changed in meaning by this feature, and the per-page status rules — including how partial and failed pages are recorded — MUST be unchanged. Adding a field is permitted; FR-011 adds exactly one.
-- **FR-004**: Before any page is analysed, the system MUST verify that a usable browser is available and meets the minimum supported version.
+- **FR-004**: Before any page is analysed, the system MUST verify that a usable browser is available and can actually start. Usability MUST be established by launching the browser rather than by comparing its version against a number this project defines — the browser tooling states its own requirement as "current stable or newer", so any numeric floor would be invented and would reject browsers that work.
 - **FR-005**: When preflight fails, the run MUST stop before any model request is made, exit non-zero in non-interactive runs, and state which requirement was unmet and how to satisfy it.
 - **FR-006**: Preflight failure guidance MUST be surfaced in both interactive and non-interactive runs, using each mode's normal output path and without violating the reserved-stream boundary.
 - **FR-007**: The system MUST distinguish, in its message, a browser that is absent from one that is present but fails to start.
@@ -128,7 +128,7 @@ A team member looks at a report from three weeks ago and can determine which bro
 - **FR-011**: The report MUST record which browser tooling and version produced it, as an addition to its run-level metadata rather than a change to any existing field.
 - **FR-012**: By default, no analysed URL or data derived from it may be transmitted to any third party; any capability that would do so MUST be off unless the user explicitly enables it.
 - **FR-013**: Usage or telemetry reporting by the browser tooling MUST be suppressed in all modes by default, not only in continuous-integration environments.
-- **FR-014**: When a user has enabled external data lookups, the report MUST state that external data was consulted, recorded inside the same provenance record FR-011 adds rather than as a further field.
+- **FR-014**: When a user has enabled external data lookups, the report MUST state that the run was permitted to consult external data, recorded inside the same provenance record FR-011 adds rather than as a further field. The report MUST NOT claim the lookups occurred, since nothing observes the traffic.
 - **FR-015**: Tolerance of untrusted TLS certificates MUST become an explicit, documented setting rather than an unconditional behaviour, and MUST default to today's behaviour of tolerating them.
 - **FR-016**: A browser failure occurring after analysis has begun MUST be recorded as a failure of the affected page, leaving previously completed pages and the report intact.
 - **FR-017**: Documentation MUST state the browser requirement, the minimum version, container guidance, and what the run transmits externally, before a user's first run.

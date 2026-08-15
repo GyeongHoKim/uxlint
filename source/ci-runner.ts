@@ -121,7 +121,23 @@ export async function runCIAnalysis(
 
 	// Preflight runs before the AI service is created, so a failure here
 	// costs no model usage at all (SC-003).
-	const preflight = await runPreflight(config.browser);
+	//
+	// Guarded rather than left to the caller's catch. The probe touches the
+	// filesystem -- a temporary profile directory, an executable check -- and
+	// a read-only or full /tmp makes it throw. cli.tsx would catch that and
+	// exit 1, but with a bare message that says nothing about a browser, which
+	// is the exact failure shape preflight exists to eliminate.
+	let preflight;
+	try {
+		preflight = await runPreflight(config.browser);
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : 'Unknown error';
+		logger.error('Preflight could not run', {error: reason});
+		emitVerdict(
+			`uxlint: the browser preflight check could not run — ${reason}. This is an environment problem rather than a missing browser.`,
+		);
+		return 1;
+	}
 
 	if (preflight.kind === 'unmet') {
 		const message = describeUnmetRequirement(preflight.requirement);
@@ -149,7 +165,7 @@ export async function runCIAnalysis(
 		browserServer: server.name,
 		browserServerVersion: server.version,
 		browserVersion: preflight.browser.version,
-		externalDataConsulted: config.browser?.allowExternalData ?? false,
+		externalDataAllowed: config.browser?.allowExternalData ?? false,
 	});
 
 	try {
