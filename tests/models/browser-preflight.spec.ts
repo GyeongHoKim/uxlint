@@ -2,7 +2,6 @@ import test from 'ava';
 import {
 	classifyLaunchFailure,
 	describeUnmetRequirement,
-	minimumChromeMajorVersion,
 	parseChromeMajorVersion,
 	rootSandboxSignature,
 	namespaceSandboxSignature,
@@ -31,16 +30,16 @@ test('an absent browser at a configured path reads as a bad setting', t => {
 	t.true(message.includes('/custom/chrome'));
 });
 
-test('a too-old browser carries both the detected and the required version', t => {
+test('an unstartable browser message admits age as a possible cause', t => {
+	// There is no version floor to report against, so the message has to leave
+	// room for "too old to drive" without inventing a number to compare with.
 	const message = describeUnmetRequirement({
-		kind: 'browser-too-old',
-		detectedVersion: 'Google Chrome 120.0.0.1',
-		detectedMajorVersion: 120,
-		requiredMajorVersion: minimumChromeMajorVersion,
+		kind: 'browser-unstartable',
+		cause: 'Segmentation fault',
 	});
 
-	t.true(message.includes('120'));
-	t.true(message.includes(String(minimumChromeMajorVersion)));
+	t.regex(message, /old/i);
+	t.regex(message, /environment/i);
 });
 
 test('an unstartable browser reproduces the browser own explanation', t => {

@@ -65,7 +65,7 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 ### Implementation
 
 - [X] T009 Rewrite `source/services/mcp-client.ts` to launch `chrome-devtools-mcp` over stdio with the static argument vector and environment from `contracts/mcp-launch.md`, replacing the `npx @playwright/mcp@latest` transport
-- [X] T010 Set the transport's `stderr` disposition explicitly in `source/services/mcp-client.ts` and pipe the server's startup banner into the Winston logger — the `@ai-sdk/mcp` default is `inherit`, which writes five lines into the Ink render and into a reserved stream (research R4)
+- [X] T010 Set the transport's `stderr` disposition explicitly in `source/services/mcp-client.ts` — the `@ai-sdk/mcp` default is `inherit`, which writes five lines into the Ink render and into a reserved stream (research R4). **Shipped as `'ignore'`, not as a pipe into Winston as originally written**: the transport never attaches a reader to the child's stderr, so a pipe fills and the child blocks on write. Capturing the banner is not worth a deadlock
 - [X] T011 Replace `experimental_createMCPClient` with `createMCPClient` in `source/services/mcp-client.ts`; leave `Experimental_StdioMCPTransport` as-is, since no non-experimental alias exists (roadmap 0.1, absorbed here)
 - [X] T012 Update the analysis prompt in `source/services/ai-service.ts` — `browser_navigate` → `navigate_page`, `browser_snapshot` → `take_snapshot`, in `buildUserPrompt()` and in the `setPageSnapshot` tool description
 - [X] T013 [P] Update tool-name fixtures in `tests/models/llm-response.spec.ts`
@@ -176,8 +176,8 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Implementation
 
-- [X] T056 [US4] Add the `tooling` provenance field to `ReportMetadata` in `source/models/analysis.ts` — server identity, server version, browser version, `externalDataConsulted` — as an addition only
-- [X] T057 [US4] Populate provenance in `source/services/report-builder.ts`, taking the browser version from the preflight verdict and `externalDataConsulted` from the setting (FR-011, FR-014)
+- [X] T056 [US4] Add the `tooling` provenance field to `ReportMetadata` in `source/models/analysis.ts` — server identity, server version, browser version, `externalDataAllowed` — as an addition only
+- [X] T057 [US4] Populate provenance in `source/services/report-builder.ts`, taking the browser version from the preflight verdict and `externalDataAllowed` from the setting (FR-011, FR-014)
 
 ### Verification
 

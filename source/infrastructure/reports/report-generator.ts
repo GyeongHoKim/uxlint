@@ -84,7 +84,7 @@ export function generateMarkdownReport(report: UxReport): string {
 		`**Browser**: ${metadata.tooling.browserVersion}`,
 	);
 
-	if (metadata.tooling.externalDataConsulted) {
+	if (metadata.tooling.externalDataAllowed) {
 		sections.push(
 			'**External Data**: this run was permitted to consult external data sources',
 		);

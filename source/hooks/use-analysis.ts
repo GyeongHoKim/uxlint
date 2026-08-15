@@ -159,7 +159,7 @@ export function useAnalysis(
 				browserServer: server.name,
 				browserServerVersion: server.version,
 				browserVersion: preflight.browser.version,
-				externalDataConsulted: config.browser?.allowExternalData ?? false,
+				externalDataAllowed: config.browser?.allowExternalData ?? false,
 			});
 
 			// Get AI Service instance (lazy initialization)

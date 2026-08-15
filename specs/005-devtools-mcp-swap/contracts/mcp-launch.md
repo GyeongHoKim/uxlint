@@ -44,7 +44,7 @@ Available but **not** used by this feature (reserved for 007): `lighthouse_audit
 | Property | Value | Required by |
 | --- | --- | --- |
 | `command` | Node executing the resolved dependency entry point | FR-010 — never `npx`, never a version specifier |
-| `stderr` | Explicit disposition; captured into the Winston log | R4 — the transport default is `inherit`, and the server writes a five-line banner to stderr on every start, which lands in the Ink render and in a stream this project reserves |
+| `stderr` | `'ignore'` | R4 — the transport default is `inherit`, and the server writes a five-line banner on every start, landing in the Ink render and in a stream this project reserves. Discarded rather than piped: `@ai-sdk/mcp` never attaches a reader to the child's stderr, so a pipe fills and the child blocks on write. Do not switch this to a pipe without also draining it |
 
 Verified separately: the server writes **nothing** to stdout before the protocol begins, so the MCP boundary itself is safe.
 

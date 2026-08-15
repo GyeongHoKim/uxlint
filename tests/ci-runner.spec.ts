@@ -535,6 +535,37 @@ test('a report records what produced it', async t => {
 	const report = builder.generateFinalReport();
 	t.is(report.metadata.tooling.browserServer, 'chrome-devtools-mcp');
 	t.is(report.metadata.tooling.browserVersion, 'Google Chrome 151.0.7922.137');
-	t.false(report.metadata.tooling.externalDataConsulted);
+	t.false(report.metadata.tooling.externalDataAllowed);
+	sandbox.restore();
+});
+
+test('a preflight that throws exits 1 with a message about the environment', async t => {
+	const {sandbox, deps} = createDeps();
+	let aiServiceCalls = 0;
+	const emitted: string[] = [];
+
+	const throwing = {
+		...deps,
+		async getAIService() {
+			aiServiceCalls++;
+			throw new Error('the model must never be reached');
+		},
+		emitVerdict(verdict: string) {
+			emitted.push(verdict);
+		},
+		async runPreflight(): Promise<PreflightVerdict> {
+			// A read-only or full /tmp makes the probe's temporary profile
+			// directory throw. Left unguarded this rejects out of the runner and
+			// the user gets a bare message that never mentions a browser.
+			throw new Error('EROFS: read-only file system, mkdtemp');
+		},
+	};
+
+	const code = await runCIAnalysis(baseConfig(), throwing);
+
+	t.is(code, 1);
+	t.is(aiServiceCalls, 0, 'a failed preflight must still cost no model usage');
+	t.true(emitted.some(message => message.includes('preflight')));
+	t.true(emitted.some(message => message.includes('EROFS')));
 	sandbox.restore();
 });

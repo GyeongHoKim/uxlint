@@ -129,24 +129,44 @@ test('a configured path is the only place searched', async t => {
 	}
 });
 
-test('a browser below the version floor is rejected with both versions', async t => {
+test('an old browser that still starts is accepted, not rejected on its number', async t => {
+	// The floor this project briefly imposed came from a feature it does not
+	// use, and rejected browsers that work. Age is now judged by whether the
+	// browser launches, which is the thing actually being relied on.
 	const verdict = await runPreflight(undefined, {
 		runProcess: runner(
-			{ok: true, stdout: '', stderr: ''},
+			{ok: true, stdout: '<html></html>', stderr: ''},
 			{ok: true, stdout: 'Google Chrome 120.0.0.1', stderr: ''},
 		),
 		isExecutable: always(true),
 		platform: 'linux',
 	});
 
-	if (
-		verdict.kind === 'unmet' &&
-		verdict.requirement.kind === 'browser-too-old'
-	) {
-		t.is(verdict.requirement.detectedMajorVersion, 120);
-		t.true(verdict.requirement.requiredMajorVersion > 120);
+	t.is(verdict.kind, 'ready');
+	if (verdict.kind === 'ready') {
+		t.is(verdict.browser.majorVersion, 120, 'the version is still recorded');
+	}
+});
+
+test('an old browser that cannot launch is reported with its own explanation', async t => {
+	const verdict = await runPreflight(undefined, {
+		runProcess: runner(
+			{ok: false, stdout: '', stderr: 'Unsupported command line flag'},
+			{ok: true, stdout: 'Google Chrome 70.0.0.1', stderr: ''},
+		),
+		isExecutable: always(true),
+		platform: 'linux',
+	});
+
+	if (verdict.kind === 'unmet') {
+		t.is(verdict.requirement.kind, 'browser-unstartable');
+		if (verdict.requirement.kind === 'browser-unstartable') {
+			t.true(
+				verdict.requirement.cause.includes('Unsupported command line flag'),
+			);
+		}
 	} else {
-		t.fail('expected a browser-too-old requirement');
+		t.fail('expected an unmet verdict');
 	}
 });
 

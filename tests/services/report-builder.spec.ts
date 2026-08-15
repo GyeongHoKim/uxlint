@@ -218,7 +218,7 @@ test('every report records what produced it, including one where nothing succeed
 		browserServer: 'chrome-devtools-mcp',
 		browserServerVersion: '1.7.0',
 		browserVersion: 'Google Chrome 151.0.7922.137',
-		externalDataConsulted: false,
+		externalDataAllowed: false,
 	});
 
 	builder.initializePageAnalysis('https://example.com', 'features');
@@ -241,7 +241,7 @@ test('provenance records the external data setting, not an observation', t => {
 		browserServer: 'chrome-devtools-mcp',
 		browserServerVersion: '1.7.0',
 		browserVersion: 'Google Chrome 151.0.7922.137',
-		externalDataConsulted: true,
+		externalDataAllowed: true,
 	});
 
 	const report = builder.generateFinalReport();
@@ -249,7 +249,7 @@ test('provenance records the external data setting, not an observation', t => {
 	// The question a reader of an old report needs answered is what the run
 	// was permitted to do, which is knowable; whether a request actually went
 	// out is not recoverable after the fact.
-	t.true(report.metadata.tooling.externalDataConsulted);
+	t.true(report.metadata.tooling.externalDataAllowed);
 });
 
 test('adding provenance leaves every pre-existing metadata field intact', t => {
@@ -259,7 +259,7 @@ test('adding provenance leaves every pre-existing metadata field intact', t => {
 		browserServer: 'chrome-devtools-mcp',
 		browserServerVersion: '1.7.0',
 		browserVersion: 'Google Chrome 151.0.7922.137',
-		externalDataConsulted: false,
+		externalDataAllowed: false,
 	});
 	builder.initializePageAnalysis('https://example.com', 'features');
 	builder.completePageAnalysis();

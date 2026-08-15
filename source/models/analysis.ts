@@ -170,11 +170,12 @@ export type RunProvenance = {
 	/**
 	 * Whether the run was permitted to consult external data sources.
 	 *
-	 * Records the setting rather than an observation of traffic, because the
-	 * question a reader of an old report needs answered is what this run was
-	 * allowed to do.
+	 * Named for permission, not for use: nothing here observes traffic, so a
+	 * field called "consulted" would assert something this code cannot know.
+	 * The question a reader of an old report needs answered is what the run
+	 * was allowed to do.
 	 */
-	externalDataConsulted: boolean;
+	externalDataAllowed: boolean;
 };
 
 /**
