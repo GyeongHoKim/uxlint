@@ -234,23 +234,25 @@ export class ReportBuilder {
 	}
 
 	/**
+	 * Record what produced this run.
+	 *
+	 * Set once per run, before pages are analysed. Provenance is written into
+	 * every report including one where every page failed -- a report that can
+	 * explain nothing else must still explain what produced it.
+	 *
+	 * @param provenance - Identity of the tooling behind this run
+	 */
+	setProvenance(provenance: RunProvenance): void {
+		this.provenance = provenance;
+	}
+
+	/**
 	 * Generate final report from page analyses
 	 *
 	 * @param analyses - Completed page analyses
 	 * @param persona - Target persona from config
 	 * @returns Aggregated UX report with prioritized findings
 	 */
-	/**
-	 * Record what produced this run.
-	 *
-	 * Set once per run, before pages are analysed. Provenance is written into
-	 * every report including one where every page failed -- a report that can
-	 * explain nothing else must still explain what produced it.
-	 */
-	setProvenance(provenance: RunProvenance): void {
-		this.provenance = provenance;
-	}
-
 	generateReport(analyses: PageAnalysis[], persona: string): UxReport {
 		const successfulAnalyses = analyses.filter(a => a.status === 'complete');
 		const partialAnalyses = analyses.filter(a => a.status === 'partial');
