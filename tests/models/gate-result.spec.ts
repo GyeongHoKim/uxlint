@@ -470,3 +470,34 @@ test('duplicate page URLs keep their own failure reasons', t => {
 		{pageUrl: 'https://example.com/x', error: 'HTTP 503'},
 	]);
 });
+
+test('coverage lines say when they were not gated on', t => {
+	// Otherwise a page listed for information reads exactly like one that
+	// caused the failure, and the log alone cannot tell them apart.
+	const report = buildReport([
+		{url: 'https://example.com/a', findings: ['critical']},
+		{url: 'https://example.com/died', status: 'failed', error: 'HTTP 503'},
+	]);
+
+	const rendered = renderGateVerdict(
+		evaluateGate(report, {maxCritical: 0, failOnFailedPage: false}),
+	);
+
+	t.regex(rendered, /gate failed/);
+	t.regex(rendered, /critical\s+1 findings, limit 0/);
+	t.regex(rendered, /failed\s+1 page could not be analysed \(not gated\)/);
+});
+
+test('a coverage line that caused the failure carries no qualifier', t => {
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{url: 'https://example.com/died', status: 'failed', error: 'HTTP 503'},
+	]);
+
+	const rendered = renderGateVerdict(
+		evaluateGate(report, {failOnFailedPage: true}),
+	);
+
+	t.regex(rendered, /failed\s+1 page could not be analysed$/m);
+	t.notRegex(rendered, /not gated/);
+});
