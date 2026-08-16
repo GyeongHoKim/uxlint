@@ -23,6 +23,7 @@ import {
 	type ObservedToolResult,
 } from '../models/analysis-stage.js';
 import type {PreflightVerdict} from '../models/browser-preflight.js';
+import {readToolOutcome} from '../models/tool-output.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
 import {getLanguageModel} from './llm-provider.js';
@@ -53,13 +54,16 @@ const captureToolName = 'take_snapshot';
  * @returns The result as the loop observed it
  */
 function observeTool(event: ToolExecutionEndEvent): ObservedToolResult {
-	const succeeded = event.toolOutput.type === 'tool-result';
-	const output =
-		succeeded && typeof event.toolOutput.output === 'string'
-			? event.toolOutput.output
-			: '';
+	const outcome = readToolOutcome(
+		event.toolOutput.output,
+		event.toolOutput.type !== 'tool-result',
+	);
 
-	return {toolName: event.toolCall.toolName, succeeded, output};
+	return {
+		toolName: event.toolCall.toolName,
+		succeeded: !outcome.failed,
+		output: outcome.text,
+	};
 }
 
 /**
@@ -407,9 +411,10 @@ export class AIService {
 	 * what makes the stored snapshot byte-identical to the browser's output:
 	 * there is no step in which it is re-encoded, shortened, or paraphrased.
 	 *
-	 * Only successful results are recorded. `toolOutput.type` distinguishes
-	 * `tool-result` from `tool-error`, so an errored capture is skipped rather
-	 * than stored as though the page had been read.
+	 * Only successful results are recorded. Failure arrives two ways -- the SDK
+	 * reporting `tool-error`, or the server returning a result carrying
+	 * `isError` -- and `readToolOutcome` collapses both, so an errored capture
+	 * is skipped rather than stored as though the page had been read.
 	 *
 	 * @param event - A tool execution end event from the agent loop
 	 */
@@ -418,19 +423,19 @@ export class AIService {
 			return;
 		}
 
-		if (event.toolOutput.type !== 'tool-result') {
+		const outcome = readToolOutcome(
+			event.toolOutput.output,
+			event.toolOutput.type !== 'tool-result',
+		);
+
+		if (outcome.failed || outcome.text.length === 0) {
 			logger.warn('Page capture failed; nothing recorded', {
 				toolName: event.toolCall.toolName,
 			});
 			return;
 		}
 
-		const {output} = event.toolOutput;
-		if (typeof output !== 'string') {
-			return;
-		}
-
-		this.reportBuilder.setPageSnapshot(output);
+		this.reportBuilder.setPageSnapshot(outcome.text);
 	}
 
 	/**

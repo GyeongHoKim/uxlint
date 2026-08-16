@@ -19,6 +19,7 @@ import {
 	type AnalysisProgressCallback,
 } from '../../source/services/ai-service.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
+import {mcpError, mcpResult} from '../fixtures/mcp-result.js';
 import {createMockMCPClient} from '../utils.js';
 
 test('onProgress callback type accepts llmResponse parameter', t => {
@@ -776,14 +777,14 @@ test('a browser lost mid-run fails only the affected page (FR-016)', async t => 
 					description: 'Navigate to a URL',
 					inputSchema: z.object({url: z.string()}),
 					async execute() {
-						return 'Successfully navigated.';
+						return mcpResult('Successfully navigated.');
 					},
 				}),
 				take_snapshot: tool({
 					description: 'Capture the accessibility tree',
 					inputSchema: z.object({}),
 					async execute() {
-						return 'button "Sign up"';
+						return mcpResult('button "Sign up"');
 					},
 				}),
 			};
@@ -873,7 +874,7 @@ const analyseWithCapture = async (options: {
 					description: 'Navigate to a URL',
 					inputSchema: z.object({url: z.string()}),
 					async execute() {
-						return 'Successfully navigated.';
+						return mcpResult('Successfully navigated.');
 					},
 				}),
 				take_snapshot: tool({
@@ -887,9 +888,11 @@ const analyseWithCapture = async (options: {
 						captureCount++;
 						// Distinct per execution, so a test about replacement can
 						// tell a replaced snapshot from an unchanged one.
-						return options.captureTwice
-							? `capture ${captureCount}`
-							: (options.captureOutput ?? 'button "Sign up"');
+						return mcpResult(
+							options.captureTwice
+								? `capture ${captureCount}`
+								: (options.captureOutput ?? 'button "Sign up"'),
+						);
 					},
 				}),
 			};
@@ -1041,14 +1044,14 @@ test('a capture and a completion in one step still record the capture first', as
 					description: 'Navigate to a URL',
 					inputSchema: z.object({url: z.string()}),
 					async execute() {
-						return 'Successfully navigated.';
+						return mcpResult('Successfully navigated.');
 					},
 				}),
 				take_snapshot: tool({
 					description: 'Capture the accessibility tree',
 					inputSchema: z.object({}),
 					async execute() {
-						return 'button "Sign up"';
+						return mcpResult('button "Sign up"');
 					},
 				}),
 			};
@@ -1128,4 +1131,105 @@ test('a capture and a completion in one step still record the capture first', as
 		'complete',
 		'a page captured in the same step must not be recorded as partial',
 	);
+});
+
+test('a navigation that reports failure in its result does not load the page', async t => {
+	// The browser server reports failure by returning a result carrying
+	// isError, not by throwing -- 005 found the same shape when Chrome was
+	// missing. Treating a returned result as success advanced the stage, so a
+	// page that never loaded was captured and judged anyway, and FR-009
+	// silently did not hold. Every test double returned a plain string, so
+	// nothing noticed until the real adapter's shape was checked.
+	const builder = new ReportBuilder({
+		...fsPromises,
+		writeFile: sinon.stub().resolves(),
+	});
+
+	const mcpClient = {
+		async tools() {
+			return {
+				navigate_page: tool({
+					description: 'Navigate to a URL',
+					inputSchema: z.object({url: z.string()}),
+					async execute() {
+						return mcpError(
+							"Could not find Google Chrome executable for channel 'stable'",
+						);
+					},
+				}),
+				take_snapshot: tool({
+					description: 'Capture the accessibility tree',
+					inputSchema: z.object({}),
+					async execute() {
+						return mcpResult('button "Sign up"');
+					},
+				}),
+			};
+		},
+		async close() {
+			// Nothing to tear down.
+		},
+	} as unknown as MCPClient;
+
+	const offered: string[][] = [];
+	let call = 0;
+	const model = new MockLanguageModelV4({
+		async doGenerate(options) {
+			call++;
+			offered.push(
+				(options.tools ?? []).map(
+					(definition: {name?: string}) => definition.name ?? '<unnamed>',
+				),
+			);
+			return {
+				finishReason: {unified: 'tool-calls', raw: undefined},
+				usage: {
+					inputTokens: {
+						total: 1,
+						noCache: 1,
+						cacheRead: undefined,
+						cacheWrite: undefined,
+					},
+					outputTokens: {total: 1, text: 1, reasoning: undefined},
+				},
+				content: [
+					{
+						type: 'tool-call',
+						toolCallId: `c${call}`,
+						toolName: call === 1 ? 'navigate_page' : 'completePageAnalysis',
+						input: call === 1 ? '{"url":"https://example.com"}' : '{}',
+					},
+				],
+				warnings: [],
+			};
+		},
+	});
+
+	const config: UxLintConfig = {
+		mainPageUrl: 'https://example.com',
+		subPageUrls: [],
+		pages: [{url: 'https://example.com', features: 'Landing'}],
+		persona: 'Test persona',
+		report: {output: './report.md'},
+	};
+
+	const service = new AIService(model, mcpClient, builder);
+	const analysis = await service.analyzePage(config, config.pages[0]!);
+
+	t.false(
+		offered[1]?.includes('take_snapshot'),
+		'capture must not be offered after a navigation that failed',
+	);
+	t.is(analysis.snapshot, '');
+	t.is(analysis.status, 'partial');
+});
+
+test('a capture wrapped in the adapter result shape is still recorded', async t => {
+	// The MCP adapter passes the server's CallToolResult through unchanged, so
+	// the capture arrives as {content: [{type: 'text', text}]} rather than as a
+	// string. Code that required a string recorded nothing at all in
+	// production while every string-returning double kept the tests green.
+	const {analysis} = await analyseWithCapture({captureOutput: 'link "Docs"'});
+
+	t.is(analysis.snapshot, 'link "Docs"');
 });

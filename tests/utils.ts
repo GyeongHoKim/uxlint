@@ -6,6 +6,7 @@ import net from 'node:net';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {tool} from 'ai';
 import {z} from 'zod/v4';
+import {mcpResult} from './fixtures/mcp-result.js';
 
 /**
  * Resolve once `port` accepts TCP connections, or throw once `timeout` elapses.
@@ -123,14 +124,14 @@ export function createMockMCPClient(): MCPClient {
 					description: 'Navigate to a URL',
 					inputSchema: z.object({url: z.string()}),
 					async execute() {
-						return 'Successfully navigated.';
+						return mcpResult('Successfully navigated.');
 					},
 				}),
 				take_snapshot: tool({
 					description: 'Capture the accessibility tree',
 					inputSchema: z.object({}),
 					async execute() {
-						return 'button "Sign up"';
+						return mcpResult('button "Sign up"');
 					},
 				}),
 			};

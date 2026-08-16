@@ -41,8 +41,8 @@ echo. A baseline without that call would describe a run nobody has.
 | Measurement | Value |
 | --- | --- |
 | Requests per page | **5** |
-| Total request bytes | **350,420** |
-| Median request bytes | **66,395** |
+| Total request bytes | **372,441** |
+| Median request bytes | **72,468** |
 | Tool definitions per request | **5** (`navigate_page`, `take_snapshot`, `addFinding`, `setPageSnapshot`, `completePageAnalysis`) |
 | Page structure copies, per request | **0, 0, 1, 2, 2** |
 
@@ -77,8 +77,15 @@ SC-002 requires total request bytes per page to fall by at least 40%.
 
 | | Value |
 | --- | --- |
-| Baseline total | 350,420 bytes |
-| **SC-002 threshold** | **≤ 210,252 bytes** (baseline × 0.6) |
+| Baseline total | 372,441 bytes |
+| **SC-002 threshold** | **≤ 223,464 bytes** (baseline × 0.6) |
+
+**Re-recorded after the tool doubles were corrected.** The first numbers were
+taken with doubles returning plain strings; the MCP adapter actually passes the
+server's `CallToolResult` through unchanged, so a real tool result carries a
+JSON wrapper the earlier measurement omitted. Both sides moved by roughly the
+same overhead and the reduction is essentially unchanged, but the recorded
+figures now describe what the wire carries.
 
 **Total rather than median, and the change matters.** Removing the echo removes
 a whole request, so the before and after runs have different request counts. A
@@ -92,7 +99,7 @@ sent fell by 61%. Total is also simply what a run pays.
 | Measurement | Baseline | After | Change |
 | --- | --- | --- | --- |
 | Requests per page | 5 | **4** | one round trip removed |
-| **Total request bytes** | 350,420 | **135,580** | **−61%** (threshold: −40%) |
+| **Total request bytes** | 372,441 | **153,913** | **−59%** (threshold: −40%) |
 | Tool definitions per request | 5 | **2** | only the stage's tools |
 | Page structure copies, per request | 0, 0, 1, 2, 2 | **0, 0, 1, 1** | never twice |
 | Stored snapshot | echoed by the model | **byte-identical to the browser's output** | |
@@ -101,7 +108,28 @@ sent fell by 61%. Total is also simply what a run pays.
 The removed request is the echo call itself: a whole model round trip that
 existed only to move text the system already had.
 
-## A bug the review found (post-implementation)
+## Two bugs the review found (post-implementation)
+
+### The tool result is not a string
+
+`@ai-sdk/mcp` passes the server's `CallToolResult` through **unchanged** — an
+adapted tool's `execute` returns `{content: [{type: 'text', text}], isError?}`,
+not the text inside it. Confirmed against the adapter source and by running the
+pinned server.
+
+Two things were broken by assuming a string, and **no test noticed, because
+every test double returned one**:
+
+| | Effect |
+| --- | --- |
+| The capture required `typeof output === 'string'` | The snapshot would **never have been recorded in production**. SC-001 passed against string-returning doubles while the feature did nothing |
+| Navigation success was `type === 'tool-result'` | The server reports failure by *returning* `isError: true`, not by throwing — the same shape 005 documented. A failed navigation advanced the stage, so a page that never loaded was captured and judged, and FR-009 silently did not hold |
+
+`readToolOutcome` now collapses both failure routes and unwraps the content,
+and the doubles return the adapter's real shape (`tests/fixtures/mcp-result.ts`)
+so a regression cannot hide behind a friendlier stand-in.
+
+### The completion/capture race
 
 `completePageAnalysis` used to finalise the page inside its own `execute`,
 reading the snapshot to decide `complete` versus `partial`. Both it and
