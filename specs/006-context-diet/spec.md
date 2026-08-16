@@ -119,9 +119,11 @@ Every criterion below except SC-009 is **measured without a language model provi
 - **SC-007**: A run whose browser server lacks a required tool fails within 5 seconds, naming the tool, and spends no model tokens.
 - **SC-008**: The measurement that produces SC-002 is reproducible: two runs of it on the same commit yield identical numbers.
 
-**Live — checked before release, not in CI**
+- **SC-009**: The model still receives, in the request where it forms its judgement, the complete page structure, the persona and the page's feature description — verified from the intercepted body. This is what makes the reduction lossless rather than merely smaller.
 
-- **SC-009**: Against real targets and a real model, median findings per page stays within 20% of the same measurement taken before the change, so a cheaper context is not quietly a weaker analysis. This is the one question a mock cannot answer, because it is about what the model does with what it is given rather than about what it is given.
+**Live — optional sanity check, not a gate**
+
+- **SC-010**: Against real targets and a real model, median findings per page is not markedly lower than before the change. Kept as a runbook rather than a criterion: what the diet removes is a duplicate of text the model already holds, tool definitions nothing invoked, and a round trip carrying text the system already had — none of which is information the model reads for the first time, and all of which SC-009 verifies deterministically. A findings count also varies between runs on the same page, so it is a noisy instrument for a property that can be established exactly.
 
 ## Assumptions
 

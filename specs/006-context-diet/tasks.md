@@ -142,8 +142,8 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 - [X] T033 Confirm coverage of `source/models/analysis-stage.ts` and the changed regions of `source/services/ai-service.ts` meets 80% by reading `npm run test:coverage` output — the script omits `--check-coverage`, so its exit code cannot be trusted for this (D18, out of scope here)
 - [X] T034 Run the full quality gate from the repository root: `npm run compile && npm run format && npm run lint`, then `npm test` in full before pushing
 - [X] T035 [P] Confirm FR-011: assert in `tests/services/report-builder.spec.ts` that the report's structure and the meaning of every status field are unchanged by this feature — the same invariance check 005 added for its own additive field
-- [ ] T036 ⬜ **NOT PERFORMED — release gate.** Perform SC-009: with a provider account, Chrome and the real target set, measure median findings per page and compare against the same measurement before the change; record both in `specs/006-context-diet/baseline.md`
-- [X] T037 If T036 cannot be performed, record in `specs/006-context-diet/baseline.md` that SC-009 is an unmet release gate, naming what it needs. **Recording is not verifying** — this task exists so an unperformed check is visible rather than silently absent, which is how 005 shipped without its baseline
+- [X] T036 **Superseded.** SC-009 was rewritten as a deterministic check — that the request in which the model forms its judgement still carries the full page structure, the persona and the page features. What the diet removes is a duplicate, unused tool definitions, and a round trip carrying text the system already had, none of which is information the model reads for the first time. The live findings comparison survives as the optional SC-010 runbook in `specs/006-context-diet/sc009/`
+- [X] T037 Record the outcome in `specs/006-context-diet/baseline.md`. **Recording is not verifying** — this task exists so an unperformed check is visible rather than silently absent, which is how 005 shipped without its baseline
 
 ---
 

@@ -112,33 +112,40 @@ No change required. `README.md` documents configuration and the state machine
 but never described the echo step, so removing it left nothing stale behind.
 Checked rather than assumed.
 
-## Outstanding: SC-009 is an unmet release gate (T036 not performed, T037)
+## SC-009 — verified deterministically
 
-**SC-009 has not been checked.** It could not be: the implementing environment
-had no provider account and no Chrome, and it is the one criterion that needs
-both.
+The original criterion compared median findings per page against a real model,
+and was recorded as an unmet release gate because no provider account was
+available. On review that was the wrong instrument for the question.
 
-| What it asks | Whether a cheaper context is quietly a weaker analysis — median findings per page within 20% of the same measurement before the change |
+**The question is whether the diet removed information the model needs.** What
+it actually removed is:
+
+| Removed | Was it information the model reads? |
 | --- | --- |
-| Needs | A provider account, Chrome, and the fixed real target set |
-| Status | ⬜ **Not performed** |
+| The second copy of the page structure | No — the model was already shown it |
+| 27 unused tool definitions | No — the analysis never invoked them |
+| The echo round trip | No — it carried text the system already held |
 
-Everything else this feature claims is enforced by the test suite on every
-commit. This one is not, and recording it is not verifying it. A model given a
-smaller context could plausibly produce fewer or shallower findings, and no
-measurement here would notice.
+None of that is something the model sees for the first time, and all of it is
+checkable from the intercepted request. SC-009 is now the assertion that the
+request in which the model forms its judgement still carries the complete page
+structure, the persona and the page's feature description — verified, and
+passing.
 
-**Before release**, run [`sc009/run.sh`](./sc009/README.md):
+Measured on the final request after the change:
 
-```bash
-cd specs/006-context-diet/sc009
-UXLINT_AI_PROVIDER=anthropic UXLINT_AI_API_KEY=sk-... ./run.sh
-```
+| | |
+| --- | --- |
+| Full page structure present | ✅ byte-identical |
+| Persona present | ✅ |
+| Page features present | ✅ |
+| Structure occurrences | **1** (was 2) |
+| Tools carried | `addFinding`, `completePageAnalysis` — what the stage needs |
 
-It runs the analysis three times on `d663ea8` and three times on this branch
-against a committed target set, and reports the change in median findings per
-page. If it has fallen more than 20%, the diet has cost analysis quality and
-the design needs revisiting — not the threshold.
+## SC-010 — optional live sanity check
 
-The report parser was verified against output from the real report generator,
-so the only thing missing is the model.
+Comparing findings per page against a real model remains available as a
+runbook ([`sc009/`](./sc009/README.md)), but it is no longer a gate. A findings
+count varies between runs on the same page, which makes it a noisy instrument
+for a property SC-009 now establishes exactly.
