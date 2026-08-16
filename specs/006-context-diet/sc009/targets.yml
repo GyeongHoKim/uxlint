@@ -1,0 +1,13 @@
+# Fixed target set for SC-009. Publicly reachable so the comparison is
+# reproducible on another machine.
+mainPageUrl: https://example.com
+subPageUrls:
+  - https://www.iana.org/help/example-domains
+pages:
+  - url: https://example.com
+    features: A minimal landing page with a single link to more information.
+  - url: https://www.iana.org/help/example-domains
+    features: An informational page explaining reserved example domains, with navigation and body copy.
+persona: A developer evaluating whether this documentation is easy to scan and act on.
+report:
+  output: ./ux-report.md
