@@ -1021,3 +1021,111 @@ test('a page that was never captured does not read as fully analysed', async t =
 		'a page whose structure was never read is not a completed analysis',
 	);
 });
+
+test('a capture and a completion in one step still record the capture first', async t => {
+	// Both tools are offered at the `loaded` stage, so a model can call them
+	// together. completePageAnalysis decides complete-versus-partial by reading
+	// the snapshot that recordCapture writes from the sibling call's
+	// onToolExecutionEnd firing. If the SDK resolved same-step tool calls in an
+	// order that let completion read first, a fully captured page would be
+	// recorded as partial -- so the ordering is asserted rather than assumed.
+	const builder = new ReportBuilder({
+		...fsPromises,
+		writeFile: sinon.stub().resolves(),
+	});
+
+	const mcpClient = {
+		async tools() {
+			return {
+				navigate_page: tool({
+					description: 'Navigate to a URL',
+					inputSchema: z.object({url: z.string()}),
+					async execute() {
+						return 'Successfully navigated.';
+					},
+				}),
+				take_snapshot: tool({
+					description: 'Capture the accessibility tree',
+					inputSchema: z.object({}),
+					async execute() {
+						return 'button "Sign up"';
+					},
+				}),
+			};
+		},
+		async close() {
+			// Nothing to tear down.
+		},
+	} as unknown as MCPClient;
+
+	let call = 0;
+	const model = new MockLanguageModelV4({
+		async doGenerate() {
+			call++;
+			const usage = {
+				inputTokens: {
+					total: 1,
+					noCache: 1,
+					cacheRead: undefined,
+					cacheWrite: undefined,
+				},
+				outputTokens: {total: 1, text: 1, reasoning: undefined},
+			};
+
+			if (call === 1) {
+				return {
+					finishReason: {unified: 'tool-calls', raw: undefined},
+					usage,
+					content: [
+						{
+							type: 'tool-call',
+							toolCallId: 'nav',
+							toolName: 'navigate_page',
+							input: '{"url":"https://example.com"}',
+						},
+					],
+					warnings: [],
+				};
+			}
+
+			// Capture and completion together, in one response.
+			return {
+				finishReason: {unified: 'tool-calls', raw: undefined},
+				usage,
+				content: [
+					{
+						type: 'tool-call',
+						toolCallId: 'cap',
+						toolName: 'take_snapshot',
+						input: '{}',
+					},
+					{
+						type: 'tool-call',
+						toolCallId: 'done',
+						toolName: 'completePageAnalysis',
+						input: '{}',
+					},
+				],
+				warnings: [],
+			};
+		},
+	});
+
+	const config: UxLintConfig = {
+		mainPageUrl: 'https://example.com',
+		subPageUrls: [],
+		pages: [{url: 'https://example.com', features: 'Landing'}],
+		persona: 'Test persona',
+		report: {output: './report.md'},
+	};
+
+	const service = new AIService(model, mcpClient, builder);
+	const analysis = await service.analyzePage(config, config.pages[0]!);
+
+	t.is(analysis.snapshot, 'button "Sign up"');
+	t.is(
+		analysis.status,
+		'complete',
+		'a page captured in the same step must not be recorded as partial',
+	);
+});
