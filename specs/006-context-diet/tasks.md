@@ -59,12 +59,12 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Tests first
 
-- [ ] T009 [P] Write failing unit tests in `tests/models/analysis-stage.spec.ts` for the transitions in `data-model.md` §2: `unloaded` → `loaded` on observed navigation success, `loaded` → `analysable` on a non-empty capture, and that an error result advances nothing
-- [ ] T010 [P] Write a failing unit test in `tests/models/analysis-stage.spec.ts` asserting each stage maps to a non-empty tool set matching `contracts/stage-tools.md`, and that stages are one-way within a page
+- [X] T009 [P] Write failing unit tests in `tests/models/analysis-stage.spec.ts` for the transitions in `data-model.md` §2: `unloaded` → `loaded` on observed navigation success, `loaded` → `analysable` on a non-empty capture, and that an error result advances nothing
+- [X] T010 [P] Write a failing unit test in `tests/models/analysis-stage.spec.ts` asserting each stage maps to a non-empty tool set matching `contracts/stage-tools.md`, and that stages are one-way within a page
 
 ### Implementation
 
-- [ ] T011 Create `source/models/analysis-stage.ts` with the stage type, the transition rules, and the stage-to-tool-name mapping from `contracts/stage-tools.md`
+- [X] T011 Create `source/models/analysis-stage.ts` with the stage type, the transition rules, and the stage-to-tool-name mapping from `contracts/stage-tools.md`
 
 **Checkpoint**: The sequence is expressible as data, unit-tested, with no browser or provider involved.
 
@@ -78,16 +78,16 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Tests first
 
-- [ ] T012 [P] [US1] Write a failing test in `tests/services/ai-service.spec.ts` asserting the recorded snapshot is byte-identical to the capture tool's result, for a small structure and for one exceeding 100 KB (SC-001)
-- [ ] T013 [P] [US1] Write a failing test in `tests/services/ai-service.spec.ts` asserting an error result from the capture tool is **not** recorded as a snapshot (FR-004)
-- [ ] T014 [P] [US1] Write a failing test in `tests/services/ai-service.spec.ts` asserting a second successful capture replaces the first rather than accumulating (data-model §1)
-- [ ] T015 [P] [US1] Write a failing test in `tests/services/ai-service.spec.ts` asserting a page whose capture never succeeded records an empty snapshot and a status that does not read as fully analysed (FR-005)
+- [X] T012 [P] [US1] Write a failing test in `tests/services/ai-service.spec.ts` asserting the recorded snapshot is byte-identical to the capture tool's result, for a small structure and for one exceeding 100 KB (SC-001)
+- [X] T013 [P] [US1] Write a failing test in `tests/services/ai-service.spec.ts` asserting an error result from the capture tool is **not** recorded as a snapshot (FR-004)
+- [X] T014 [P] [US1] Write a failing test in `tests/services/ai-service.spec.ts` asserting a second successful capture replaces the first rather than accumulating (data-model §1)
+- [X] T015 [P] [US1] Write a failing test in `tests/services/ai-service.spec.ts` asserting a page whose capture never succeeded records an empty snapshot and a status that does not read as fully analysed (FR-005)
 
 ### Implementation
 
-- [ ] T016 [US1] Record the capture tool's result directly into the report builder from the `onToolExecutionEnd` callback on `generateText` in `source/services/ai-service.ts`, without re-serialising it. Match on `event.toolCall.toolName` and record only when `event.toolOutput.type` is `tool-result` — see `contracts/stage-tools.md` for the verified event shape
-- [ ] T017 [US1] Delete the `setPageSnapshot` tool from `createReportTools()` in `source/services/ai-service.ts`
-- [ ] T018 [US1] Remove step 3 of the prompt workflow in `buildUserPrompt()` in `source/services/ai-service.ts`, which instructs the model to call the now-deleted tool
+- [X] T016 [US1] Record the capture tool's result directly into the report builder from the `onToolExecutionEnd` callback on `generateText` in `source/services/ai-service.ts`, without re-serialising it. Match on `event.toolCall.toolName` and record only when `event.toolOutput.type` is `tool-result` — see `contracts/stage-tools.md` for the verified event shape
+- [X] T017 [US1] Delete the `setPageSnapshot` tool from `createReportTools()` in `source/services/ai-service.ts`
+- [X] T018 [US1] Remove step 3 of the prompt workflow in `buildUserPrompt()` in `source/services/ai-service.ts`, which instructs the model to call the now-deleted tool
 
 **Checkpoint**: MVP. The stored snapshot is trustworthy, and the largest repeated cost is gone.
 
@@ -101,15 +101,15 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Tests first
 
-- [ ] T019 [P] [US2] Add assertions to `tests/e2e/context-budget.spec.ts` that median request bytes per page fall by at least the T008 threshold (SC-002)
-- [ ] T020 [P] [US2] Add an assertion to `tests/e2e/context-budget.spec.ts` that the page structure appears at most once in any request body (SC-003)
-- [ ] T021 [P] [US2] Add assertions to `tests/e2e/context-budget.spec.ts` that each request's tool array matches the stage it belongs to, for every stage (SC-004)
-- [ ] T022 [P] [US2] Write a failing test in `tests/services/mcp-client.spec.ts` asserting a browser server missing `navigate_page` or `take_snapshot` fails before any provider request is issued, naming the tool (SC-007, FR-010)
+- [X] T019 [P] [US2] Add assertions to `tests/e2e/context-budget.spec.ts` that median request bytes per page fall by at least the T008 threshold (SC-002)
+- [X] T020 [P] [US2] Add an assertion to `tests/e2e/context-budget.spec.ts` that the page structure appears at most once in any request body (SC-003)
+- [X] T021 [P] [US2] Add assertions to `tests/e2e/context-budget.spec.ts` that each request's tool array matches the stage it belongs to, for every stage (SC-004)
+- [X] T022 [P] [US2] Write a failing test in `tests/services/mcp-client.spec.ts` asserting a browser server missing `navigate_page` or `take_snapshot` fails before any provider request is issued, naming the tool (SC-007, FR-010)
 
 ### Implementation
 
-- [ ] T023 [US2] Narrow the adapted tool set in `source/services/mcp-client.ts` to the two **browser-server** tools — `navigate_page` and `take_snapshot` — and fail with a message naming either that the server does not offer. `addFinding` and `completePageAnalysis` also appear in `contracts/stage-tools.md` but are built locally by `createReportTools()`, not adapted from the server; requiring them here would fail every run
-- [ ] T024 [US2] Build the tool map per iteration from the current stage in `source/services/ai-service.ts`, replacing the single map built once before the loop
+- [X] T023 [US2] Narrow the adapted tool set in `source/services/mcp-client.ts` to the two **browser-server** tools — `navigate_page` and `take_snapshot` — and fail with a message naming either that the server does not offer. `addFinding` and `completePageAnalysis` also appear in `contracts/stage-tools.md` but are built locally by `createReportTools()`, not adapted from the server; requiring them here would fail every run
+- [X] T024 [US2] Build the tool map per iteration from the current stage in `source/services/ai-service.ts`, replacing the single map built once before the loop
 
 **Checkpoint**: Requests carry the analysis, not the catalogue.
 
@@ -136,7 +136,7 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T030 Run the harness on this branch and record the after-numbers beside the baseline in `specs/006-context-diet/baseline.md`, confirming SC-002 and SC-008
+- [X] T030 Run the harness on this branch and record the after-numbers beside the baseline in `specs/006-context-diet/baseline.md`, confirming SC-002 and SC-008
 - [ ] T031 [P] Confirm SC-006: a scripted end-to-end analysis reaches the same per-page status as the baseline recorded, in `tests/e2e/context-budget.spec.ts`
 - [ ] T032 [P] Update the analysis workflow description in `README.md` if it documents the removed echo step
 - [ ] T033 Confirm coverage of `source/models/analysis-stage.ts` and the changed regions of `source/services/ai-service.ts` meets 80% by reading `npm run test:coverage` output — the script omits `--check-coverage`, so its exit code cannot be trusted for this (D18, out of scope here)

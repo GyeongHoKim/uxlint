@@ -10,9 +10,11 @@ A page's analysis is in exactly one stage, determined by what has already succee
 
 | Stage | Entered when | Tools offered | Source | Why not the others |
 | --- | --- | --- | --- | --- |
-| `unloaded` | The page analysis begins | `navigate_page` | **browser server** | Capturing an unloaded page records a blank tree as if it were the site |
-| `loaded` | A navigation tool call returned success | `take_snapshot` | **browser server** | Findings before a capture would be judgements about nothing |
+| `unloaded` | The page analysis begins | `navigate_page`, `completePageAnalysis` | browser server, local | Capturing an unloaded page records a blank tree as if it were the site |
+| `loaded` | A navigation tool call returned success | `take_snapshot`, `completePageAnalysis` | browser server, local | Findings before a capture would be judgements about nothing |
 | `analysable` | A capture returned a non-empty result | `addFinding`, `completePageAnalysis` | **local** (`createReportTools()`) | Navigation and capture are done; re-offering them invites loops |
+
+**Completion is offered at every stage**, because it is an exit rather than a step in the sequence. An earlier draft withheld it until a capture had succeeded, which left a page whose navigation failed with no way to end: the loop ran its full twenty iterations before giving up — a twentyfold cost increase on the failure path, in a feature whose subject is cost. Ending without a capture is recorded as `partial`, so the escape hatch cannot pass an unread page off as analysed.
 
 **The Source column is load-bearing.** Only the browser-server tools are adapted from the MCP connection and therefore only they can be missing from it; the local ones are constructed by this project and always exist. A narrowing step that treated the whole table as one list would demand `addFinding` from the browser server and fail every run.
 

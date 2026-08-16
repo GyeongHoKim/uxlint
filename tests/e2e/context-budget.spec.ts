@@ -28,6 +28,10 @@ import {
 import {ProviderRecorder} from '../mocks/provider-recorder.js';
 import {server} from '../mocks/server.js';
 import {
+	toolsForStage,
+	type AnalysisStage,
+} from '../../source/models/analysis-stage.js';
+import {
 	pageSnapshotFixture,
 	pageSnapshotMarker,
 } from '../fixtures/page-snapshot.js';
@@ -81,6 +85,35 @@ const browserServer = (): MCPClient =>
 test.afterEach(() => {
 	server.resetHandlers();
 });
+
+/**
+ * Infer which stage a request belongs to from the conversation it carries.
+ *
+ * Derived from the transcript rather than from a counter, so the assertion
+ * still holds if the loop ever issues a different number of requests.
+ */
+const stageOfRequest = (request: {
+	body: Record<string, unknown>;
+}): AnalysisStage => {
+	const input = Array.isArray(request.body['input'])
+		? (request.body['input'] as Array<{type?: string; name?: string}>)
+		: [];
+
+	// Read the calls the transcript actually contains. Matching on the raw
+	// text would find the tool names inside the prompt itself, which mentions
+	// every step it wants the model to take.
+	const called = new Set(
+		input
+			.filter(entry => entry.type === 'function_call')
+			.map(entry => entry.name),
+	);
+
+	if (!called.has('navigate_page')) {
+		return 'unloaded';
+	}
+
+	return called.has('take_snapshot') ? 'analysable' : 'loaded';
+};
 
 /**
  * Run one page analysis against a scripted provider and return the recording.
@@ -194,17 +227,69 @@ test.serial('MEASUREMENT: request budget for one page', async t => {
 	t.true(requests.length > 0);
 });
 
-test.serial('today the tree is carried twice in the same request', async t => {
+test.serial('the echo path is what the baseline measured', async t => {
+	// Kept as the record of what this feature removed. A model can no longer
+	// reach this shape -- the tool is gone and the prompt no longer asks for
+	// it -- but scripting the call still puts the tree in the request twice,
+	// which is precisely the cost being removed.
 	const {recorder} = await analyse(promptFollowingPath);
 
-	// The duplication this feature removes, asserted rather than described:
-	// once as the capture tool's result, once as the echo call's argument.
+	t.is(recorder.maxOccurrencesOf(pageSnapshotMarker), 2);
+});
+
+test.serial('the page structure is carried at most once (SC-003)', async t => {
+	const {recorder} = await analyse(happyPath);
+
 	t.is(
 		recorder.maxOccurrencesOf(pageSnapshotMarker),
-		2,
-		'a request should currently carry the page structure twice',
+		1,
+		'the tree should appear once, as the capture result',
 	);
 });
+
+test.serial(
+	'the request budget for a page is within the threshold (SC-002)',
+	async t => {
+		// Threshold from specs/006-context-diet/baseline.md: the recorded total of
+		// 350,420 bytes, reduced by the 40% SC-002 requires.
+		//
+		// Total rather than median. Removing the echo removes a request, so the
+		// two runs have different request counts, and a median over an even-length
+		// list is the mean of the two middle values while a median over an odd one
+		// is a single sample. Comparing those compares statistics, not runs.
+		const budget = 210_252;
+		const {recorder} = await analyse(happyPath);
+
+		t.log(
+			`requests=${recorder.count} total=${recorder.totalBytes()} median=${recorder.medianBytes()}`,
+		);
+		t.true(
+			recorder.totalBytes() <= budget,
+			`total ${recorder.totalBytes()} bytes exceeds the ${budget} budget`,
+		);
+	},
+);
+
+test.serial('every request carries only its stage tools (SC-004)', async t => {
+	const {recorder} = await analyse(happyPath);
+
+	for (const request of recorder.all()) {
+		t.deepEqual(
+			[...request.toolNames].sort(),
+			[...toolsForStage(stageOfRequest(request))].sort(),
+			`a request offered ${request.toolNames.join(', ')}`,
+		);
+	}
+});
+
+test.serial(
+	'the snapshot recorded is the one the browser produced',
+	async t => {
+		const {analysis} = await analyse(happyPath);
+
+		t.is(analysis.snapshot, pageSnapshotFixture);
+	},
+);
 
 test.serial('the measurement is reproducible across runs (SC-008)', async t => {
 	const first = await analyse(happyPath);

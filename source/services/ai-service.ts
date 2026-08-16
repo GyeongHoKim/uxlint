@@ -12,18 +12,66 @@ import {generateText, tool, type ModelMessage} from 'ai';
 import {z} from 'zod/v4';
 import {getRandomWaitingMessage} from '../constants/waiting-messages.js';
 import {logger} from '../infrastructure/logger.js';
-import type {AnalysisStage, PageAnalysis} from '../models/analysis.js';
+import type {
+	AnalysisStage as ProgressStage,
+	PageAnalysis,
+} from '../models/analysis.js';
+import {
+	advanceStage,
+	initialStage,
+	toolsForStage,
+	type ObservedToolResult,
+} from '../models/analysis-stage.js';
 import type {PreflightVerdict} from '../models/browser-preflight.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
 import {getLanguageModel} from './llm-provider.js';
-import {getMCPClient, resetMCPClient} from './mcp-client.js';
+import {
+	getMCPClient,
+	narrowBrowserTools,
+	resetMCPClient,
+} from './mcp-client.js';
 import {reportBuilder, type ReportBuilder} from './report-builder.js';
 
 /**
  * Maximum iterations for the agent loop to prevent infinite loops
  */
 const MAX_AGENT_ITERATIONS = 20;
+
+/**
+ * The browser tool whose result is the page structure.
+ */
+const captureToolName = 'take_snapshot';
+
+/**
+ * Reduce a tool execution event to what the stage machine needs.
+ *
+ * The event's output field only exists on the success variant, so the
+ * discriminant is checked before reading it rather than after.
+ *
+ * @param event - A tool execution end event
+ * @returns The result as the loop observed it
+ */
+function observeTool(event: ToolExecutionEndEvent): ObservedToolResult {
+	const succeeded = event.toolOutput.type === 'tool-result';
+	const output =
+		succeeded && typeof event.toolOutput.output === 'string'
+			? event.toolOutput.output
+			: '';
+
+	return {toolName: event.toolCall.toolName, succeeded, output};
+}
+
+/**
+ * The shape `onToolExecutionEnd` receives.
+ *
+ * Narrowed to the fields this code reads. Note `toolCall.toolName` rather than
+ * a top-level `toolName`, which is undefined on this event.
+ */
+type ToolExecutionEndEvent = {
+	toolCall: {toolName: string};
+	toolOutput: {type: string; output?: unknown};
+};
 
 /**
  * The shape `generateText` actually returns.
@@ -41,7 +89,7 @@ type GenerateTextResult = Awaited<ReturnType<typeof generateText>>;
  * Extended to support LLM response data display
  */
 export type AnalysisProgressCallback = (
-	stage: AnalysisStage,
+	stage: ProgressStage,
 	message?: string,
 	llmResponse?: LLMResponseData,
 ) => void;
@@ -165,9 +213,11 @@ export class AIService {
 			// Initialize page analysis in report builder
 			this.reportBuilder.initializePageAnalysis(page.url, page.features);
 
-			// Get browser tools from the MCP server
+			// Get browser tools from the MCP server, narrowed to the ones the
+			// analysis uses. Everything else the server offers would be re-sent,
+			// in full, on every request.
 			onProgress?.('navigating', `Navigating to ${page.url}`);
-			const mcpTools = await this.mcpClient.tools();
+			const mcpTools = narrowBrowserTools(await this.mcpClient.tools());
 
 			// Build system prompt
 			const systemPrompt = this.buildSystemPrompt(config);
@@ -178,8 +228,9 @@ export class AIService {
 			// Create report building tools
 			const reportTools = this.createReportTools();
 
-			// Combine MCP tools with report tools
-			const tools = {
+			// Every tool the analysis could use at some point. Which of them is
+			// offered is decided per iteration, by stage.
+			const allTools = {
 				...mcpTools,
 				...reportTools,
 			};
@@ -194,6 +245,7 @@ export class AIService {
 
 			let iterations = 0;
 			let isAnalysisCompleted = false;
+			let stage = initialStage;
 
 			// Manual Agent Loop - await in loop is intentional for sequential LLM calls
 			while (iterations < MAX_AGENT_ITERATIONS && !isAnalysisCompleted) {
@@ -215,13 +267,34 @@ export class AIService {
 				// multi-step stop condition would make processAgentResult see
 				// tool calls from earlier steps. If multi-step is ever wanted,
 				// switch processAgentResult to read `result.finalStep`.
+				// Only this stage's tools. The sequence is enforced by what is
+				// available rather than by asking and then reminding: an unloaded
+				// page has no capture tool to call.
+				const tools = Object.fromEntries(
+					toolsForStage(stage)
+						.filter(name => Object.hasOwn(allTools, name))
+						.map(name => [name, allTools[name as keyof typeof allTools]]),
+				);
+
+				// Observations are collected here and applied after the call, so
+				// the callback does not close over the loop's mutable stage.
+				const observed: ObservedToolResult[] = [];
+
 				// eslint-disable-next-line no-await-in-loop
 				const result = await generateText({
 					model: this.model,
 					instructions: systemPrompt,
 					messages,
 					tools,
+					onToolExecutionEnd: event => {
+						this.recordCapture(event);
+						observed.push(observeTool(event));
+					},
 				});
+
+				for (const observation of observed) {
+					stage = advanceStage(stage, observation);
+				}
 
 				// Log AI response
 				logger.info('AI Response', {
@@ -303,6 +376,40 @@ export class AIService {
 			// a caller that discards it, leaving the failure out of the report.
 			return this.reportBuilder.failCurrentPage(errorMessage, page);
 		}
+	}
+
+	/**
+	 * Record a page structure capture as the browser produced it.
+	 *
+	 * The model is shown the capture as a tool result and is not asked to
+	 * repeat it. Recording here rather than through a tool the model calls is
+	 * what makes the stored snapshot byte-identical to the browser's output:
+	 * there is no step in which it is re-encoded, shortened, or paraphrased.
+	 *
+	 * Only successful results are recorded. `toolOutput.type` distinguishes
+	 * `tool-result` from `tool-error`, so an errored capture is skipped rather
+	 * than stored as though the page had been read.
+	 *
+	 * @param event - A tool execution end event from the agent loop
+	 */
+	private recordCapture(event: ToolExecutionEndEvent): void {
+		if (event.toolCall.toolName !== captureToolName) {
+			return;
+		}
+
+		if (event.toolOutput.type !== 'tool-result') {
+			logger.warn('Page capture failed; nothing recorded', {
+				toolName: event.toolCall.toolName,
+			});
+			return;
+		}
+
+		const {output} = event.toolOutput;
+		if (typeof output !== 'string') {
+			return;
+		}
+
+		this.reportBuilder.setPageSnapshot(output);
 	}
 
 	/**
@@ -396,27 +503,22 @@ Usage: Call this tool multiple times, once per issue. Do not batch findings toge
 				},
 			}),
 
-			setPageSnapshot: tool({
-				description:
-					'Save the page snapshot data. Call this once per page after using take_snapshot to capture the page structure.',
-				inputSchema: z.object({
-					snapshot: z.string(),
-				}),
-				async execute({snapshot}) {
-					builder.setPageSnapshot(snapshot);
-					return {
-						success: true,
-						message: 'Snapshot saved successfully',
-					};
-				},
-			}),
-
 			completePageAnalysis: tool({
 				description:
 					'Mark the current page analysis as complete. REQUIRED: You MUST call this tool when you have finished analyzing all UX aspects and reporting findings. The analysis is not complete until you call this.',
 				inputSchema: z.object({}),
 				async execute() {
-					const completedAnalysis = builder.completePageAnalysis();
+					// A page whose structure was never captured has not been
+					// analysed, whatever the model concluded about it. Recording
+					// that as `complete` would make a judgement resting on nothing
+					// indistinguishable from one resting on the page -- the same
+					// distinction 004 needed to gate a pipeline on.
+					const captured =
+						(builder.getCurrentState().currentPageAnalysis?.snapshot ?? '')
+							.length > 0;
+					const completedAnalysis = builder.completePageAnalysis(
+						captured ? 'complete' : 'partial',
+					);
 					return {
 						success: true,
 						message: 'Page analysis completed',
@@ -456,17 +558,16 @@ ${page.features}
 **Step 1: Navigate and Capture**
 1. Call navigate_page to load the page
 2. Call take_snapshot to capture the page structure
-3. Call setPageSnapshot with the snapshot data
 
 **Step 2: Analyze and Document**
-4. Thoroughly analyze the page from the persona's perspective
-5. For EACH UX issue found, immediately call addFinding
+3. Thoroughly analyze the page from the persona's perspective
+4. For EACH UX issue found, immediately call addFinding
    - Report 3-10 issues per page typically
    - Call addFinding once per issue (do not batch)
    - Cover multiple UX categories
 
 **Step 3: Complete**
-6. Call completePageAnalysis when finished
+5. Call completePageAnalysis when finished
    - This is REQUIRED to complete the analysis
    - Do not stop until you call this tool
 
