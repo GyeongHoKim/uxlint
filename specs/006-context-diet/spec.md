@@ -111,7 +111,7 @@ Every criterion below except SC-009 is **measured without a language model provi
 **Deterministic — enforceable on every run of the test suite**
 
 - **SC-001**: 100% of recorded snapshots are byte-identical to what the browser returned, verified across structures of varying size including one exceeding 100 KB.
-- **SC-002**: Median request size per analysed page falls by at least 40% against the recorded baseline, measured from the intercepted request bodies, on the same fixture pages.
+- **SC-002**: **Total** request bytes per analysed page fall by at least 40% against the recorded baseline, measured from the intercepted request bodies, on the same fixture pages. Total rather than median because it is what a run actually pays, and because removing a round trip changes how many requests there are — comparing medians across different request counts compares different statistics.
 - **SC-003**: The page structure appears at most once in any request body, at any point in the analysis.
 - **SC-004**: The tool definitions carried in a request never exceed those the analysis can act on at that stage, verified for every stage from the intercepted bodies.
 - **SC-005**: No request body in any run contains system-authored reminder text.

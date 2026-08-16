@@ -14,6 +14,7 @@ import {
 	defaultAllowExternalData,
 	type BrowserSettings,
 } from '../models/browser.js';
+import {requiredBrowserTools} from '../models/analysis-stage.js';
 import type {PreflightVerdict} from '../models/browser-preflight.js';
 
 /**
@@ -324,6 +325,43 @@ export async function getMCPClient(
 	}
 
 	return mcpClientInstance;
+}
+
+/**
+ * Keep only the browser tools the analysis uses.
+ *
+ * The server re-sends every tool definition -- name, description and full JSON
+ * schema -- on every request, so an unused tool is not a one-off cost but one
+ * paid per turn, per page, per run. Narrowing here rather than in the prompt
+ * is what makes the saving real: a tool merely left unmentioned is still sent.
+ *
+ * A required tool the server does not offer is a startup failure. The prompt
+ * instructs the model to call it, so proceeding would produce a run that fails
+ * later for a reason that points somewhere else.
+ *
+ * @param tools - Everything the server offers
+ * @returns Only the required tools
+ * @throws Error when a required tool is missing
+ */
+export function narrowBrowserTools<T extends Record<string, unknown>>(
+	tools: T,
+): Partial<T> {
+	const missing = requiredBrowserTools.filter(
+		name => !Object.hasOwn(tools, name),
+	);
+
+	if (missing.length > 0) {
+		throw new Error(
+			`The browser server does not offer ${missing.join(' or ')}, which the analysis requires. The server may be a different version than expected.`,
+		);
+	}
+
+	const narrowed: Partial<T> = {};
+	for (const name of requiredBrowserTools) {
+		narrowed[name as keyof T] = tools[name as keyof T];
+	}
+
+	return narrowed;
 }
 
 /**

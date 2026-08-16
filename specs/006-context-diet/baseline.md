@@ -65,12 +65,33 @@ future drift fails the suite rather than quietly moving the baseline.
 
 ## Threshold (T008)
 
-SC-002 requires median request bytes per page to fall by at least 40%.
+SC-002 requires total request bytes per page to fall by at least 40%.
 
 | | Value |
 | --- | --- |
-| Baseline median | 66,395 bytes |
-| **SC-002 threshold** | **≤ 39,837 bytes** (baseline × 0.6) |
+| Baseline total | 350,420 bytes |
+| **SC-002 threshold** | **≤ 210,252 bytes** (baseline × 0.6) |
+
+**Total rather than median, and the change matters.** Removing the echo removes
+a whole request, so the before and after runs have different request counts. A
+median over an even-length list is the mean of the two middle values; over an
+odd-length list it is a single sample. Comparing those two compares statistics
+rather than runs — the median appeared to move by 1.5% while the bytes actually
+sent fell by 61%. Total is also simply what a run pays.
+
+## Result after the change (T030)
+
+| Measurement | Baseline | After | Change |
+| --- | --- | --- | --- |
+| Requests per page | 5 | **4** | one round trip removed |
+| **Total request bytes** | 350,420 | **135,580** | **−61%** (threshold: −40%) |
+| Tool definitions per request | 5 | **2** | only the stage's tools |
+| Page structure copies, per request | 0, 0, 1, 2, 2 | **0, 0, 1, 1** | never twice |
+| Stored snapshot | echoed by the model | **byte-identical to the browser's output** | |
+| Page status | complete | complete | unchanged |
+
+The removed request is the echo call itself: a whole model round trip that
+existed only to move text the system already had.
 
 ## Outstanding
 

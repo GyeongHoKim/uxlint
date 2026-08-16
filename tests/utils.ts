@@ -4,6 +4,8 @@
 
 import net from 'node:net';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
+import {tool} from 'ai';
+import {z} from 'zod/v4';
 
 /**
  * Resolve once `port` accepts TCP connections, or throw once `timeout` elapses.
@@ -112,7 +114,26 @@ export async function waitFor(
 export function createMockMCPClient(): MCPClient {
 	return {
 		async tools() {
-			return {};
+			// Offers the two tools the analysis requires. An empty set is no
+			// longer a stand-in for "a browser server": the client narrows the
+			// server's tools to the ones it needs and fails when they are
+			// absent, because the prompt tells the model to call them.
+			return {
+				navigate_page: tool({
+					description: 'Navigate to a URL',
+					inputSchema: z.object({url: z.string()}),
+					async execute() {
+						return 'Successfully navigated.';
+					},
+				}),
+				take_snapshot: tool({
+					description: 'Capture the accessibility tree',
+					inputSchema: z.object({}),
+					async execute() {
+						return 'button "Sign up"';
+					},
+				}),
+			};
 		},
 		async close() {
 			// Mock implementation - no-op

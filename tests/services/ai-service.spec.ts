@@ -3,10 +3,14 @@
  * Uses MockLanguageModelV4 from ai/test as required by Constitution II (Test-First Development)
  */
 
+import {Buffer} from 'node:buffer';
 import {promises as fsPromises} from 'node:fs';
+import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
+import {tool} from 'ai';
 import {MockLanguageModelV4} from 'ai/test';
 import test from 'ava';
 import sinon from 'sinon';
+import {z} from 'zod/v4';
 import type {UxFinding} from '../../source/models/analysis.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import type {LLMResponseData} from '../../source/models/llm-response.js';
@@ -205,7 +209,10 @@ test('AIService generates valid report when LLM completes page analysis using Mo
 
 	// Verify page analysis was completed
 	t.is(pageAnalysis.pageUrl, 'https://example.com');
-	t.is(pageAnalysis.status, 'complete');
+	// `partial`, not `complete`: this scripted model calls
+	// completePageAnalysis without ever capturing the page, and a judgement
+	// resting on no page structure is what `partial` now records.
+	t.is(pageAnalysis.status, 'partial');
 
 	// Deliberately no setPersona call: analyzePage owns that now. Calling it
 	// from the test is what hid the fact that the production success path
@@ -217,11 +224,12 @@ test('AIService generates valid report when LLM completes page analysis using Mo
 	t.is(report.metadata.persona, config.persona);
 	t.is(report.pages.length, 1);
 	t.is(report.pages[0]?.pageUrl, 'https://example.com');
-	t.is(report.pages[0]?.status, 'complete');
+	// Partial for the same reason as above: nothing captured the page.
+	t.is(report.pages[0]?.status, 'partial');
 	t.truthy(report.summary);
 	t.true(Array.isArray(report.prioritizedFindings));
-	t.is(report.metadata.analyzedPages.length, 1);
-	t.is(report.metadata.analyzedPages[0], 'https://example.com');
+	t.deepEqual(report.metadata.partialPages, ['https://example.com']);
+	t.is(report.metadata.analyzedPages.length, 0);
 
 	await aiService.close();
 	sandbox.restore();
@@ -528,10 +536,22 @@ test('AIService keeps earlier page findings when a later page throws', async t =
 	// The failing page is the second of three, so the assertion can tell
 	// "prior work survived" apart from "nothing ran".
 	let pageIndex = 0;
+	let stepInPage = 0;
 	const mockModel = new MockLanguageModelV4({
 		async doGenerate() {
 			if (pageIndex === 1) {
 				throw new Error('navigation timed out');
+			}
+
+			// Walks the sequence the analysis now enforces: a finding is only
+			// reachable once the page has been loaded and captured.
+			stepInPage++;
+			if (stepInPage === 1) {
+				return toolCallStep('navigate_page', '{"url":"https://example.com"}');
+			}
+
+			if (stepInPage === 2) {
+				return toolCallStep('take_snapshot', '{}');
 			}
 
 			return toolCallStep(
@@ -558,6 +578,7 @@ test('AIService keeps earlier page findings when a later page throws', async t =
 	const results = [];
 	for (const [index, page] of config.pages.entries()) {
 		pageIndex = index;
+		stepInPage = 0;
 		// eslint-disable-next-line no-await-in-loop -- pages are analysed in order
 		results.push(await aiService.analyzePage(config, page));
 	}
@@ -741,12 +762,27 @@ test('a browser lost mid-run fails only the affected page (FR-016)', async t => 
 				throw new Error('Protocol error (Target.closeTarget): Target closed');
 			}
 
-			return {};
+			return {
+				navigate_page: tool({
+					description: 'Navigate to a URL',
+					inputSchema: z.object({url: z.string()}),
+					async execute() {
+						return 'Successfully navigated.';
+					},
+				}),
+				take_snapshot: tool({
+					description: 'Capture the accessibility tree',
+					inputSchema: z.object({}),
+					async execute() {
+						return 'button "Sign up"';
+					},
+				}),
+			};
 		},
 		async close() {
 			// No-op
 		},
-	} as unknown as ReturnType<typeof createMockMCPClient>;
+	} as unknown as MCPClient;
 
 	const completing = new MockLanguageModelV4({
 		doGenerate: async () => ({
@@ -787,15 +823,167 @@ test('a browser lost mid-run fails only the affected page (FR-016)', async t => 
 	const first = await service.analyzePage(config, config.pages[0]!);
 	const second = await service.analyzePage(config, config.pages[1]!);
 
-	t.is(first.status, 'complete');
+	// `partial` rather than `complete`: this scripted model never captures the
+	// page. What this test is about is that the first page survives the second
+	// page's browser loss, which it does either way.
+	t.is(first.status, 'partial');
 	t.is(second.status, 'failed');
 	t.true(second.error?.includes('Target closed'));
 
 	const report = builder.generateFinalReport();
 	t.deepEqual(
-		report.metadata.analyzedPages,
+		report.metadata.partialPages,
 		['https://example.com'],
 		'the page analysed before the browser died must still be in the report',
 	);
 	t.deepEqual(report.metadata.failedPages, ['https://example.com/second']);
+});
+
+/**
+ * Drive one page analysis with a scripted sequence of tool calls.
+ *
+ * The browser server is stubbed so the capture result is known exactly, which
+ * is what lets byte-identity be asserted rather than approximated.
+ */
+const analyseWithCapture = async (options: {
+	captureOutput?: string;
+	captureThrows?: boolean;
+	captureTwice?: boolean;
+	skipCapture?: boolean;
+}) => {
+	const builder = new ReportBuilder({
+		...fsPromises,
+		writeFile: sinon.stub().resolves(),
+	});
+
+	const mcpClient = {
+		async tools() {
+			return {
+				navigate_page: tool({
+					description: 'Navigate to a URL',
+					inputSchema: z.object({url: z.string()}),
+					async execute() {
+						return 'Successfully navigated.';
+					},
+				}),
+				take_snapshot: tool({
+					description: 'Capture the accessibility tree',
+					inputSchema: z.object({}),
+					async execute() {
+						if (options.captureThrows) {
+							throw new Error('the page was not ready');
+						}
+
+						return options.captureOutput ?? 'button "Sign up"';
+					},
+				}),
+			};
+		},
+		async close() {
+			// Nothing to tear down.
+		},
+	} as unknown as MCPClient;
+
+	const script = [
+		'navigate_page',
+		...(options.skipCapture ? [] : ['take_snapshot']),
+		...(options.captureTwice ? ['take_snapshot'] : []),
+		'completePageAnalysis',
+	];
+	let call = 0;
+
+	const model = new MockLanguageModelV4({
+		async doGenerate() {
+			const toolName = script[Math.min(call, script.length - 1)]!;
+			call++;
+			return {
+				finishReason: {unified: 'tool-calls', raw: undefined},
+				usage: {
+					inputTokens: {
+						total: 1,
+						noCache: 1,
+						cacheRead: undefined,
+						cacheWrite: undefined,
+					},
+					outputTokens: {total: 1, text: 1, reasoning: undefined},
+				},
+				content: [
+					{
+						type: 'tool-call',
+						toolCallId: `c${call}`,
+						toolName,
+						input:
+							toolName === 'navigate_page'
+								? '{"url":"https://example.com"}'
+								: '{}',
+					},
+				],
+				warnings: [],
+			};
+		},
+	});
+
+	const config: UxLintConfig = {
+		mainPageUrl: 'https://example.com',
+		subPageUrls: [],
+		pages: [{url: 'https://example.com', features: 'Landing'}],
+		persona: 'Test persona',
+		report: {output: './report.md'},
+	};
+
+	const service = new AIService(model, mcpClient, builder);
+	const analysis = await service.analyzePage(config, config.pages[0]!);
+
+	return {analysis, builder};
+};
+
+test('the recorded snapshot is byte-identical to the capture result', async t => {
+	const captureOutput =
+		'link "Home" [ref=e1]\n  text "Welcome, 안녕하세요 \\"quoted\\""';
+
+	const {analysis} = await analyseWithCapture({captureOutput});
+
+	// Recorded by the system from the tool result, so there is no re-encoding
+	// step in which a quote, a newline or a non-ASCII character could shift.
+	t.is(analysis.snapshot, captureOutput);
+});
+
+test('a very large capture is recorded whole (SC-001)', async t => {
+	const captureOutput = 'link "Product" [ref=e0]\n'.repeat(4500);
+	t.true(
+		Buffer.byteLength(captureOutput) > 100_000,
+		'fixture must exceed 100 KB',
+	);
+
+	const {analysis} = await analyseWithCapture({captureOutput});
+
+	// Size must not silently truncate the record: a shortened snapshot reads
+	// as a faithful one.
+	t.is(analysis.snapshot, captureOutput);
+});
+
+test('a failed capture is not recorded as a snapshot', async t => {
+	const {analysis} = await analyseWithCapture({captureThrows: true});
+
+	t.is(analysis.snapshot, '', 'an error is not a page structure');
+});
+
+test('a second capture replaces the first rather than accumulating', async t => {
+	const {analysis} = await analyseWithCapture({
+		captureOutput: 'second capture',
+		captureTwice: true,
+	});
+
+	t.is(analysis.snapshot, 'second capture');
+});
+
+test('a page that was never captured does not read as fully analysed', async t => {
+	const {analysis} = await analyseWithCapture({skipCapture: true});
+
+	t.is(analysis.snapshot, '');
+	t.not(
+		analysis.status,
+		'complete',
+		'a page whose structure was never read is not a completed analysis',
+	);
 });
