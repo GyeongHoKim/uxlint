@@ -245,17 +245,19 @@ test('AIService calls onProgress with increasing iteration numbers for multiple 
 	const receivedIterations: number[] = [];
 	const receivedLLMResponses: LLMResponseData[] = [];
 
-	// Create mock language model that requires multiple iterations
-	// First iteration: returns 'stop' (no tool calls) - should trigger reminder
-	// Second iteration: returns 'tool-calls' with completePageAnalysis
+	// Create mock language model that requires multiple iterations.
+	// First iteration navigates, second completes. It used to stop without a
+	// tool call on the first pass, relying on the reminder message to keep the
+	// loop alive; a model that stops now simply ends the page, so the loop is
+	// driven by tool calls as a real run is.
 	let callCount = 0;
 	const mockModel = new MockLanguageModelV4({
 		async doGenerate() {
 			callCount++;
 			if (callCount === 1) {
-				// First iteration: stop without tool calls (triggers reminder)
+				// First iteration: navigate, which keeps the analysis going.
 				return {
-					finishReason: {unified: 'stop', raw: undefined},
+					finishReason: {unified: 'tool-calls', raw: undefined},
 					usage: {
 						inputTokens: {
 							total: 10,
@@ -265,7 +267,14 @@ test('AIService calls onProgress with increasing iteration numbers for multiple 
 						},
 						outputTokens: {total: 20, text: 20, reasoning: undefined},
 					},
-					content: [],
+					content: [
+						{
+							type: 'tool-call',
+							toolCallId: 'call-nav',
+							toolName: 'navigate_page',
+							input: '{"url":"https://example.com"}',
+						},
+					],
 					warnings: [],
 				};
 			}

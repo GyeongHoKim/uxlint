@@ -121,14 +121,14 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Tests first
 
-- [ ] T025 [P] [US3] Add a test to `tests/e2e/context-budget.spec.ts` scripting the provider to reply out of order, asserting the out-of-order tool was never offered (FR-007)
-- [ ] T026 [P] [US3] Add a test to `tests/e2e/context-budget.spec.ts` scripting the provider to stop early, asserting no request body contains reminder text (SC-005, FR-008)
-- [ ] T027 [P] [US3] Write a failing test in `tests/services/ai-service.spec.ts` asserting that after a failed navigation the analysis does not capture and does not record the page as analysed (FR-009)
+- [X] T025 [P] [US3] Add a test to `tests/e2e/context-budget.spec.ts` scripting the provider to reply out of order, asserting the out-of-order tool was never offered (FR-007)
+- [X] T026 [P] [US3] Add a test to `tests/e2e/context-budget.spec.ts` scripting the provider to stop early, asserting no request body contains reminder text (SC-005, FR-008)
+- [X] T027 [P] [US3] Write a failing test in `tests/services/ai-service.spec.ts` asserting that after a failed navigation the analysis does not capture and does not record the page as analysed (FR-009)
 
 ### Implementation
 
-- [ ] T028 [US3] Remove the reminder-message branch from `processAgentResult` in `source/services/ai-service.ts`, and the now-unreachable `finishReason === 'stop'` handling that existed to feed it
-- [ ] T029 [US3] Advance the stage only on observed tool success in `source/services/ai-service.ts`, so a failed navigation leaves capture unoffered
+- [X] T028 [US3] Remove the reminder-message branch from `processAgentResult` in `source/services/ai-service.ts`, and the now-unreachable `finishReason === 'stop'` handling that existed to feed it
+- [X] T029 [US3] Advance the stage only on observed tool success in `source/services/ai-service.ts`, so a failed navigation leaves capture unoffered
 
 **Checkpoint**: The loop no longer negotiates with the model about order.
 
@@ -137,13 +137,13 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
 - [X] T030 Run the harness on this branch and record the after-numbers beside the baseline in `specs/006-context-diet/baseline.md`, confirming SC-002 and SC-008
-- [ ] T031 [P] Confirm SC-006: a scripted end-to-end analysis reaches the same per-page status as the baseline recorded, in `tests/e2e/context-budget.spec.ts`
-- [ ] T032 [P] Update the analysis workflow description in `README.md` if it documents the removed echo step
-- [ ] T033 Confirm coverage of `source/models/analysis-stage.ts` and the changed regions of `source/services/ai-service.ts` meets 80% by reading `npm run test:coverage` output — the script omits `--check-coverage`, so its exit code cannot be trusted for this (D18, out of scope here)
-- [ ] T034 Run the full quality gate from the repository root: `npm run compile && npm run format && npm run lint`, then `npm test` in full before pushing
-- [ ] T035 [P] Confirm FR-011: assert in `tests/services/report-builder.spec.ts` that the report's structure and the meaning of every status field are unchanged by this feature — the same invariance check 005 added for its own additive field
-- [ ] T036 **Perform** SC-009: with a provider account, Chrome and the real target set, measure median findings per page and compare against the same measurement before the change; record both in `specs/006-context-diet/baseline.md`
-- [ ] T037 If T036 cannot be performed, record in `specs/006-context-diet/baseline.md` that SC-009 is an unmet release gate, naming what it needs. **Recording is not verifying** — this task exists so an unperformed check is visible rather than silently absent, which is how 005 shipped without its baseline
+- [X] T031 [P] Confirm SC-006: a scripted end-to-end analysis reaches the same per-page status as the baseline recorded, in `tests/e2e/context-budget.spec.ts`
+- [X] T032 [P] Update the analysis workflow description in `README.md` if it documents the removed echo step
+- [X] T033 Confirm coverage of `source/models/analysis-stage.ts` and the changed regions of `source/services/ai-service.ts` meets 80% by reading `npm run test:coverage` output — the script omits `--check-coverage`, so its exit code cannot be trusted for this (D18, out of scope here)
+- [X] T034 Run the full quality gate from the repository root: `npm run compile && npm run format && npm run lint`, then `npm test` in full before pushing
+- [X] T035 [P] Confirm FR-011: assert in `tests/services/report-builder.spec.ts` that the report's structure and the meaning of every status field are unchanged by this feature — the same invariance check 005 added for its own additive field
+- [ ] T036 ⬜ **NOT PERFORMED — release gate.** Perform SC-009: with a provider account, Chrome and the real target set, measure median findings per page and compare against the same measurement before the change; record both in `specs/006-context-diet/baseline.md`
+- [X] T037 If T036 cannot be performed, record in `specs/006-context-diet/baseline.md` that SC-009 is an unmet release gate, naming what it needs. **Recording is not verifying** — this task exists so an unperformed check is visible rather than silently absent, which is how 005 shipped without its baseline
 
 ---
 

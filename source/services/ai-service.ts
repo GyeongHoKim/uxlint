@@ -318,11 +318,7 @@ export class AIService {
 				messages.push(...result.responseMessages);
 
 				// Process result and check if analysis is complete
-				const shouldContinue = this.processAgentResult(
-					result,
-					messages,
-					iterations,
-				);
+				const shouldContinue = this.processAgentResult(result);
 
 				if (shouldContinue === false) {
 					break;
@@ -442,12 +438,12 @@ export class AIService {
 
 	/**
 	 * Process agent loop result and determine next action
+	 *
+	 * @param result - What the model returned this iteration
 	 * @returns false to break loop, true to continue, 'completed' if analysis done
 	 */
 	private processAgentResult(
 		result: Pick<GenerateTextResult, 'finishReason' | 'toolCalls'>,
-		messages: ModelMessage[],
-		iterations: number,
 	): boolean | 'completed' {
 		if (result.finishReason === 'tool-calls' && result.toolCalls) {
 			const isComplete = result.toolCalls.some(
@@ -461,21 +457,14 @@ export class AIService {
 			return true;
 		}
 
-		if (result.finishReason === 'stop') {
-			const state = this.reportBuilder.getCurrentState();
-			const shouldRemind =
-				state.currentPageAnalysis && iterations < MAX_AGENT_ITERATIONS;
-
-			if (shouldRemind) {
-				messages.push({
-					role: 'user',
-					content:
-						'Please complete your analysis by calling addFinding for any UX issues you identified, then call completePageAnalysis to finish.',
-				});
-				return true;
-			}
-		}
-
+		// A model that stops has stopped. The loop used to push a "Please
+		// complete your analysis..." message back into the conversation and
+		// carry on, which spent tokens precisely when the context was already
+		// under strain, and which only ever existed because the sequence was
+		// requested in prose rather than enforced by what was offered. Now that
+		// each stage exposes only what it can act on -- and completion is
+		// always available -- there is nothing to nag about: a page that ends
+		// early ends as `partial`, which is what it is.
 		return false;
 	}
 
