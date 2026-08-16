@@ -35,15 +35,17 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 - [ ] T002 Create `tests/mocks/provider-recorder.ts` that captures each intercepted request body and exposes per-request `bytes`, `toolNames` and `structureOccurrences` per `data-model.md` §3. Keep it assertion-free — one recorder serves the size, tool-count, duplication and reminder checks
 - [ ] T003 Add a guard in `tests/mocks/provider-recorder.ts` so a test that intercepts **zero** requests fails rather than passing vacuously — a handler pointed at the wrong endpoint would otherwise satisfy every assertion (research R2, plan Open Risks)
 - [ ] T004 Create `tests/e2e/context-budget.spec.ts` that drives a full page analysis against the intercepted provider and reports the measurements without asserting thresholds yet
-- [ ] T005 Fix the fixture page structure at a representative size and record in `specs/006-context-diet/baseline.md` what size was chosen and why — Phase 0 used a 6,800-character stand-in, which may flatter the ratio (plan Open Risks)
+- [ ] T005 Fix the fixture page structure at a representative size and **create** `specs/006-context-diet/baseline.md`, recording what size was chosen and why — Phase 0 used a 6,800-character stand-in, which may flatter the ratio (plan Open Risks)
 
 **Checkpoint**: A run of the harness prints numbers for unchanged code.
 
 ---
 
-## Phase 2: Baseline (BLOCKING — on the merge-base, before any source change)
+## Phase 2: Baseline (BLOCKING — on this branch, after Phase 1, before any source change)
 
-- [ ] T006 On the merge-base of this branch, run `tests/e2e/context-budget.spec.ts` and record median request bytes per page, tool count per request, and requests per page in `specs/006-context-diet/baseline.md`
+**Measured here rather than on the merge-base, and that distinction matters.** Phase 1 adds test files only, so `source/` at this point is byte-for-byte the merge-base — the measurement is equivalent. Checking out the merge-base would instead delete the harness that does the measuring, which is what an earlier draft of these tasks told the implementer to do, having copied the shape of 005's baseline without noticing that 005's harness was the product itself.
+
+- [ ] T006 On this branch with Phase 1 complete and `source/` unchanged, run `tests/e2e/context-budget.spec.ts` and record median request bytes per page, tool count per request, and requests per page in `specs/006-context-diet/baseline.md`. Confirm `git diff <merge-base> -- source/` is empty before recording, so the numbers provably describe unchanged behaviour
 - [ ] T007 Run the measurement a second time on the same commit and confirm the numbers are identical, recording both in `specs/006-context-diet/baseline.md` (SC-008). A measurement that drifts cannot support a threshold
 - [ ] T008 Derive and record the SC-002 threshold (baseline × 0.6) in `specs/006-context-diet/baseline.md`
 
@@ -83,7 +85,7 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Implementation
 
-- [ ] T016 [US1] Record the capture tool's result directly into the report builder from where the tool result arrives in `source/services/ai-service.ts`, without re-serialising it
+- [ ] T016 [US1] Record the capture tool's result directly into the report builder from the `onToolExecutionEnd` callback on `generateText` in `source/services/ai-service.ts`, without re-serialising it. Match on `event.toolCall.toolName` and record only when `event.toolOutput.type` is `tool-result` — see `contracts/stage-tools.md` for the verified event shape
 - [ ] T017 [US1] Delete the `setPageSnapshot` tool from `createReportTools()` in `source/services/ai-service.ts`
 - [ ] T018 [US1] Remove step 3 of the prompt workflow in `buildUserPrompt()` in `source/services/ai-service.ts`, which instructs the model to call the now-deleted tool
 
@@ -106,7 +108,7 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Implementation
 
-- [ ] T023 [US2] Narrow the adapted tool set in `source/services/mcp-client.ts` to the tools named in `contracts/stage-tools.md`, and fail with a message naming any that the server does not offer
+- [ ] T023 [US2] Narrow the adapted tool set in `source/services/mcp-client.ts` to the two **browser-server** tools — `navigate_page` and `take_snapshot` — and fail with a message naming either that the server does not offer. `addFinding` and `completePageAnalysis` also appear in `contracts/stage-tools.md` but are built locally by `createReportTools()`, not adapted from the server; requiring them here would fail every run
 - [ ] T024 [US2] Build the tool map per iteration from the current stage in `source/services/ai-service.ts`, replacing the single map built once before the loop
 
 **Checkpoint**: Requests carry the analysis, not the catalogue.
@@ -139,7 +141,9 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 - [ ] T032 [P] Update the analysis workflow description in `README.md` if it documents the removed echo step
 - [ ] T033 Confirm coverage of `source/models/analysis-stage.ts` and the changed regions of `source/services/ai-service.ts` meets 80% by reading `npm run test:coverage` output — the script omits `--check-coverage`, so its exit code cannot be trusted for this (D18, out of scope here)
 - [ ] T034 Run the full quality gate from the repository root: `npm run compile && npm run format && npm run lint`, then `npm test` in full before pushing
-- [ ] T035 Record SC-009 as an outstanding release check in `specs/006-context-diet/baseline.md`, with what it needs — a provider account, Chrome, and real targets — so it is not mistaken for something CI covered
+- [ ] T035 [P] Confirm FR-011: assert in `tests/services/report-builder.spec.ts` that the report's structure and the meaning of every status field are unchanged by this feature — the same invariance check 005 added for its own additive field
+- [ ] T036 **Perform** SC-009: with a provider account, Chrome and the real target set, measure median findings per page and compare against the same measurement before the change; record both in `specs/006-context-diet/baseline.md`
+- [ ] T037 If T036 cannot be performed, record in `specs/006-context-diet/baseline.md` that SC-009 is an unmet release gate, naming what it needs. **Recording is not verifying** — this task exists so an unperformed check is visible rather than silently absent, which is how 005 shipped without its baseline
 
 ---
 
