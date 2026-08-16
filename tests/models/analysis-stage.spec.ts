@@ -35,6 +35,13 @@ test('a failed capture advances nothing', t => {
 	t.is(advanceStage('loaded', {...captured, succeeded: false}), 'loaded');
 });
 
+test('a successful navigation loads the page even when it returns nothing', t => {
+	// Emptiness is only meaningful for the capture. Treating a terse
+	// navigation success as a failure would strand the page one stage short,
+	// with the capture tool never offered and the page ending as partial.
+	t.is(advanceStage('unloaded', {...navigated, output: ''}), 'loaded');
+});
+
 test('an empty capture advances nothing', t => {
 	// A capture that returns nothing is not a capture. Advancing here would
 	// let the analysis judge a page whose structure was never read.

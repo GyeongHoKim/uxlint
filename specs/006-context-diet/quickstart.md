@@ -9,7 +9,7 @@ How to prove this feature works. Unlike 005, almost all of it runs in CI with no
 - Node >=22.22.2
 - No provider account. The harness intercepts the endpoint; a placeholder key satisfies the client
 - No browser. The browser server is stubbed at the tool boundary for these tests
-- A real provider account and Chrome are needed **only** for SC-009, the release check
+- A real provider account and Chrome are needed **only** for SC-010, the optional live sanity check
 
 ## 0. Record the baseline — after the harness, before any source change
 
@@ -21,7 +21,7 @@ npm run build
 npx ava tests/e2e/context-budget.spec.ts          # records, does not assert thresholds
 ```
 
-Write the numbers into `specs/006-context-diet/baseline.md`: median request bytes per page, tool count per request, and requests per page. Unlike 005's baseline this needs no credentials and reruns identically on any machine — SC-008 requires exactly that.
+Write the numbers into `specs/006-context-diet/baseline.md`: total request bytes per page, tool count per request, and requests per page. Unlike 005's baseline this needs no credentials and reruns identically on any machine — SC-008 requires exactly that.
 
 ## 1. The snapshot is the browser's (US1, SC-001)
 
@@ -40,7 +40,7 @@ npx ava tests/e2e/context-budget.spec.ts
 
 Expected against the recorded baseline:
 
-- median request bytes per page down ≥40%
+- total request bytes per page down ≥40%
 - the page structure appears at most once in any body
 - every request's tool array matches the stage it belongs to — see [contracts/stage-tools.md](./contracts/stage-tools.md)
 
@@ -69,7 +69,7 @@ npx ava tests/e2e/context-budget.spec.ts
 
 Expected: identical numbers. A measurement that drifts between runs on one commit cannot support a threshold.
 
-## 6. Release check — the only live one (SC-009)
+## 6. Optional live sanity check (SC-010)
 
 Needs `UXLINT_AI_API_KEY`, Chrome, and real targets.
 
@@ -78,7 +78,7 @@ npm run build
 node dist/source/cli.js
 ```
 
-Expected: median findings per page within 20% of the same measurement before the change. This is the one question the harness cannot answer — it is about what the model does with what it is given, not about what it is given.
+Expected: median findings per page not markedly lower than before the change. Not a gate: what the diet removes is a duplicate, unused tool definitions and a round trip, none of which is information the model reads for the first time — SC-009 verifies that deterministically. See [`sc009/README.md`](./sc009/README.md).
 
 ## 7. Quality gates
 

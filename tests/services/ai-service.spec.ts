@@ -864,6 +864,7 @@ const analyseWithCapture = async (options: {
 		...fsPromises,
 		writeFile: sinon.stub().resolves(),
 	});
+	let captureCount = 0;
 
 	const mcpClient = {
 		async tools() {
@@ -883,7 +884,12 @@ const analyseWithCapture = async (options: {
 							throw new Error('the page was not ready');
 						}
 
-						return options.captureOutput ?? 'button "Sign up"';
+						captureCount++;
+						// Distinct per execution, so a test about replacement can
+						// tell a replaced snapshot from an unchanged one.
+						return options.captureTwice
+							? `capture ${captureCount}`
+							: (options.captureOutput ?? 'button "Sign up"');
 					},
 				}),
 			};
@@ -896,7 +902,6 @@ const analyseWithCapture = async (options: {
 	const script = [
 		'navigate_page',
 		...(options.skipCapture ? [] : ['take_snapshot']),
-		...(options.captureTwice ? ['take_snapshot'] : []),
 		'completePageAnalysis',
 	];
 	let call = 0;
@@ -905,6 +910,12 @@ const analyseWithCapture = async (options: {
 		async doGenerate() {
 			const toolName = script[Math.min(call, script.length - 1)]!;
 			call++;
+
+			// Two captures in a single step. Once a capture succeeds the stage
+			// moves on and the tool is no longer offered, so replacement is only
+			// reachable within one response -- which a model can produce.
+			const repeat = options.captureTwice && toolName === 'take_snapshot';
+
 			return {
 				finishReason: {unified: 'tool-calls', raw: undefined},
 				usage: {
@@ -926,6 +937,16 @@ const analyseWithCapture = async (options: {
 								? '{"url":"https://example.com"}'
 								: '{}',
 					},
+					...(repeat
+						? [
+								{
+									type: 'tool-call' as const,
+									toolCallId: `c${call}b`,
+									toolName,
+									input: '{}',
+								},
+							]
+						: []),
 				],
 				warnings: [],
 			};
@@ -978,12 +999,16 @@ test('a failed capture is not recorded as a snapshot', async t => {
 });
 
 test('a second capture replaces the first rather than accumulating', async t => {
-	const {analysis} = await analyseWithCapture({
-		captureOutput: 'second capture',
-		captureTwice: true,
-	});
+	const {analysis} = await analyseWithCapture({captureTwice: true});
 
-	t.is(analysis.snapshot, 'second capture');
+	// The captures return different text, so this can distinguish a replaced
+	// snapshot from one that never changed. It previously could not: both
+	// executions returned the same string, and the second never ran at all.
+	t.is(analysis.snapshot, 'capture 2');
+	t.false(
+		analysis.snapshot.includes('capture 1'),
+		'copies must not accumulate',
+	);
 });
 
 test('a page that was never captured does not read as fully analysed', async t => {
