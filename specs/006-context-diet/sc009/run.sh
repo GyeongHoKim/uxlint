@@ -41,10 +41,26 @@ measure() {
 
 	: > "$OUT/$label.jsonl"
 	for run in $(seq 1 "$RUNS"); do
+		# Delete first. The run below is allowed to fail, and measuring
+		# unconditionally would then re-measure the previous run's report -- or
+		# the other label's -- as a silent duplicate that moves the median with
+		# nothing reporting an error.
+		rm -f "$HERE/ux-report.md"
 		( cd "$HERE" && node "$REPO/dist/source/cli.js" ) || true
+
+		if [[ ! -f "$HERE/ux-report.md" ]]; then
+			echo "  run $run: no report produced; skipped" >&2
+			continue
+		fi
+
 		node "$HERE/measure.mjs" "$HERE/ux-report.md" >> "$OUT/$label.jsonl"
 		echo "  run $run: $(tail -1 "$OUT/$label.jsonl")"
 	done
+
+	if [[ ! -s "$OUT/$label.jsonl" ]]; then
+		echo "No runs produced a report for $label." >&2
+		exit 1
+	fi
 }
 
 measure before "$BASELINE_REF"

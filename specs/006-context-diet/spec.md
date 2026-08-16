@@ -47,7 +47,7 @@ The same configuration against the same pages consumes materially fewer tokens p
 
 **Acceptance Scenarios**:
 
-1. **Given** a fixed set of target pages, **When** they are analysed after the change, **Then** median prompt tokens per page fall by at least the threshold derived from the recorded baseline
+1. **Given** a fixed set of target pages, **When** they are analysed after the change, **Then** total request bytes per page fall by at least the threshold derived from the recorded baseline
 2. **Given** the same run, **When** the report is compared with the baseline, **Then** every page that completed before completes now
 3. **Given** a run after the change, **When** the model is called, **Then** it is offered only tools the analysis can act on at that point, and no others
 4. **Given** the browser server exposes tools this product does not use, **When** the tool surface is assembled, **Then** those tools are absent from the conversation entirely rather than merely unmentioned in the prompt

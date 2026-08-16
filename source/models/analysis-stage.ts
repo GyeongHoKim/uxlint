@@ -44,10 +44,10 @@ export type ObservedToolResult = {
  */
 const advancingTool: Record<
 	AnalysisStage,
-	{tool: string; next: AnalysisStage} | undefined
+	{tool: string; next: AnalysisStage; requiresOutput: boolean} | undefined
 > = {
-	unloaded: {tool: 'navigate_page', next: 'loaded'},
-	loaded: {tool: 'take_snapshot', next: 'analysable'},
+	unloaded: {tool: 'navigate_page', next: 'loaded', requiresOutput: false},
+	loaded: {tool: 'take_snapshot', next: 'analysable', requiresOutput: true},
 	analysable: undefined,
 };
 
@@ -93,10 +93,11 @@ export function toolsForStage(stage: AnalysisStage): readonly string[] {
 /**
  * Move the stage on, if this result is the one that moves it.
  *
- * Anything that is not the current stage's advancing tool, or that failed, or
- * that came back empty, leaves the stage where it was. An empty capture is
- * treated as no capture on purpose: advancing would let the analysis judge a
- * page whose structure was never read.
+ * Anything that is not the current stage's advancing tool, or that failed,
+ * leaves the stage where it was. An empty *capture* is additionally treated as
+ * no capture: advancing would let the analysis judge a page whose structure
+ * was never read. Navigation carries no such rule -- a successful navigation
+ * has loaded the page however little it returned.
  *
  * @param stage - Current stage
  * @param result - A tool result the loop observed
@@ -112,7 +113,16 @@ export function advanceStage(
 		return stage;
 	}
 
-	if (!result.succeeded || result.output.length === 0) {
+	if (!result.succeeded) {
+		return stage;
+	}
+
+	// Emptiness is only meaningful for the capture: an empty tree means the
+	// page was not read, and judging it would be judging nothing. A navigation
+	// that succeeds has loaded the page whether or not it had anything to say
+	// about it, and treating a terse success as a failure would strand the
+	// page one stage short with no capture tool ever offered.
+	if (advance.requiresOutput && result.output.length === 0) {
 		return stage;
 	}
 

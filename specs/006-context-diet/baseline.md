@@ -49,13 +49,21 @@ echo. A baseline without that call would describe a run nobody has.
 The `2, 2` is the duplication this feature removes: from the fourth request on,
 the tree appears twice in the same body — once as the capture tool's result and
 once as the argument of the echo call. It is asserted, not merely recorded, by
-`today the tree is carried twice in the same request`.
+`the echo path is what the baseline measured`.
 
-**Note on tool count.** Five is what the *stubbed* browser server offers. A real
-run adds the other 27 tools the pinned server exposes, so the tool-definition
-saving in production is larger than this fixture can show. The fixture measures
-what it can measure deterministically; the tool-narrowing criterion (SC-004) is
-asserted on stage membership rather than on absolute counts for this reason.
+**Note on tool count, and how it differs from Phase 0.** The two figures count
+different sets and neither is wrong:
+
+| | Counted | Total |
+| --- | --- | --- |
+| `research.md` R1 (Phase 0 probe) | 2 browser + 27 synthetic stand-ins for the server's unused tools + 1 echo | 30 |
+| This baseline | 2 browser (stubbed) + 3 local report tools | 5 |
+
+Phase 0 simulated the real server's surface to size the saving; this baseline
+stubs the server to keep the measurement deterministic and reproducible. A real
+run against `chrome-devtools-mcp` carries 29 server tools, so the production
+saving is larger than this fixture can show. SC-004 is therefore asserted on
+stage membership rather than on absolute counts.
 
 ## Reproducibility (T007, SC-008)
 

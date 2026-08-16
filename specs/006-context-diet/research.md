@@ -23,6 +23,13 @@ The `[0, 1, 2]` column is the finding. By the third request the accessibility tr
 
 That also removes a request outright: the echo call is a whole model round trip that exists only to move text the system already had.
 
+**Note on the tool counts**: the 30 here is 2 browser tools plus 27 synthetic
+stand-ins for the server's unused surface plus the echo tool — sized to
+resemble a real run. The committed baseline in `baseline.md` counts a different
+set (2 stubbed browser tools plus 3 local report tools) because it stubs the
+server to stay deterministic. Neither is wrong; they count different things,
+and `baseline.md` says which.
+
 **Caveat on the 83%**: this is a synthetic fixture. The real ratio depends on how large a page's tree is relative to the prompt and the findings. It sits far enough above the spec's 40% floor to be confident, not far enough to restate the floor as a promise.
 
 ---
@@ -88,7 +95,7 @@ Because the reminder is literal text in a request body, SC-005 is checked by ass
 | R4 | Stage-varying tools needs no `prepareStep` | Read from the code; not yet executed |
 | R5 | Reminder text is assertable from request bodies | Read from the code |
 
-**Not executed**: anything involving a real model or real pages. SC-009 is the only criterion that needs it and is labelled a release check.
+**Not executed**: anything involving a real model or real pages. No criterion depends on it — SC-009 was later rewritten as a deterministic check on the intercepted request, and the live findings comparison became the optional SC-010 runbook.
 
 ---
 
@@ -96,4 +103,4 @@ Because the reminder is literal text in a request body, SC-005 is checked by ass
 
 1. **Which provider the harness pins.** The measurement runs through one provider's serialisation. Pinning the one under test keeps the numbers comparable; the reduction ratio is what the criterion is about, not the absolute byte count.
 2. **Fixture snapshot size.** The baseline should use a tree representative of a real page rather than the 6,800-character stand-in used here, so the ratio is not flattered by an unusually large or small fixture.
-3. **Whether the echo tool's removal changes completion behaviour.** Removing a tool the prompt told the model to call means the prompt changes too; the scripted E2E flow covers the mechanics, but SC-009 is what covers the judgement.
+3. **Whether the echo tool's removal changes completion behaviour.** Removing a tool the prompt told the model to call means the prompt changes too; the scripted E2E flow covers the mechanics, and SC-009 covers whether the model still receives everything it judges on.

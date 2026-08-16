@@ -10,7 +10,7 @@ Two changes to what each model call carries: capture the page structure in code 
 
 Phase 0 measured both against real intercepted request bodies. Today's shape sends 30 tool definitions on every request and, from the third request onward, carries the accessibility tree **twice** in the same body — once as the capture tool's result and again as the argument of the echo call. Removing the echo also removes a model round trip that exists only to move text the system already had. On the fixture: 54,852 bytes across 3 requests becomes 9,491 across 2.
 
-The verification approach is the other half of this plan. Measuring at the intercepted transport boundary makes eight of nine success criteria enforceable in CI with no provider account, which is what lifts this feature out of the baseline dependency that has now delayed verification on two consecutive features.
+The verification approach is the other half of this plan. Measuring at the intercepted transport boundary makes every success criterion enforceable in CI with no provider account, which is what lifts this feature out of the baseline dependency that has now delayed verification on two consecutive features.
 
 ## Technical Context
 
@@ -26,7 +26,7 @@ The verification approach is the other half of this plan. Measuring at the inter
 
 **Project Type**: Single-project CLI
 
-**Performance Goals**: Median request size per analysed page down ≥40% against the recorded baseline (SC-002); measurement reproducible byte-for-byte across runs (SC-008); no wall-clock regression
+**Performance Goals**: Total request bytes per analysed page down ≥40% against the recorded baseline (SC-002); measurement reproducible byte-for-byte across runs (SC-008); no wall-clock regression
 
 **Constraints**: The recorded snapshot must be byte-identical to the browser's output, at any size (SC-001). The tool array is re-sent in full on every request, so filtering must happen before the call, not in the prompt
 
@@ -118,7 +118,7 @@ The baseline is a number in `baseline.md` produced by running the harness on thi
 | Risk | Evidence | Handling |
 | --- | --- | --- |
 | Fixture size flatters the ratio | Phase 0 used a 6,800-char stand-in | First task fixes a representative fixture and records why that size |
-| Removing the echo tool changes model behaviour, not just plumbing | The prompt changes too | Scripted E2E covers the mechanics; SC-009 covers the judgement, as a release check |
+| Removing the echo tool changes model behaviour, not just plumbing | The prompt changes too | Scripted E2E covers the mechanics; SC-010 covers the live judgement, as an optional runbook |
 | Provider shape drift breaks the harness silently | R2 showed two validation failures with opaque messages | Handler asserts it was actually called; a test that intercepts nothing must fail, not pass |
 | Stage tracking mis-detects a failed navigation | US3 scenario 3 | Stage advances on observed tool success, not on the model claiming it |
 
