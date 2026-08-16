@@ -11,12 +11,14 @@ How to prove this feature works. Unlike 005, almost all of it runs in CI with no
 - No browser. The browser server is stubbed at the tool boundary for these tests
 - A real provider account and Chrome are needed **only** for SC-009, the release check
 
-## 0. Record the baseline — first, on the merge-base
+## 0. Record the baseline — after the harness, before any source change
+
+Do **not** check out the merge-base: that would delete the harness doing the measuring. Phase 1 adds test files only, so `source/` is still identical to the merge-base and the measurement is equivalent.
 
 ```bash
-git switch --detach $(git merge-base main HEAD)
+git diff $(git merge-base main HEAD) -- source/   # must be empty
 npm run build
-npx ava tests/e2e/context-budget.spec.ts   # records, does not assert thresholds
+npx ava tests/e2e/context-budget.spec.ts          # records, does not assert thresholds
 ```
 
 Write the numbers into `specs/006-context-diet/baseline.md`: median request bytes per page, tool count per request, and requests per page. Unlike 005's baseline this needs no credentials and reruns identically on any machine — SC-008 requires exactly that.

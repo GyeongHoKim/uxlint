@@ -8,11 +8,13 @@ What the model is offered, and when. This is the contract `tests/e2e/context-bud
 
 A page's analysis is in exactly one stage, determined by what has already succeeded — never by what the model says it did.
 
-| Stage | Entered when | Tools offered | Why not the others |
-| --- | --- | --- | --- |
-| `unloaded` | The page analysis begins | `navigate_page` | Capturing an unloaded page records a blank tree as if it were the site |
-| `loaded` | A navigation tool call returned success | `take_snapshot` | Findings before a capture would be judgements about nothing |
-| `analysable` | A capture returned a non-empty result | `addFinding`, `completePageAnalysis` | Navigation and capture are done; re-offering them invites loops |
+| Stage | Entered when | Tools offered | Source | Why not the others |
+| --- | --- | --- | --- | --- |
+| `unloaded` | The page analysis begins | `navigate_page` | **browser server** | Capturing an unloaded page records a blank tree as if it were the site |
+| `loaded` | A navigation tool call returned success | `take_snapshot` | **browser server** | Findings before a capture would be judgements about nothing |
+| `analysable` | A capture returned a non-empty result | `addFinding`, `completePageAnalysis` | **local** (`createReportTools()`) | Navigation and capture are done; re-offering them invites loops |
+
+**The Source column is load-bearing.** Only the browser-server tools are adapted from the MCP connection and therefore only they can be missing from it; the local ones are constructed by this project and always exist. A narrowing step that treated the whole table as one list would demand `addFinding` from the browser server and fail every run.
 
 **Advancement is one-way within a page.** A stage is entered on observed tool success and does not fall back, so a later failed call cannot strand the analysis in an earlier stage.
 
@@ -22,6 +24,19 @@ A page's analysis is in exactly one stage, determined by what has already succee
 | --- | --- |
 | `setPageSnapshot` | The system now records the capture directly. Offering it would ask the model to retype text it was already shown, which is the cost this feature removes and the reason the stored snapshot could differ from the browser's output |
 | Every browser-server tool other than `navigate_page` and `take_snapshot` | 27 definitions re-sent on every request (R3) for capabilities the analysis never invokes |
+
+## Where the capture is observed
+
+The snapshot is recorded from `generateText`'s `onToolExecutionEnd` callback, which was verified against the installed SDK to fire in this project's single-step loop — the callback is not limited to multi-step runs.
+
+| Detail | Verified value |
+| --- | --- |
+| Tool identity | `event.toolCall.toolName` — **not** `event.toolName`, which is undefined |
+| Success discriminator | `event.toolOutput.type === 'tool-result'` |
+| Failure discriminator | `event.toolOutput.type === 'tool-error'` |
+| Result value | `event.toolOutput.output` |
+
+The failure discriminator is what satisfies FR-004: an errored capture is distinguishable at the point of observation, so it can be skipped rather than stored as if it were a snapshot.
 
 ## Invariants the tests enforce
 
