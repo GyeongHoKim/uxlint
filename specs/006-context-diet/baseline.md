@@ -128,7 +128,17 @@ commit. This one is not, and recording it is not verifying it. A model given a
 smaller context could plausibly produce fewer or shallower findings, and no
 measurement here would notice.
 
-**Before release**, run the analysis against the real target set on this branch
-and on `d663ea8`, and compare median findings per page. If it has fallen more
-than 20%, the diet has cost analysis quality and the design needs revisiting —
-not the threshold.
+**Before release**, run [`sc009/run.sh`](./sc009/README.md):
+
+```bash
+cd specs/006-context-diet/sc009
+UXLINT_AI_PROVIDER=anthropic UXLINT_AI_API_KEY=sk-... ./run.sh
+```
+
+It runs the analysis three times on `d663ea8` and three times on this branch
+against a committed target set, and reports the change in median findings per
+page. If it has fallen more than 20%, the diet has cost analysis quality and
+the design needs revisiting — not the threshold.
+
+The report parser was verified against output from the real report generator,
+so the only thing missing is the model.
