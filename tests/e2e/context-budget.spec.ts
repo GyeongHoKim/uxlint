@@ -25,6 +25,8 @@ import {
 	scriptedProvider,
 	type ScriptedReply,
 } from '../mocks/handlers/provider.js';
+import {mcpResult} from '../fixtures/mcp-result.js';
+import {readToolOutcome} from '../../source/models/tool-output.js';
 import {ProviderRecorder} from '../mocks/provider-recorder.js';
 import {server} from '../mocks/server.js';
 import {
@@ -55,14 +57,14 @@ const browserServer = (): MCPClient =>
 					description: 'Navigate to a URL and wait for the page to load',
 					inputSchema: z.object({url: z.string()}),
 					async execute() {
-						return 'Successfully navigated.';
+						return mcpResult('Successfully navigated.');
 					},
 				}),
 				take_snapshot: tool({
 					description: 'Capture a text snapshot of the page accessibility tree',
 					inputSchema: z.object({}),
 					async execute() {
-						return pageSnapshotFixture;
+						return mcpResult(pageSnapshotFixture);
 					},
 				}),
 			};
@@ -257,7 +259,7 @@ test.serial(
 		// two runs have different request counts, and a median over an even-length
 		// list is the mean of the two middle values while a median over an odd one
 		// is a single sample. Comparing those compares statistics, not runs.
-		const budget = 210_252;
+		const budget = 223_464;
 		const {recorder} = await analyse(happyPath);
 
 		t.log(
@@ -374,9 +376,19 @@ test.serial(
 						: JSON.stringify(entry.content);
 				}
 
-				return entry.type === 'function_call_output'
-					? (entry.output ?? '')
-					: '';
+				if (entry.type !== 'function_call_output') {
+					return '';
+				}
+
+				// A tool result reaches the model as the serialised MCP wrapper,
+				// so it is unwrapped the same way the service unwraps it.
+				// Comparing against the raw output would fail on JSON escaping
+				// alone and say nothing about whether the model can read the page.
+				try {
+					return readToolOutcome(JSON.parse(entry.output ?? '""')).text;
+				} catch {
+					return entry.output ?? '';
+				}
 			})
 			.join('\n');
 
