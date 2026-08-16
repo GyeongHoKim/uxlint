@@ -274,3 +274,59 @@ test('adding provenance leaves every pre-existing metadata field intact', t => {
 	t.is(metadata.totalFindings, 0);
 	t.is(metadata.persona, 'Test persona');
 });
+
+test('the context diet leaves the report structure untouched (FR-011)', t => {
+	const builder = new ReportBuilder();
+	builder.setPersona('Test persona');
+	builder.setProvenance({
+		browserServer: 'chrome-devtools-mcp',
+		browserServerVersion: '1.7.0',
+		browserVersion: 'Google Chrome 151.0.0.0',
+		externalDataAllowed: false,
+	});
+	builder.initializePageAnalysis('https://example.com', 'features');
+	builder.setPageSnapshot('button "Sign up"');
+	builder.addFinding({
+		severity: 'high',
+		category: 'Accessibility',
+		description: 'Missing label',
+		personaRelevance: ['Test persona'],
+		recommendation: 'Add one',
+		pageUrl: 'https://example.com',
+	});
+	builder.completePageAnalysis();
+
+	const report = builder.generateFinalReport();
+
+	// Reducing what goes into a request must not change what comes out of a
+	// run. Every field a reader or a later feature relies on is still here,
+	// with the same name and the same meaning.
+	t.deepEqual(Object.keys(report).sort(), [
+		'metadata',
+		'pages',
+		'prioritizedFindings',
+		'summary',
+	]);
+	t.deepEqual(Object.keys(report.metadata).sort(), [
+		'analyzedPages',
+		'failedPages',
+		'partialPages',
+		'persona',
+		'timestamp',
+		'tooling',
+		'totalFindings',
+	]);
+	t.deepEqual(Object.keys(report.pages[0]!).sort(), [
+		'analysisTimestamp',
+		'features',
+		'findings',
+		'pageUrl',
+		'snapshot',
+		'status',
+	]);
+
+	// And the statuses still mean what they meant.
+	t.is(report.pages[0]?.status, 'complete');
+	t.deepEqual(report.metadata.analyzedPages, ['https://example.com']);
+	t.is(report.metadata.totalFindings, 1);
+});

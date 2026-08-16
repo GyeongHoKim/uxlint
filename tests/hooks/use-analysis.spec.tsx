@@ -47,10 +47,19 @@ test.serial(
 			async doGenerate() {
 				callCount++;
 				if (callCount === 1) {
-					// First iteration: stop without tool calls (triggers reminder)
+					// First iteration: navigate. This used to stop without a tool
+					// call and rely on the reminder message to keep the loop
+					// going; a model that stops now ends the page.
 					return {
-						content: [],
-						finishReason: {unified: 'stop', raw: undefined},
+						content: [
+							{
+								type: 'tool-call',
+								toolCallId: 'call-nav',
+								toolName: 'navigate_page',
+								input: '{"url":"https://example.com"}',
+							},
+						],
+						finishReason: {unified: 'tool-calls', raw: undefined},
 						usage: {
 							inputTokens: {
 								total: 10,

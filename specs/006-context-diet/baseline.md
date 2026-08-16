@@ -93,9 +93,42 @@ sent fell by 61%. Total is also simply what a run pays.
 The removed request is the echo call itself: a whole model round trip that
 existed only to move text the system already had.
 
-## Outstanding
+## Coverage (T033)
 
-- **SC-009** is not covered by any of the above. It needs a provider account,
-  Chrome and the real target set, and asks the one question the harness cannot:
-  whether a cheaper context is quietly a weaker analysis. Tracked as T036, with
-  T037 recording it as an unmet release gate if it cannot be performed.
+Read from the text reporter, not the exit status — `test:coverage` omits
+`--check-coverage`, so its exit code is always 0 (D18, out of scope here).
+
+| File | Stmts | Branch | Funcs | Lines |
+| --- | --- | --- | --- | --- |
+| `source/models/analysis-stage.ts` | 100 | 100 | 100 | 100 |
+| `source/services/ai-service.ts` | 95.0 | 82.8 | 86.7 | 95.0 |
+| `source/services/mcp-client.ts` | 96.2 | 85.2 | 100 | 96.2 |
+
+All above the 80% threshold on every metric.
+
+## Documentation (T032)
+
+No change required. `README.md` documents configuration and the state machine
+but never described the echo step, so removing it left nothing stale behind.
+Checked rather than assumed.
+
+## Outstanding: SC-009 is an unmet release gate (T036 not performed, T037)
+
+**SC-009 has not been checked.** It could not be: the implementing environment
+had no provider account and no Chrome, and it is the one criterion that needs
+both.
+
+| What it asks | Whether a cheaper context is quietly a weaker analysis — median findings per page within 20% of the same measurement before the change |
+| --- | --- |
+| Needs | A provider account, Chrome, and the fixed real target set |
+| Status | ⬜ **Not performed** |
+
+Everything else this feature claims is enforced by the test suite on every
+commit. This one is not, and recording it is not verifying it. A model given a
+smaller context could plausibly produce fewer or shallower findings, and no
+measurement here would notice.
+
+**Before release**, run the analysis against the real target set on this branch
+and on `d663ea8`, and compare median findings per page. If it has fallen more
+than 20%, the diet has cost analysis quality and the design needs revisiting —
+not the threshold.

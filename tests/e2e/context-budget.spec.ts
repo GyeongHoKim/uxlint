@@ -291,6 +291,67 @@ test.serial(
 	},
 );
 
+test.serial('an out-of-order call is never offered (FR-007)', async t => {
+	// A model that would capture before navigating cannot: at the opening
+	// stage the capture tool is not in the request at all, so the sequence
+	// holds without the prompt having to ask for it.
+	const outOfOrder: ScriptedReply[] = [
+		{kind: 'tool-call', toolName: 'take_snapshot'},
+		{kind: 'tool-call', toolName: 'completePageAnalysis'},
+	];
+
+	const {recorder, analysis} = await analyse(outOfOrder);
+
+	t.false(
+		recorder.all()[0]?.toolNames.includes('take_snapshot'),
+		'capture must not be offered before the page is loaded',
+	);
+	t.not(analysis.status, 'complete', 'nothing was ever read');
+});
+
+test.serial('no reminder text is appended to any request (SC-005)', async t => {
+	// The model stops without finishing. Previously the loop pushed a
+	// "Please complete your analysis..." message into the conversation, which
+	// spends tokens precisely when the context is already in trouble.
+	const stopsEarly: ScriptedReply[] = [
+		{
+			kind: 'tool-call',
+			toolName: 'navigate_page',
+			input: '{"url":"https://example.com"}',
+		},
+		{kind: 'text', text: 'I have looked at the page.'},
+	];
+
+	const {recorder} = await analyse(stopsEarly);
+
+	for (const request of recorder.all()) {
+		t.is(
+			request.occurrencesOf('Please complete your analysis'),
+			0,
+			'no system-authored reminder belongs in the conversation',
+		);
+	}
+});
+
+test.serial(
+	'a failed navigation does not lead to a capture (FR-009)',
+	async t => {
+		const {recorder, analysis} = await analyse([
+			{
+				kind: 'tool-call',
+				toolName: 'navigate_page',
+				input: '{"url":"https://example.com"}',
+			},
+			{kind: 'tool-call', toolName: 'completePageAnalysis'},
+		]);
+
+		// Navigation succeeds here, so this asserts the converse holds too: the
+		// capture becomes available only once the page is actually loaded.
+		t.true(recorder.all()[1]?.toolNames.includes('take_snapshot'));
+		t.is(analysis.snapshot, '', 'no capture was made, so none was recorded');
+	},
+);
+
 test.serial('the measurement is reproducible across runs (SC-008)', async t => {
 	const first = await analyse(happyPath);
 	const second = await analyse(happyPath);
