@@ -352,6 +352,51 @@ test.serial(
 	},
 );
 
+test.serial(
+	'the model still receives everything it judges on (SC-009)',
+	async t => {
+		const {recorder} = await analyse(happyPath);
+		const final = recorder.all().at(-1)!;
+
+		// What the model reads: the instructions, the user prompt, and every tool
+		// result. Anything else in the body is protocol.
+		const input = (final.body['input'] ?? []) as Array<{
+			role?: string;
+			type?: string;
+			content?: unknown;
+			output?: string;
+		}>;
+		const readable = input
+			.map(entry => {
+				if (entry.role === 'developer' || entry.role === 'user') {
+					return typeof entry.content === 'string'
+						? entry.content
+						: JSON.stringify(entry.content);
+				}
+
+				return entry.type === 'function_call_output'
+					? (entry.output ?? '')
+					: '';
+			})
+			.join('\n');
+
+		// This is what makes the diet lossless rather than merely smaller. What was
+		// removed is a second copy of text the model already had, tool definitions
+		// nothing invoked, and a round trip that moved text the system already
+		// held. Nothing the model reads for the first time was taken away.
+		t.true(
+			readable.includes(pageSnapshotFixture),
+			'the page structure in full',
+		);
+		t.true(
+			readable.includes('A developer evaluating the product'),
+			'the persona',
+		);
+		t.true(readable.includes('Landing page'), 'the page features');
+		t.is(final.occurrencesOf(pageSnapshotMarker), 1, 'and it is carried once');
+	},
+);
+
 test.serial('the measurement is reproducible across runs (SC-008)', async t => {
 	const first = await analyse(happyPath);
 	const second = await analyse(happyPath);
