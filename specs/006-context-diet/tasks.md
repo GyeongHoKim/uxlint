@@ -31,11 +31,11 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 **Unlike 005's baseline this needs no credentials, no browser and no network** — which is the whole reason the criteria are enforceable this time.
 
-- [ ] T001 Create `tests/mocks/handlers/provider.ts` with msw handlers speaking the **Responses API** (`POST https://api.openai.com/v1/responses`), scriptable per-request, following the structure of the existing `tests/mocks/handlers/oauth.ts`. Responses must carry `usage.input_tokens`/`output_tokens` and text parts must carry `annotations: []` — omitting either fails validation with an error naming JSON parsing rather than protocol shape (research R2)
-- [ ] T002 Create `tests/mocks/provider-recorder.ts` that captures each intercepted request body and exposes per-request `bytes`, `toolNames` and `structureOccurrences` per `data-model.md` §3. Keep it assertion-free — one recorder serves the size, tool-count, duplication and reminder checks
-- [ ] T003 Add a guard in `tests/mocks/provider-recorder.ts` so a test that intercepts **zero** requests fails rather than passing vacuously — a handler pointed at the wrong endpoint would otherwise satisfy every assertion (research R2, plan Open Risks)
-- [ ] T004 Create `tests/e2e/context-budget.spec.ts` that drives a full page analysis against the intercepted provider and reports the measurements without asserting thresholds yet
-- [ ] T005 Fix the fixture page structure at a representative size and **create** `specs/006-context-diet/baseline.md`, recording what size was chosen and why — Phase 0 used a 6,800-character stand-in, which may flatter the ratio (plan Open Risks)
+- [X] T001 Create `tests/mocks/handlers/provider.ts` with msw handlers speaking the **Responses API** (`POST https://api.openai.com/v1/responses`), scriptable per-request, following the structure of the existing `tests/mocks/handlers/oauth.ts`. Responses must carry `usage.input_tokens`/`output_tokens` and text parts must carry `annotations: []` — omitting either fails validation with an error naming JSON parsing rather than protocol shape (research R2)
+- [X] T002 Create `tests/mocks/provider-recorder.ts` that captures each intercepted request body and exposes per-request `bytes`, `toolNames` and `structureOccurrences` per `data-model.md` §3. Keep it assertion-free — one recorder serves the size, tool-count, duplication and reminder checks
+- [X] T003 Add a guard in `tests/mocks/provider-recorder.ts` so a test that intercepts **zero** requests fails rather than passing vacuously — a handler pointed at the wrong endpoint would otherwise satisfy every assertion (research R2, plan Open Risks)
+- [X] T004 Create `tests/e2e/context-budget.spec.ts` that drives a full page analysis against the intercepted provider and reports the measurements without asserting thresholds yet
+- [X] T005 Fix the fixture page structure at a representative size and **create** `specs/006-context-diet/baseline.md`, recording what size was chosen and why — Phase 0 used a 6,800-character stand-in, which may flatter the ratio (plan Open Risks)
 
 **Checkpoint**: A run of the harness prints numbers for unchanged code.
 
@@ -45,9 +45,9 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 **Measured here rather than on the merge-base, and that distinction matters.** Phase 1 adds test files only, so `source/` at this point is byte-for-byte the merge-base — the measurement is equivalent. Checking out the merge-base would instead delete the harness that does the measuring, which is what an earlier draft of these tasks told the implementer to do, having copied the shape of 005's baseline without noticing that 005's harness was the product itself.
 
-- [ ] T006 On this branch with Phase 1 complete and `source/` unchanged, run `tests/e2e/context-budget.spec.ts` and record median request bytes per page, tool count per request, and requests per page in `specs/006-context-diet/baseline.md`. Confirm `git diff <merge-base> -- source/` is empty before recording, so the numbers provably describe unchanged behaviour
-- [ ] T007 Run the measurement a second time on the same commit and confirm the numbers are identical, recording both in `specs/006-context-diet/baseline.md` (SC-008). A measurement that drifts cannot support a threshold
-- [ ] T008 Derive and record the SC-002 threshold (baseline × 0.6) in `specs/006-context-diet/baseline.md`
+- [X] T006 On this branch with Phase 1 complete and `source/` unchanged, run `tests/e2e/context-budget.spec.ts` and record median request bytes per page, tool count per request, and requests per page in `specs/006-context-diet/baseline.md`. Confirm `git diff <merge-base> -- source/` is empty before recording, so the numbers provably describe unchanged behaviour
+- [X] T007 Run the measurement a second time on the same commit and confirm the numbers are identical, recording both in `specs/006-context-diet/baseline.md` (SC-008). A measurement that drifts cannot support a threshold
+- [X] T008 Derive and record the SC-002 threshold (baseline × 0.6) in `specs/006-context-diet/baseline.md`
 
 **Checkpoint**: The threshold is a committed number derived from measured behaviour, reproducible by anyone.
 
