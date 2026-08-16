@@ -101,6 +101,22 @@ sent fell by 61%. Total is also simply what a run pays.
 The removed request is the echo call itself: a whole model round trip that
 existed only to move text the system already had.
 
+## A bug the review found (post-implementation)
+
+`completePageAnalysis` used to finalise the page inside its own `execute`,
+reading the snapshot to decide `complete` versus `partial`. Both it and
+`take_snapshot` are offered at the `loaded` stage, so a model can call them in
+one response — and when it did, completion executed first, closed the page out,
+and left the capture arriving moments later with no open page to attach to.
+**The snapshot was dropped entirely and a fully captured page was recorded as
+`partial`.**
+
+Reachable in a real run, and invisible to every test here until one asked the
+question. The page is now finalised by the loop after every observation from
+the step has been applied, so the status cannot depend on the order the SDK
+resolved concurrent tool calls in. Covered by `a capture and a completion in
+one step still record the capture first`.
+
 ## Coverage (T033)
 
 Read from the text reporter, not the exit status — `test:coverage` omits

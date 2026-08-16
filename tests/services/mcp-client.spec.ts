@@ -4,6 +4,7 @@ import {
 	browserServerIdentity,
 	buildLaunchSpec,
 	entryPointPath,
+	narrowBrowserTools,
 	resetMCPClient,
 	resolveBrowserSettings,
 	type BrowserLaunchSettings,
@@ -235,4 +236,49 @@ test('the server stderr is discarded rather than piped into a buffer nobody drai
 	// The transport never attaches a reader, so a pipe fills and the child
 	// blocks on write once the OS buffer is full.
 	t.is(spec.stderr, 'ignore');
+});
+
+test('the adapted tool set is narrowed to what the analysis uses', t => {
+	const narrowed = narrowBrowserTools({
+		navigate_page: 'nav',
+		take_snapshot: 'cap',
+		take_screenshot: 'unused',
+		lighthouse_audit: 'unused',
+		performance_start_trace: 'unused',
+	});
+
+	// Everything the server offers is re-sent, in full, on every request. A
+	// tool merely left unmentioned in the prompt is still paid for.
+	t.deepEqual(Object.keys(narrowed).sort(), ['navigate_page', 'take_snapshot']);
+});
+
+test('a browser server missing a required tool fails, naming it (SC-007)', t => {
+	const error = t.throws(() => {
+		narrowBrowserTools({navigate_page: 'nav', take_screenshot: 'unused'});
+	});
+
+	// The prompt tells the model to call this tool. Proceeding without it
+	// produces a run that fails later for a reason pointing somewhere else.
+	t.true(error?.message.includes('take_snapshot'), 'the message must name it');
+});
+
+test('both missing tools are named rather than only the first', t => {
+	const error = t.throws(() => {
+		narrowBrowserTools({take_screenshot: 'unused'});
+	});
+
+	t.true(error?.message.includes('navigate_page'));
+	t.true(error?.message.includes('take_snapshot'));
+});
+
+test('narrowing happens before any provider request could be issued', t => {
+	// SC-007 requires the failure to cost no model tokens. narrowBrowserTools
+	// is pure and runs on the tool set, so it cannot reach a provider: this
+	// asserts the shape that guarantees it rather than the timing.
+	t.throws(() => {
+		narrowBrowserTools({});
+	});
+	t.notThrows(() => {
+		narrowBrowserTools({navigate_page: 'nav', take_snapshot: 'cap'});
+	});
 });

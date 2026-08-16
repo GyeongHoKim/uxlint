@@ -334,12 +334,7 @@ export class AIService {
 			// out as `partial`: recording it as `complete` made a truncated
 			// sweep indistinguishable from a finished one, which is exactly the
 			// distinction a CI gate has to be able to make.
-			if (!isAnalysisCompleted) {
-				const state = this.reportBuilder.getCurrentState();
-				if (state.currentPageAnalysis) {
-					this.reportBuilder.completePageAnalysis('partial');
-				}
-			}
+			this.finalisePage(isAnalysisCompleted);
 
 			// Get the completed analysis from report builder
 			const state = this.reportBuilder.getCurrentState();
@@ -372,6 +367,36 @@ export class AIService {
 			// a caller that discards it, leaving the failure out of the report.
 			return this.reportBuilder.failCurrentPage(errorMessage, page);
 		}
+	}
+
+	/**
+	 * Close the current page out with the status its evidence supports.
+	 *
+	 * Called after every observation from the last step has been applied, so
+	 * the status cannot depend on the order the SDK happened to resolve
+	 * concurrent tool calls in. Finalising inside the completion tool raced
+	 * with the capture: both are offered at the same stage, so a model can
+	 * call them in one response, and completion executing first closed the
+	 * page out and left the capture with no open page to attach to -- the
+	 * snapshot was dropped and a fully captured page recorded as partial.
+	 *
+	 * A page whose structure was never captured has not been analysed,
+	 * whatever the model concluded about it, and neither has one the loop ran
+	 * out of iterations on. Both are `partial`: the distinction 004 needed in
+	 * order to gate a pipeline.
+	 *
+	 * @param signalledComplete - Whether the model called the completion tool
+	 */
+	private finalisePage(signalledComplete: boolean): void {
+		const pending = this.reportBuilder.getCurrentState().currentPageAnalysis;
+		if (!pending) {
+			return;
+		}
+
+		const captured = (pending.snapshot ?? '').length > 0;
+		this.reportBuilder.completePageAnalysis(
+			signalledComplete && captured ? 'complete' : 'partial',
+		);
 	}
 
 	/**
@@ -497,22 +522,21 @@ Usage: Call this tool multiple times, once per issue. Do not batch findings toge
 					'Mark the current page analysis as complete. REQUIRED: You MUST call this tool when you have finished analyzing all UX aspects and reporting findings. The analysis is not complete until you call this.',
 				inputSchema: z.object({}),
 				async execute() {
-					// A page whose structure was never captured has not been
-					// analysed, whatever the model concluded about it. Recording
-					// that as `complete` would make a judgement resting on nothing
-					// indistinguishable from one resting on the page -- the same
-					// distinction 004 needed to gate a pipeline on.
-					const captured =
-						(builder.getCurrentState().currentPageAnalysis?.snapshot ?? '')
-							.length > 0;
-					const completedAnalysis = builder.completePageAnalysis(
-						captured ? 'complete' : 'partial',
-					);
+					// Signals intent; the loop finalises the page once every tool
+					// result from this step has landed.
+					//
+					// Finalising here raced with the capture. Both tools are
+					// offered at the same stage, so a model can call them in one
+					// response -- and if completion executed first it closed the
+					// page out, leaving the capture that arrived moments later
+					// with no open page to attach to. The snapshot was dropped
+					// entirely and a fully captured page was recorded as partial.
+					const current = builder.getCurrentState().currentPageAnalysis;
 					return {
 						success: true,
 						message: 'Page analysis completed',
-						pageUrl: completedAnalysis.pageUrl,
-						findingsCount: completedAnalysis.findings.length,
+						pageUrl: current?.pageUrl ?? '',
+						findingsCount: current?.findings?.length ?? 0,
 					};
 				},
 			}),
