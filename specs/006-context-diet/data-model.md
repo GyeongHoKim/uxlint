@@ -29,8 +29,12 @@ This feature adds no report fields and changes no stored shapes. What changes is
 Not persisted, not reported. It exists for the duration of one page's analysis and decides the offered tool set.
 
 ```text
-AnalysisStage = 'unloaded' | 'loaded' | 'analysable'
+PageStage = 'unloaded' | 'loaded' | 'analysable'
 ```
+
+Named `PageStage` rather than `AnalysisStage`: `analysis.ts` already exports an
+`AnalysisStage` for the interactive progress display, and two same-named types
+with unrelated meanings in one module graph is a trap for the next auto-import.
 
 **Transitions** — driven by observed tool results, never by model assertion:
 

@@ -345,7 +345,7 @@ export async function getMCPClient(
  */
 export function narrowBrowserTools<T extends Record<string, unknown>>(
 	tools: T,
-): Partial<T> {
+): Pick<T, (typeof requiredBrowserTools)[number] & keyof T> {
 	const missing = requiredBrowserTools.filter(
 		name => !Object.hasOwn(tools, name),
 	);
@@ -356,12 +356,16 @@ export function narrowBrowserTools<T extends Record<string, unknown>>(
 		);
 	}
 
-	const narrowed: Partial<T> = {};
+	// Typed as a Pick rather than a Partial: past the throw above every
+	// required key is present, and saying so spares each caller a cast that
+	// existed only because the signature was looser than the guarantee. The
+	// single assertion sits here, where the throw has just established it.
+	const narrowed: Record<string, unknown> = {};
 	for (const name of requiredBrowserTools) {
-		narrowed[name as keyof T] = tools[name as keyof T];
+		narrowed[name] = tools[name];
 	}
 
-	return narrowed;
+	return narrowed as Pick<T, (typeof requiredBrowserTools)[number] & keyof T>;
 }
 
 /**

@@ -21,6 +21,7 @@ import {
 	initialStage,
 	toolsForStage,
 	type ObservedToolResult,
+	type PageStage,
 } from '../models/analysis-stage.js';
 import type {PreflightVerdict} from '../models/browser-preflight.js';
 import {readToolOutcome} from '../models/tool-output.js';
@@ -291,8 +292,14 @@ export class AIService {
 					messages,
 					tools,
 					onToolExecutionEnd: event => {
-						this.recordCapture(event);
-						observed.push(observeTool(event));
+						// Derived once. Three places used to decide independently
+						// whether a capture had succeeded -- the stage machine, the
+						// snapshot write, and the page's final status -- and
+						// nothing kept them in step. One observation now feeds all
+						// three.
+						const observation = observeTool(event);
+						this.recordCapture(observation);
+						observed.push(observation);
 					},
 				});
 
@@ -338,7 +345,7 @@ export class AIService {
 			// out as `partial`: recording it as `complete` made a truncated
 			// sweep indistinguishable from a finished one, which is exactly the
 			// distinction a CI gate has to be able to make.
-			this.finalisePage(isAnalysisCompleted);
+			this.finalisePage(isAnalysisCompleted, stage);
 
 			// Get the completed analysis from report builder
 			const state = this.reportBuilder.getCurrentState();
@@ -390,16 +397,20 @@ export class AIService {
 	 * order to gate a pipeline.
 	 *
 	 * @param signalledComplete - Whether the model called the completion tool
+	 * @param stage - Where the page's analysis reached
 	 */
-	private finalisePage(signalledComplete: boolean): void {
+	private finalisePage(signalledComplete: boolean, stage: PageStage): void {
 		const pending = this.reportBuilder.getCurrentState().currentPageAnalysis;
 		if (!pending) {
 			return;
 		}
 
-		const captured = (pending.snapshot ?? '').length > 0;
+		// `analysable` is reached only by a capture that succeeded and returned
+		// something, which is the same condition the snapshot write uses. Asking
+		// the stage rather than re-inspecting the snapshot keeps one answer to
+		// the question instead of two that must be kept in agreement.
 		this.reportBuilder.completePageAnalysis(
-			signalledComplete && captured ? 'complete' : 'partial',
+			signalledComplete && stage === 'analysable' ? 'complete' : 'partial',
 		);
 	}
 
@@ -416,26 +427,21 @@ export class AIService {
 	 * `isError` -- and `readToolOutcome` collapses both, so an errored capture
 	 * is skipped rather than stored as though the page had been read.
 	 *
-	 * @param event - A tool execution end event from the agent loop
+	 * @param observation - The tool result as the loop observed it
 	 */
-	private recordCapture(event: ToolExecutionEndEvent): void {
-		if (event.toolCall.toolName !== captureToolName) {
+	private recordCapture(observation: ObservedToolResult): void {
+		if (observation.toolName !== captureToolName) {
 			return;
 		}
 
-		const outcome = readToolOutcome(
-			event.toolOutput.output,
-			event.toolOutput.type !== 'tool-result',
-		);
-
-		if (outcome.failed || outcome.text.length === 0) {
+		if (!observation.succeeded || observation.output.length === 0) {
 			logger.warn('Page capture failed; nothing recorded', {
-				toolName: event.toolCall.toolName,
+				toolName: observation.toolName,
 			});
 			return;
 		}
 
-		this.reportBuilder.setPageSnapshot(outcome.text);
+		this.reportBuilder.setPageSnapshot(observation.output);
 	}
 
 	/**
