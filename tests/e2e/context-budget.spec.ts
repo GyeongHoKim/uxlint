@@ -31,7 +31,7 @@ import {ProviderRecorder} from '../mocks/provider-recorder.js';
 import {server} from '../mocks/server.js';
 import {
 	toolsForStage,
-	type AnalysisStage,
+	type PageStage,
 } from '../../source/models/analysis-stage.js';
 import {
 	pageSnapshotFixture,
@@ -96,7 +96,7 @@ test.afterEach(() => {
  */
 const stageOfRequest = (request: {
 	body: Record<string, unknown>;
-}): AnalysisStage => {
+}): PageStage => {
 	const input = Array.isArray(request.body['input'])
 		? (request.body['input'] as Array<{type?: string; name?: string}>)
 		: [];

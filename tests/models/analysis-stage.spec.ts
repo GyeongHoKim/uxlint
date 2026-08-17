@@ -3,7 +3,7 @@ import {
 	advanceStage,
 	initialStage,
 	toolsForStage,
-	type AnalysisStage,
+	type PageStage,
 } from '../../source/models/analysis-stage.js';
 
 const navigated = {toolName: 'navigate_page', succeeded: true, output: 'ok'};
@@ -65,7 +65,7 @@ test('stages are one-way within a page', t => {
 
 test('every stage offers at least one tool', t => {
 	// A stage offering nothing would stall the loop rather than end it.
-	const stages: AnalysisStage[] = ['unloaded', 'loaded', 'analysable'];
+	const stages: PageStage[] = ['unloaded', 'loaded', 'analysable'];
 
 	for (const stage of stages) {
 		t.true(toolsForStage(stage).length > 0, `${stage} offers no tools`);

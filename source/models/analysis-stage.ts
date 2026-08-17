@@ -16,11 +16,16 @@
 
 /**
  * Where a page's analysis has reached.
+ *
+ * Named `PageStage` rather than `PageStage` because `analysis.ts` already
+ * exports an `PageStage` for the interactive progress display. Two
+ * same-named types with unrelated meanings in one module graph is a trap for
+ * whoever next reaches for auto-import.
  */
-export type AnalysisStage = 'unloaded' | 'loaded' | 'analysable';
+export type PageStage = 'unloaded' | 'loaded' | 'analysable';
 
 /** Every page begins here. */
-export const initialStage: AnalysisStage = 'unloaded';
+export const initialStage: PageStage = 'unloaded';
 
 /**
  * A tool result as the loop observed it.
@@ -43,8 +48,8 @@ export type ObservedToolResult = {
  * site that reasons about ordering.
  */
 const advancingTool: Record<
-	AnalysisStage,
-	{tool: string; next: AnalysisStage; requiresOutput: boolean} | undefined
+	PageStage,
+	{tool: string; next: PageStage; requiresOutput: boolean} | undefined
 > = {
 	unloaded: {tool: 'navigate_page', next: 'loaded', requiresOutput: false},
 	loaded: {tool: 'take_snapshot', next: 'analysable', requiresOutput: true},
@@ -66,7 +71,7 @@ const advancingTool: Record<
  * is recorded as `partial`, so the escape hatch cannot be used to pass an
  * unread page off as analysed.
  */
-const stageTools: Record<AnalysisStage, readonly string[]> = {
+const stageTools: Record<PageStage, readonly string[]> = {
 	unloaded: ['navigate_page', 'completePageAnalysis'],
 	loaded: ['take_snapshot', 'completePageAnalysis'],
 	analysable: ['addFinding', 'completePageAnalysis'],
@@ -86,7 +91,7 @@ export const requiredBrowserTools = ['navigate_page', 'take_snapshot'] as const;
  * @param stage - Where the analysis has reached
  * @returns Tool names to expose, never empty
  */
-export function toolsForStage(stage: AnalysisStage): readonly string[] {
+export function toolsForStage(stage: PageStage): readonly string[] {
 	return stageTools[stage];
 }
 
@@ -104,9 +109,9 @@ export function toolsForStage(stage: AnalysisStage): readonly string[] {
  * @returns The stage after this result
  */
 export function advanceStage(
-	stage: AnalysisStage,
+	stage: PageStage,
 	result: ObservedToolResult,
-): AnalysisStage {
+): PageStage {
 	const advance = advancingTool[stage];
 
 	if (result.toolName !== advance?.tool) {
