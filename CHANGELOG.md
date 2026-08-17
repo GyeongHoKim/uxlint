@@ -1,3 +1,20 @@
+# [4.3.0](https://github.com/GyeongHoKim/uxlint/compare/v4.2.0...v4.3.0) (2026-08-17)
+
+
+### Bug Fixes
+
+* address the review findings on the context diet (006) ([655c6f1](https://github.com/GyeongHoKim/uxlint/commit/655c6f1c6fb7e018fb1c0b195b255de86ceecc45))
+* distinguish a corrupt content part from a valid non-text one (006) ([165faa9](https://github.com/GyeongHoKim/uxlint/commit/165faa93453b4b2d3a9eaa64956b2ec5ed64c86d))
+* finalise the page after observations land, not inside the tool (006) ([2de85f9](https://github.com/GyeongHoKim/uxlint/commit/2de85f965660ef8a8fddab3ee17c3874efd8a981))
+* read tool results in the shape the adapter actually returns (006) ([1059c84](https://github.com/GyeongHoKim/uxlint/commit/1059c84b625e71a3f19af9212cdea824a13bfd10))
+* treat a malformed tool result as a failure (006) ([1ee45fa](https://github.com/GyeongHoKim/uxlint/commit/1ee45fa70bfb073c710afee012863e36ad2828c4))
+
+
+### Features
+
+* record the page structure in code and offer tools by stage (006) ([e72cadc](https://github.com/GyeongHoKim/uxlint/commit/e72cadc385ffb6b1ffff392c1f1f213af34e5708))
+* retire the reminder message now that order is structural (006) ([5792e8b](https://github.com/GyeongHoKim/uxlint/commit/5792e8b573abb07842653c0dfbab60ee4ee41204))
+
 # [4.2.0](https://github.com/GyeongHoKim/uxlint/compare/v4.1.0...v4.2.0) (2026-08-15)
 
 
