@@ -65,17 +65,25 @@ export function readToolOutcome(
 		return {text: '', failed: true};
 	}
 
+	// A part that is not a part at all is corruption, and joining what
+	// surrounds it would produce a shorter tree presented as the whole one --
+	// which is exactly the fidelity the recorded snapshot is supposed to have.
+	// A *valid* part this code does not read from, such as an image, is
+	// different: MCP content legitimately mixes types, so those are skipped
+	// without condemning the result.
+	const malformed = result.content.some(
+		part =>
+			typeof part !== 'string' && (typeof part !== 'object' || part === null),
+	);
+
+	if (malformed) {
+		return {text: '', failed: true};
+	}
+
 	const text = result.content
 		.map(part => {
 			if (typeof part === 'string') {
 				return part;
-			}
-
-			// Guarded per part: a null entry would otherwise throw from inside
-			// a tool-execution callback, where the failure has nothing to do
-			// with the tool that appears to have caused it.
-			if (typeof part !== 'object' || part === null) {
-				return '';
 			}
 
 			const typed = part as {type?: unknown; text?: unknown};
