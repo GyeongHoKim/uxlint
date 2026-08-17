@@ -74,13 +74,30 @@ test('a result with no content array is a failure, not an empty success', t => {
 	t.true(readToolOutcome({content: 42}).failed);
 });
 
-test('a null content part is skipped rather than thrown on', t => {
-	// This threw a TypeError from inside a tool-execution callback, where the
-	// error names nothing that would help find it.
+test('a null content part fails the result rather than being skipped', t => {
+	// It used to throw a TypeError from inside a tool-execution callback. It
+	// then merely skipped, which is worse in a quieter way: joining what
+	// surrounds the corruption yields a shorter tree presented as the whole
+	// one, and the recorded snapshot is supposed to be exactly what the
+	// browser produced.
 	const outcome = readToolOutcome({
 		content: [null, {type: 'text', text: 'kept'}, undefined],
 	});
 
-	t.is(outcome.text, 'kept');
+	t.true(outcome.failed);
+	t.notThrows(() => readToolOutcome({content: [null]}));
+});
+
+test('a valid non-text part is skipped without condemning the result', t => {
+	// MCP content legitimately mixes types. An image alongside the tree is a
+	// well-formed reply, not corruption, so it must not be treated as one.
+	const outcome = readToolOutcome({
+		content: [
+			{type: 'image', data: 'base64…', mimeType: 'image/png'},
+			{type: 'text', text: 'button "Sign up"'},
+		],
+	});
+
 	t.false(outcome.failed);
+	t.is(outcome.text, 'button "Sign up"');
 });
