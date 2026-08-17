@@ -64,3 +64,23 @@ test('an unreadable output is treated as a failure', t => {
 	t.true(readToolOutcome(undefined).failed);
 	t.true(readToolOutcome(42).failed);
 });
+
+test('a result with no content array is a failure, not an empty success', t => {
+	// Navigation does not require output, so reporting a malformed reply as a
+	// success would advance the stage and let a page that never loaded be
+	// captured and judged -- the same failure a returned `isError` caused.
+	t.true(readToolOutcome({}).failed);
+	t.true(readToolOutcome({content: 'invalid'}).failed);
+	t.true(readToolOutcome({content: 42}).failed);
+});
+
+test('a null content part is skipped rather than thrown on', t => {
+	// This threw a TypeError from inside a tool-execution callback, where the
+	// error names nothing that would help find it.
+	const outcome = readToolOutcome({
+		content: [null, {type: 'text', text: 'kept'}, undefined],
+	});
+
+	t.is(outcome.text, 'kept');
+	t.false(outcome.failed);
+});

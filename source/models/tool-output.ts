@@ -57,13 +57,25 @@ export function readToolOutcome(
 	}
 
 	const result = output as {content?: unknown; isError?: unknown};
-	const failed = result.isError === true;
-	const parts = Array.isArray(result.content) ? result.content : [];
 
-	const text = parts
+	// A result without a content array is not a result this code understands.
+	// Reporting it as a success would let a malformed reply stand in for a
+	// page that loaded -- the same way a returned `isError` used to.
+	if (!Array.isArray(result.content)) {
+		return {text: '', failed: true};
+	}
+
+	const text = result.content
 		.map(part => {
 			if (typeof part === 'string') {
 				return part;
+			}
+
+			// Guarded per part: a null entry would otherwise throw from inside
+			// a tool-execution callback, where the failure has nothing to do
+			// with the tool that appears to have caused it.
+			if (typeof part !== 'object' || part === null) {
+				return '';
 			}
 
 			const typed = part as {type?: unknown; text?: unknown};
@@ -73,5 +85,5 @@ export function readToolOutcome(
 		})
 		.join('');
 
-	return {text, failed};
+	return {text, failed: result.isError === true};
 }
