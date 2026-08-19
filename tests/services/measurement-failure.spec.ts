@@ -13,6 +13,7 @@ import {
 	MeasurementService,
 	type MeasurementClient,
 } from '../../source/services/measurement.js';
+import {ReportBuilder} from '../../source/services/report-builder.js';
 
 const reportFixture = auditReportJson;
 
@@ -234,6 +235,39 @@ test('the audit runs before the trace', async t => {
 	);
 });
 
+test('every directory the audit wrote to is deleted', async t => {
+	// The audit writes a JSON report and an HTML one, each into a temp
+	// directory of its own. Cleaning up only the one we read left a
+	// quarter-megabyte HTML report behind on every audit -- found by running
+	// it, not by any test here, which is why this one exists.
+	const jsonDir = fs.mkdtempSync(path.join(os.tmpdir(), 'uxlint-json-'));
+	const htmlDir = fs.mkdtempSync(path.join(os.tmpdir(), 'uxlint-html-'));
+	fs.writeFileSync(path.join(jsonDir, 'report.json'), reportFixture);
+	fs.writeFileSync(path.join(htmlDir, 'report.html'), '<html></html>');
+
+	const reply = auditSnapshotReply
+		.replace(
+			/- \S*report\.json/,
+			() => `- ${path.join(jsonDir, 'report.json')}`,
+		)
+		.replace(
+			/- \S*report\.html/,
+			() => `- ${path.join(htmlDir, 'report.html')}`,
+		);
+
+	const client = scriptedClient({
+		async lighthouse_audit() {
+			return mcpResult(reply);
+		},
+		performance_start_trace: okTrace,
+	});
+
+	await new MeasurementService(client).measure('analysable');
+
+	t.false(fs.existsSync(jsonDir));
+	t.false(fs.existsSync(htmlDir), 'the HTML report directory survived');
+});
+
 test('the report directory is deleted after it is read', async t => {
 	const {reply, dir} = replyWithRealReport();
 	const client = scriptedClient({
@@ -303,4 +337,76 @@ test('each not-taken route is logged distinctly', async t => {
 		reason => lines.filter(line => line.includes(reason)).length,
 	);
 	t.true(mentioning.every(count => count > 0));
+});
+
+test('audit failure loses nothing', async t => {
+	// SC-005, and the shape of D8: an error path that erased every page
+	// already analysed. Three pages, the middle one's audit failing, and
+	// nothing may be lost -- not the failing page's own model findings, and
+	// not the pages either side of it.
+	const builder = new ReportBuilder();
+	builder.setPersona('Test persona');
+
+	const pages = [
+		{url: 'https://example.com/a', auditFails: false},
+		{url: 'https://example.com/b', auditFails: true},
+		{url: 'https://example.com/c', auditFails: false},
+	];
+
+	for (const page of pages) {
+		const {reply, dir} = replyWithRealReport();
+		const client = scriptedClient({
+			async lighthouse_audit() {
+				return page.auditFails ? mcpError('audit blew up') : mcpResult(reply);
+			},
+			performance_start_trace: okTrace,
+		});
+
+		builder.initializePageAnalysis(page.url, 'features');
+
+		// eslint-disable-next-line no-await-in-loop
+		const measurement = await new MeasurementService(client).measure(
+			'analysable',
+		);
+		builder.setPageMeasurement(measurement);
+
+		// Whatever the model concluded about the page, recorded either way.
+		builder.addFinding({
+			severity: 'medium',
+			category: 'Content',
+			description: `A judgement about ${page.url}`,
+			personaRelevance: ['Test persona'],
+			recommendation: 'Fix it',
+			pageUrl: page.url,
+			origin: 'judgement',
+		});
+
+		builder.completePageAnalysis('complete');
+		fs.rmSync(dir, {recursive: true, force: true});
+	}
+
+	const report = builder.generateFinalReport();
+
+	// Every page is present, including the one whose measurement failed.
+	t.is(report.pages.length, 3);
+
+	// Every model finding survives -- on the failing page and on both others.
+	for (const page of pages) {
+		const analysis = report.pages.find(entry => entry.pageUrl === page.url);
+		t.true(
+			analysis?.findings.some(finding => finding.origin === 'judgement'),
+			`${page.url} lost its model findings`,
+		);
+	}
+
+	// The failure is recorded as a missing measurement, not as a missing page.
+	const failed = report.pages.find(page => page.pageUrl === pages[1]!.url);
+	t.is(failed?.measurement.audit.state, 'not-taken');
+	t.is(failed?.status, 'complete');
+
+	// And the pages either side kept their measurements.
+	for (const url of [pages[0]!.url, pages[2]!.url]) {
+		const analysis = report.pages.find(page => page.pageUrl === url);
+		t.is(analysis?.measurement.audit.state, 'taken');
+	}
 });

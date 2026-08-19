@@ -22,6 +22,9 @@ Designed for frontend engineers who want quick, actionable UX feedback aligned w
 
 - Persona-aware analysis using your provided persona descriptions
 - Page-by-page evaluation guided by your freeform feature descriptions
+- Accessibility violations **measured**, not guessed, with the rule that caught each one
+- Core Web Vitals measured per page, so a report can be compared with an earlier one
+- Every finding labelled as measured or as AI judgement, so you know what you can dispute
 - Actionable recommendations prioritized for frontend teams
 - Single command execution with zero boilerplate beyond one config file
 
@@ -298,6 +301,53 @@ If authentication fails, the CLI provides clear error messages:
 
 **Ctrl+C cancellation**: Press `Ctrl+C` at any time during authentication to cleanly cancel the operation.
 
+## What is measured, and what is judged
+
+A report contains two kinds of statement, and it says which is which on every
+finding.
+
+**Measured.** Each page is audited for accessibility and traced for
+performance before the model is asked anything. Violations become findings
+directly, carrying the rule that caught them (`color-contrast`, `image-alt`),
+how many elements failed, and a severity derived from the rule's own impact
+rating by a fixed table — `critical` → critical, `serious` → high,
+`moderate` → medium, `minor` → low. The wording is the audit's own; nothing
+labelled measured contains a sentence uxlint or a model wrote.
+
+**AI judgement.** Everything measurement cannot reach — whether the wording
+makes sense, whether the flow suits the persona, whether the information
+architecture matches how someone thinks. The model is told what was measured
+so it does not report the same defect a second time as a guess, and it writes
+one note per page about what the measured violations mean for your persona.
+That note is rendered as judgement, outside the findings it discusses.
+
+The model is never asked to judge performance. It cannot see a paint timing,
+and a severity assigned to something unobservable is a guess — which is what
+this measurement replaced.
+
+### What the numbers are
+
+The statistics table carries, per page, the accessibility score and the
+measured Largest Contentful Paint and Cumulative Layout Shift. A measurement
+that was not taken says so, with the reason, rather than rendering as a blank
+or a zero — "audited and clean" and "never audited" are different facts.
+
+First Contentful Paint is not reported. The tracing tool does not measure one,
+and the only FCP figure it carries is a projected saving from a suggested fix.
+
+Accessibility is audited without reloading the page, so it describes the same
+page load the rest of the analysis read. The companion scores (SEO, best
+practices) are taken in that same mode and are labelled accordingly, because
+it skips the audits that need a fresh navigation — do not compare them with a
+score from a full page load.
+
+### What it costs
+
+Measurement adds roughly 6 to 8 seconds per page: about 2 seconds for the
+audit and 6 for the trace, of which 5 is a fixed wait the tracing tool
+performs by design. A measurement that has not returned after 60 seconds is
+abandoned; that page is reported as not measured and the run continues.
+
 ## Configuration
 
 ### Configuration file
@@ -339,6 +389,16 @@ Required fields are marked as required. All text fields accept natural language.
 ### Failing CI on UX regressions
 
 By default a run always exits `0` — it reports, it does not gate. Add a `thresholds` block to make the pipeline fail when a run crosses a limit you set.
+
+> **Upgrading from 4.3 or earlier?** Measured accessibility findings count
+> toward these thresholds on the same terms as any other finding, so a run can
+> now fail on a site that has not changed. Two things to expect: measured
+> findings are typically more numerous than the ones the model used to guess
+> at, and **one site-wide defect can exhaust a threshold on its own** — a
+> single bad contrast rule on ten pages is ten findings, and the gate counts
+> ten. The report's _Recurring across pages_ table makes that visible, but it
+> does not change the count. Re-tune your thresholds against one real run
+> before turning the gate on.
 
 ```yaml
 thresholds:

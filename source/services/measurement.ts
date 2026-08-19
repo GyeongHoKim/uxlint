@@ -74,10 +74,22 @@ export type MeasurementClient = {
 	}): Promise<unknown>;
 };
 
-/** Where the audit wrote its report, alongside the scores it summarised. */
+/** Where the audit wrote its reports, alongside the scores it summarised. */
 export type ParsedAuditReply = {
 	scores: Record<string, number>;
+
+	/** The JSON report, which is the one carrying the violations */
 	reportPath: string;
+
+	/**
+	 * Every file the audit wrote, JSON and HTML alike.
+	 *
+	 * Both are listed, and **each lands in its own temp directory** -- the
+	 * server makes a fresh one per file. Cleaning up only the one we read
+	 * leaves a quarter-megabyte HTML report behind on every audit, which a
+	 * live run is how we found out.
+	 */
+	writtenPaths: string[];
 };
 
 /** Somewhere to send a line about a measurement that did not happen. */
@@ -111,17 +123,19 @@ export function parseAuditReply(reply: string): Measured<ParsedAuditReply> {
 		}
 	}
 
-	const reportPath = reply
+	const writtenPaths = reply
 		.split('\n')
 		.map(line => line.trim())
-		.find(line => line.startsWith('- ') && line.endsWith('.json'))
-		?.slice(2);
+		.filter(line => line.startsWith('- /'))
+		.map(line => line.slice(2));
+
+	const reportPath = writtenPaths.find(file => file.endsWith('.json'));
 
 	if (!reportPath || Object.keys(scores).length === 0) {
 		return notTaken('unparseable');
 	}
 
-	return taken({scores, reportPath});
+	return taken({scores, reportPath, writtenPaths});
 }
 
 /**
@@ -482,7 +496,10 @@ export class MeasurementService {
 			return parsed;
 		}
 
-		const report = await this.readAndDiscardReport(parsed.value.reportPath);
+		const report = await this.readAndDiscardReport(
+			parsed.value.reportPath,
+			parsed.value.writtenPaths,
+		);
 
 		if (report.state !== 'taken') {
 			this.record('audit', report.reason);
@@ -504,11 +521,13 @@ export class MeasurementService {
 	 * full JSON result and an HTML rendering of it. Nothing else cleans those
 	 * up, so a run of any length would leave them accumulating.
 	 *
-	 * @param reportPath - Where the audit said it wrote the report
+	 * @param reportPath - Where the audit said it wrote the JSON report
+	 * @param writtenPaths - Every file the audit wrote, each to its own directory
 	 * @returns The violations, or why there are none
 	 */
 	private async readAndDiscardReport(
 		reportPath: string,
+		writtenPaths: string[],
 	): Promise<Measured<{violations: Violation[]; engineVersion?: string}>> {
 		let contents: string;
 
@@ -520,16 +539,24 @@ export class MeasurementService {
 
 		const violations = readAuditReport(contents);
 
-		try {
-			await fs.rm(path.dirname(reportPath), {recursive: true, force: true});
-		} catch (error) {
-			// Failing to tidy up is not a reason to lose a measurement that was
-			// taken successfully.
-			logger.warn('Could not remove audit report directory', {
-				reportPath,
-				error: error instanceof Error ? error.message : String(error),
-			});
-		}
+		// Every file the audit wrote, not only the one read. The HTML report is
+		// a quarter of a megabyte and sits in a directory of its own.
+		const directories = new Set(writtenPaths.map(file => path.dirname(file)));
+
+		await Promise.all(
+			[...directories].map(async directory => {
+				try {
+					await fs.rm(directory, {recursive: true, force: true});
+				} catch (error) {
+					// Failing to tidy up is not a reason to lose a measurement
+					// that was taken successfully.
+					logger.warn('Could not remove audit report directory', {
+						directory,
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
+			}),
+		);
 
 		return violations;
 	}
