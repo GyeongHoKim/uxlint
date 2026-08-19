@@ -9,6 +9,41 @@ import {z} from 'zod/v4';
 import {mcpResult} from './fixtures/mcp-result.js';
 
 /**
+ * Whether `port` accepts a TCP connection on one specific loopback address.
+ *
+ * @param port Port to probe
+ * @param host Loopback address to probe it on
+ * @returns Whether the connection succeeded
+ */
+async function canConnectVia(port: number, host: string): Promise<boolean> {
+	return new Promise<boolean>(resolve => {
+		const socket = net
+			.connect({port, host})
+			.on('connect', () => {
+				socket.destroy();
+				resolve(true);
+			})
+			.on('error', () => {
+				socket.destroy();
+				resolve(false);
+			});
+	});
+}
+
+/**
+ * Whether anything is listening on `port`, on either loopback family.
+ *
+ * @param port Port to probe
+ * @returns Whether a connection succeeded on either family
+ */
+async function isListening(port: number): Promise<boolean> {
+	const reachable = await Promise.all(
+		['127.0.0.1', '::1'].map(async host => canConnectVia(port, host)),
+	);
+	return reachable.includes(true);
+}
+
+/**
  * Resolve once `port` accepts TCP connections, or throw once `timeout` elapses.
  *
  * Sleeping a fixed number of milliseconds and hoping a server has bound by
@@ -35,26 +70,7 @@ export async function waitForPort(
 ): Promise<void> {
 	const deadline = Date.now() + timeout;
 
-	const canConnectVia = async (host: string) =>
-		new Promise<boolean>(resolve => {
-			const socket = net
-				.connect({port, host})
-				.on('connect', () => {
-					socket.destroy();
-					resolve(true);
-				})
-				.on('error', () => {
-					socket.destroy();
-					resolve(false);
-				});
-		});
-
-	const canConnect = async () => {
-		const reachable = await Promise.all(
-			['127.0.0.1', '::1'].map(async host => canConnectVia(host)),
-		);
-		return reachable.includes(true);
-	};
+	const canConnect = async () => isListening(port);
 
 	// eslint-disable-next-line no-await-in-loop -- probes are inherently sequential
 	while (!(await canConnect())) {
@@ -67,6 +83,50 @@ export async function waitForPort(
 			setTimeout(resolve, interval);
 		});
 	}
+}
+
+/**
+ * Resolve with whichever port in `ports` a server has bound, or throw.
+ *
+ * For servers that fall back through a range: the caller cannot know which
+ * port was taken, and a fixed sleep followed by one scan is doubly racy --
+ * it can run before anything has bound, and it has no second chance if it
+ * does. Both were true of the callback-server range test, which then hung for
+ * as long as the server spent timing out on every port in turn.
+ *
+ * Finds the port by TCP probe rather than by delivering the payload to each
+ * candidate in turn, so nothing is sent to a listener that is not the one
+ * under test.
+ *
+ * @param ports Candidate ports, in the order the server would try them
+ * @param options Timeout and poll interval in milliseconds
+ * @param options.timeout Milliseconds to wait before giving up
+ * @param options.interval Milliseconds between sweeps
+ * @returns The first port found listening
+ */
+export async function findListeningPort(
+	ports: number[],
+	{timeout = 5000, interval = 10}: {timeout?: number; interval?: number} = {},
+): Promise<number> {
+	const deadline = Date.now() + timeout;
+
+	do {
+		for (const port of ports) {
+			// eslint-disable-next-line no-await-in-loop -- probes are sequential
+			if (await isListening(port)) {
+				return port;
+			}
+		}
+
+		// eslint-disable-next-line no-await-in-loop -- back off between sweeps
+		await new Promise(resolve => {
+			setTimeout(resolve, interval);
+		});
+	} while (Date.now() < deadline);
+
+	throw new Error(
+		`No port in ${ports[0]}-${ports.at(-1)} opened within ${timeout}ms`,
+	);
 }
 
 /**
