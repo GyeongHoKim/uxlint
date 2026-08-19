@@ -290,11 +290,23 @@ export class ReportBuilder {
 	}
 
 	/**
-	 * Record what produced this run.
+	 * Record which audit engine produced this run's measurements.
 	 *
-	 * Set once per run, before pages are analysed. Provenance is written into
-	 * every report including one where every page failed -- a report that can
-	 * explain nothing else must still explain what produced it.
+	 * Written on the first page that is measured and not overwritten
+	 * afterwards: every page in a run is judged by the same engine, and a
+	 * later page failing to measure must not erase what an earlier one
+	 * established.
+	 *
+	 * @param version - Version the audit reported for itself
+	 */
+	recordAuditEngine(version: string): void {
+		if (this.provenance && !this.provenance.auditEngineVersion) {
+			this.provenance = {...this.provenance, auditEngineVersion: version};
+		}
+	}
+
+	/**
+	 * Record what produced this run.
 	 *
 	 * @param provenance - Identity of the tooling behind this run
 	 */

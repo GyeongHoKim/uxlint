@@ -11,7 +11,9 @@
  */
 
 import {Buffer} from 'node:buffer';
-import {promises as fsPromises} from 'node:fs';
+import fs, {promises as fsPromises} from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {createOpenAI} from '@ai-sdk/openai';
 import {tool} from 'ai';
@@ -26,6 +28,9 @@ import {
 	type ScriptedReply,
 } from '../mocks/handlers/provider.js';
 import {mcpResult} from '../fixtures/mcp-result.js';
+import {auditReportJson} from '../fixtures/lighthouse-report.js';
+import {auditSnapshotReply} from '../fixtures/lighthouse-reply.js';
+import {traceWithNavigationReply as traceReply} from '../fixtures/trace-reply.js';
 import {readToolOutcome} from '../../source/models/tool-output.js';
 import {ProviderRecorder} from '../mocks/provider-recorder.js';
 import {server} from '../mocks/server.js';
@@ -49,6 +54,17 @@ const baseConfig = (): UxLintConfig => ({
 /**
  * A browser server offering the two tools the analysis uses.
  */
+// The audit's real reply, pointed at a report on disk so the measurement
+// completes and its digest lands in the request the budget measures.
+const auditReportDir = fs.mkdtempSync(
+	path.join(os.tmpdir(), 'uxlint-budget-audit-'),
+);
+fs.writeFileSync(path.join(auditReportDir, 'report.json'), auditReportJson);
+const auditReplyForFixture = auditSnapshotReply.replace(
+	/- \S*report\.json/,
+	() => `- ${path.join(auditReportDir, 'report.json')}`,
+);
+
 const browserServer = (): MCPClient =>
 	({
 		async tools() {
@@ -68,6 +84,15 @@ const browserServer = (): MCPClient =>
 					},
 				}),
 			};
+		},
+		// The measurement tools are reached through callTool, not through
+		// tools(): this project calls them itself and never offers them to the
+		// model. Answering here is what puts the digest into the measured
+		// budget, so SC-007 covers what a real run actually sends.
+		async callTool({name}: {name: string}) {
+			return mcpResult(
+				name === 'lighthouse_audit' ? auditReplyForFixture : traceReply,
+			);
 		},
 		async close() {
 			// Nothing to tear down.
@@ -420,4 +445,49 @@ test.serial('the measurement is reproducible across runs (SC-008)', async t => {
 		first.recorder.all().map(request => request.toolNames),
 		second.recorder.all().map(request => request.toolNames),
 	);
+});
+
+test.serial(
+	'the request budget for a page is within the threshold (SC-007)',
+	async t => {
+		// The ceiling this feature must stay under: 192,000 bytes, being 1.25x the
+		// 153,913 recorded for v4.3.0 in specs/006-context-diet/baseline.md and
+		// measured with this same harness, so the comparison is like for like.
+		//
+		// The headroom is for the measurement digest and the model's page note.
+		// The audit and trace tools themselves cost nothing here, because they are
+		// never offered to the model -- see the test below.
+		const budget = 192_000;
+		const {recorder} = await analyse(happyPath);
+
+		t.log(`007 total=${recorder.totalBytes()} against ceiling ${budget}`);
+		t.true(
+			recorder.totalBytes() <= budget,
+			`total ${recorder.totalBytes()} bytes exceeds the ${budget} ceiling`,
+		);
+	},
+);
+
+test.serial('measurement adds no browser tool to any request', async t => {
+	// Feature 006 cut the per-request tool set to what the stage can act on.
+	// This feature calls the audit and the trace itself, so neither may ever
+	// appear in a request -- a regression here would quietly undo that work to
+	// deliver a reply the model cannot use.
+	const {recorder} = await analyse(happyPath);
+
+	for (const request of recorder.all()) {
+		t.false(
+			request.toolNames.includes('lighthouse_audit'),
+			'the audit tool was offered to the model',
+		);
+		t.false(
+			request.toolNames.includes('performance_start_trace'),
+			'the trace tool was offered to the model',
+		);
+	}
+
+	// What the feature does add is one local tool, at the one stage that can
+	// use it: the note the model writes about the measured violations.
+	const perRequest = recorder.all().map(request => request.toolNames.length);
+	t.deepEqual(perRequest, [2, 2, 3, 3]);
 });

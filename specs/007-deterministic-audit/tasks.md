@@ -79,8 +79,8 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 - [X] T023 [US1] Build the measurement digest in `source/services/measurement.ts` and inject it into the page prompt in `source/services/ai-service.ts`, in the form given in `contracts/measurement.md` (FR-015). **This belongs to US1, not US2**: without it the model is not told what was measured and re-reports the same contrast problems the audit just found, so the MVP would ship duplicate findings
 - [X] T024 [US1] Remove Performance from the system prompt's category list in `source/services/ai-service.ts` and stop asking the model to judge accessibility unaided (FR-014). The model keeps everything measurement cannot reach — wording, information architecture, whether a flow makes sense for the persona
 - [X] T025 [US1] Carry the measurement onto the stored page in `source/services/report-builder.ts`
-- [ ] T026 [US1] Create `tests/integration/planted-defect.spec.ts` with a test named `planted defect` (SC-001) driving a full analysis against the recorded fixtures and asserting the rendered markdown contains a `color-contrast` finding on the fixture page
-- [ ] T027 [US1] Add a test named `violation set is reproducible` (SC-003) to `tests/integration/planted-defect.spec.ts`: two analyses of the same recorded input produce identical rules, counts and severities
+- [X] T026 [US1] Create `tests/integration/planted-defect.spec.ts` with a test named `planted defect` (SC-001) driving a full analysis against the recorded fixtures and asserting the rendered markdown contains a `color-contrast` finding on the fixture page
+- [X] T027 [US1] Add a test named `violation set is reproducible` (SC-003) to `tests/integration/planted-defect.spec.ts`: two analyses of the same recorded input produce identical rules, counts and severities
 
 **Checkpoint**: Measured accessibility findings reach the report, and the model is told what was measured so it does not re-report it. They are not yet distinguishable from judged ones in the rendered file — that is US2.
 
@@ -94,20 +94,20 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Tests first
 
-- [ ] T028 [P] [US2] Add a test named `every finding states its origin` (SC-002) to `tests/infrastructure/reports/report-generator.spec.ts`, asserting against the **rendered markdown** that no finding appears without an origin, in either the per-page listing or the prioritised listing
-- [ ] T029 [P] [US2] Add a test named `audit wording is unaltered` (SC-011) to `tests/infrastructure/reports/report-generator.spec.ts`: the description of every finding marked measured is byte-identical to the audit's title for that rule
-- [ ] T030 [P] [US2] Assert the full invariant of FR-008 in `tests/infrastructure/reports/report-generator.spec.ts`: a rule identifier is present on every measured finding **and absent from every judged one**. The negative half is spec US2 acceptance scenario 3, and a renderer that printed a rule id on a judged finding would satisfy the positive half alone
-- [ ] T031 [P] [US2] Add a test named `one note per page` (SC-010) to `tests/infrastructure/reports/report-generator.spec.ts`: a page with violations renders exactly one model note, attributed to judgement and sitting outside the findings it discusses, whatever the violation count
-- [ ] T032 [P] [US2] Add a test named `one finding per rule` (SC-006) to `tests/infrastructure/reports/report-generator.spec.ts`: a rule that failed on N elements renders as one finding stating N
+- [X] T028 [P] [US2] Add a test named `every finding states its origin` (SC-002) to `tests/infrastructure/reports/report-generator.spec.ts`, asserting against the **rendered markdown** that no finding appears without an origin, in either the per-page listing or the prioritised listing
+- [X] T029 [P] [US2] Add a test named `audit wording is unaltered` (SC-011) to `tests/infrastructure/reports/report-generator.spec.ts`: the description of every finding marked measured is byte-identical to the audit's title for that rule
+- [X] T030 [P] [US2] Assert the full invariant of FR-008 in `tests/infrastructure/reports/report-generator.spec.ts`: a rule identifier is present on every measured finding **and absent from every judged one**. The negative half is spec US2 acceptance scenario 3, and a renderer that printed a rule id on a judged finding would satisfy the positive half alone
+- [X] T031 [P] [US2] Add a test named `one note per page` (SC-010) to `tests/infrastructure/reports/report-generator.spec.ts`: a page with violations renders exactly one model note, attributed to judgement and sitting outside the findings it discusses, whatever the violation count
+- [X] T032 [P] [US2] Add a test named `one finding per rule` (SC-006) to `tests/infrastructure/reports/report-generator.spec.ts`: a rule that failed on N elements renders as one finding stating N
 
 ### Implementation
 
 - [X] T033 [US2] Add `FindingOrigin` and the `origin`, `ruleId` and `affectedElements` fields to `UxFinding` in `source/models/analysis.ts` per `data-model.md` §1. **`origin` is required, not optional** — an optional field would allow a finding with no origin, and the first such finding would render as neither measured nor judged
 - [X] T034 [US2] Update every `UxFinding` construction site the compiler now reports, including the model's `addFinding` tool in `source/services/ai-service.ts`, which sets `origin: 'judgement'`. The model does not choose its own origin: it is set by the code that received the finding
-- [ ] T035 [US2] Render the origin on every finding in `source/infrastructure/reports/report-generator.ts`, in both the per-page listing and the prioritised listing, with the rule id shown for measured findings only
-- [ ] T036 [US2] Add the per-page note to `source/services/ai-service.ts`: using the digest built in T023, ask the model for **one** note per page about the measured violation set, stored in `measurementNote`. Once per page whatever the violation count — per-violation annotation would scale model output with violation count, against the budget feature 006 established (FR-019)
-- [ ] T037 [US2] Render `measurementNote` in `source/infrastructure/reports/report-generator.ts` as model judgement, visibly separate from the findings it discusses, so that nothing labelled measured contains model-authored text
-- [ ] T038 [US2] Add a test named `no performance finding` (SC-009) to `tests/infrastructure/reports/report-generator.spec.ts`: the rendered report contains no performance finding of any origin. After this feature, performance is a number in the statistics or it is absent
+- [X] T035 [US2] Render the origin on every finding in `source/infrastructure/reports/report-generator.ts`, in both the per-page listing and the prioritised listing, with the rule id shown for measured findings only
+- [X] T036 [US2] Add the per-page note to `source/services/ai-service.ts`: using the digest built in T023, ask the model for **one** note per page about the measured violation set, stored in `measurementNote`. Once per page whatever the violation count — per-violation annotation would scale model output with violation count, against the budget feature 006 established (FR-019)
+- [X] T037 [US2] Render `measurementNote` in `source/infrastructure/reports/report-generator.ts` as model judgement, visibly separate from the findings it discusses, so that nothing labelled measured contains model-authored text
+- [X] T038 [US2] Add a test named `no performance finding` (SC-009) to `tests/infrastructure/reports/report-generator.spec.ts`: the rendered report contains no performance finding of any origin. After this feature, performance is a number in the statistics or it is absent
 
 **Checkpoint**: A reader can tell a measured fact from an AI judgement, in the file they actually open.
 
@@ -121,19 +121,19 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 
 ### Tests first
 
-- [ ] T039 [P] [US3] Add a test named `absent measurement` (SC-004) to `tests/infrastructure/reports/report-generator.spec.ts` covering three cases against the rendered markdown: a page measured fully, a page whose audit failed, and a page whose trace succeeded but reported no LCP. No page may render a measurement it did not take as a number
-- [ ] T040 [P] [US3] Add a trace-parsing test to `tests/services/measurement-parsing.spec.ts` using both recorded replies from T003: `NAVIGATION_0` yields LCP and CLS, `NO_NAVIGATION` yields CLS with LCP `not-taken`. Assert that `- LCP breakdown:` is **not** read as a metric — it is a heading, and a loose match on `LCP` consumes it
-- [ ] T041 [P] [US3] Add a test asserting no FCP value is ever produced. The only FCP figure in the reply is `estimated metric savings: FCP 0 ms`, a projected saving from a suggested fix; parsing it as the page's FCP would fabricate the kind of number this feature exists to remove (research R4)
+- [X] T039 [P] [US3] Add a test named `absent measurement` (SC-004) to `tests/infrastructure/reports/report-generator.spec.ts` covering three cases against the rendered markdown: a page measured fully, a page whose audit failed, and a page whose trace succeeded but reported no LCP. No page may render a measurement it did not take as a number
+- [X] T040 [P] [US3] Add a trace-parsing test to `tests/services/measurement-parsing.spec.ts` using both recorded replies from T003: `NAVIGATION_0` yields LCP and CLS, `NO_NAVIGATION` yields CLS with LCP `not-taken`. Assert that `- LCP breakdown:` is **not** read as a metric — it is a heading, and a loose match on `LCP` consumes it
+- [X] T041 [P] [US3] Add a test asserting no FCP value is ever produced. The only FCP figure in the reply is `estimated metric savings: FCP 0 ms`, a projected saving from a suggested fix; parsing it as the page's FCP would fabricate the kind of number this feature exists to remove (research R4)
 
 ### Implementation
 
-- [ ] T042 [US3] Implement the trace call and metric parsing in `source/services/measurement.ts`: one `performance_start_trace` call with `reload: true, autoStop: true` — the server records, waits and stops by itself, so `performance_stop_trace` is never called. Ordered **after** the audit, because the trace reloads the page
-- [ ] T043 [US3] Wrap each metric in `Measured` independently of the trace itself (FR-006a), so a trace that succeeded with no LCP is recorded as taken at the trace level and not-taken at the metric level
-- [ ] T044 [US3] Render the per-page statistics in `source/infrastructure/reports/report-generator.ts`: accessibility score, LCP and CLS, with absence rendered as words rather than as zero or blank
-- [ ] T045 [US3] Label the companion scores (SEO, best practices, agentic browsing) as taken in snapshot mode in `source/infrastructure/reports/report-generator.ts` (FR-012a). They are degraded by that mode — SEO scored 50 against 75 in navigation mode — and an unlabelled number invites a comparison that is not valid
-- [ ] T046 [US3] Add the recurrence summary to `source/infrastructure/reports/report-generator.ts` per FR-013b: every rule that failed on more than one page, with the page count. **Derive it from the findings at render time** — a stored copy is a second source of truth that can disagree with the findings it summarises
-- [ ] T047 [US3] Add `auditEngineVersion` to `RunProvenance` in `source/models/analysis.ts`, read from the report's own `lighthouseVersion` rather than hardcoded, and render it in the report header beside the existing browser provenance
-- [ ] T048 [US3] Add a test to `tests/infrastructure/reports/report-generator.spec.ts` asserting the recurrence summary counts pages, not findings, and that it never reports a rule the findings do not contain
+- [X] T042 [US3] Implement the trace call and metric parsing in `source/services/measurement.ts`: one `performance_start_trace` call with `reload: true, autoStop: true` — the server records, waits and stops by itself, so `performance_stop_trace` is never called. Ordered **after** the audit, because the trace reloads the page
+- [X] T043 [US3] Wrap each metric in `Measured` independently of the trace itself (FR-006a), so a trace that succeeded with no LCP is recorded as taken at the trace level and not-taken at the metric level
+- [X] T044 [US3] Render the per-page statistics in `source/infrastructure/reports/report-generator.ts`: accessibility score, LCP and CLS, with absence rendered as words rather than as zero or blank
+- [X] T045 [US3] Label the companion scores (SEO, best practices, agentic browsing) as taken in snapshot mode in `source/infrastructure/reports/report-generator.ts` (FR-012a). They are degraded by that mode — SEO scored 50 against 75 in navigation mode — and an unlabelled number invites a comparison that is not valid
+- [X] T046 [US3] Add the recurrence summary to `source/infrastructure/reports/report-generator.ts` per FR-013b: every rule that failed on more than one page, with the page count. **Derive it from the findings at render time** — a stored copy is a second source of truth that can disagree with the findings it summarises
+- [X] T047 [US3] Add `auditEngineVersion` to `RunProvenance` in `source/models/analysis.ts`, read from the report's own `lighthouseVersion` rather than hardcoded, and render it in the report header beside the existing browser provenance
+- [X] T048 [US3] Add a test to `tests/infrastructure/reports/report-generator.spec.ts` asserting the recurrence summary counts pages, not findings, and that it never reports a rule the findings do not contain
 
 **Checkpoint**: The report carries an external reference point. Feature 010's baseline work now has something stable to compare.
 
@@ -144,17 +144,17 @@ Single project: `source/` and `tests/` at repository root, compiled to `dist/`. 
 **Purpose**: Measurement is the longest wait in a run. An unlabelled wait of that length is indistinguishable from the hang T018 exists to prevent.
 
 - [X] T049 [P] Add `measuring` to `analysisStages` in `source/models/analysis.ts`, between `capturing` and `analyzing`, and include it in `isAnalysisInProgress`
-- [ ] T050 Report the measuring phase from `source/services/ai-service.ts` via the existing progress callback, naming the page being measured
-- [ ] T051 Render the phase in `source/components/analysis-progress.tsx`, and say so when a measurement is abandoned rather than moving on silently (FR-013d)
-- [ ] T052 Add a test named `measuring phase` (SC-009a) to `tests/components/analysis-progress.spec.tsx` asserting against what the display renders, not against the state that drove it
+- [X] T050 Report the measuring phase from `source/services/ai-service.ts` via the existing progress callback, naming the page being measured
+- [X] T051 Render the phase in `source/components/analysis-progress.tsx`, and say so when a measurement is abandoned rather than moving on silently (FR-013d)
+- [X] T052 Add a test named `measuring phase` (SC-009a) to `tests/components/analysis-progress.spec.tsx` asserting against what the display renders, not against the state that drove it
 
 ---
 
 ## Phase 7: Budget, gate and the live run
 
-- [ ] T053 Update the ceiling in `tests/e2e/context-budget.spec.ts` to 192,000 bytes (SC-007) and record the measured figure for this feature beside feature 006's 153,913 in a new `specs/007-deterministic-audit/baseline.md`. Measured with the same harness, so the comparison is between like and like
-- [ ] T054 Confirm in `tests/e2e/context-budget.spec.ts` that this feature adds **zero** tool definitions to any model request — the per-request tool count stays at 2. The measurement tools are called by uxlint, never offered to the model, and a regression here would quietly undo part of feature 006
-- [ ] T055 Add a gate test to `tests/models/gate-result.spec.ts` asserting measured findings count toward the severity thresholds on the same terms as any other finding (FR-020)
+- [X] T053 Update the ceiling in `tests/e2e/context-budget.spec.ts` to 192,000 bytes (SC-007) and record the measured figure for this feature beside feature 006's 153,913 in a new `specs/007-deterministic-audit/baseline.md`. Measured with the same harness, so the comparison is between like and like
+- [X] T054 Confirm in `tests/e2e/context-budget.spec.ts` that this feature adds **zero** tool definitions to any model request — the per-request tool count stays at 2. The measurement tools are called by uxlint, never offered to the model, and a regression here would quietly undo part of feature 006
+- [X] T055 Add a gate test to `tests/models/gate-result.spec.ts` asserting measured findings count toward the severity thresholds on the same terms as any other finding (FR-020)
 - [ ] T056 Document the breaking change in `README.md` and the release notes: thresholds tuned against guessed findings will see different counts, and one site-wide accessibility defect can exhaust a severity threshold on its own. The recurrence summary makes that legible; it does not soften it
 - [ ] T057 Document the audit in `README.md` — what is measured, what "measured" and "judged" mean in the report, and that the trace adds roughly 6 seconds per page
 - [ ] T058 Run the live checks in `quickstart.md` §4 against a real site and record the result in `specs/007-deterministic-audit/baseline.md`, including the per-page wall clock on a real page rather than a localhost fixture, and confirm it against the 60-second ceiling of SC-008. **Feature 005's US1 was merged unverified for want of exactly this step**

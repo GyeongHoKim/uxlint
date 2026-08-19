@@ -6,10 +6,13 @@
  */
 
 import type {
+	FindingOrigin,
 	FindingSeverity,
 	PageAnalysis,
+	UxFinding,
 	UxReport,
 } from '../../models/analysis.js';
+import type {Measured} from '../../models/measurement.js';
 
 /**
  * Severity emoji mapping
@@ -20,6 +23,208 @@ const severityEmoji: Record<FindingSeverity, string> = {
 	medium: '🟡',
 	low: '🟢',
 };
+
+/**
+ * How each origin is named to a reader.
+ *
+ * The whole feature turns on this line of the report. A reader who cannot tell
+ * a measured fact from an AI judgement has to treat every finding as an
+ * opinion, which is what the report was worth before.
+ */
+const originLabel: Record<FindingOrigin, string> = {
+	audit: 'measured',
+	trace: 'measured',
+	judgement: 'AI judgement',
+};
+
+/**
+ * How a finding announces where it came from.
+ *
+ * A measured finding names the rule that caught it and how many elements it
+ * failed on. A judged one names neither: claiming a rule id it does not have
+ * would be claiming a verification that never happened.
+ *
+ * @param finding - The finding to describe
+ * @returns The parenthesised provenance
+ */
+function describeOrigin(finding: UxFinding): string {
+	if (finding.origin === 'judgement') {
+		return `_${originLabel.judgement}_`;
+	}
+
+	const elements =
+		finding.affectedElements === undefined
+			? ''
+			: `, ${finding.affectedElements} element${
+					finding.affectedElements === 1 ? '' : 's'
+				}`;
+
+	return `\`${finding.ruleId ?? 'unknown'}\`${elements} — _${
+		originLabel[finding.origin]
+	}_`;
+}
+
+/**
+ * Render a number that may not have been measured.
+ *
+ * Absence is spelled out rather than left blank, because a blank in a column
+ * of numbers reads as a zero and a zero reads as a pass.
+ *
+ * @param value - The measurement
+ * @param format - How to render it when present
+ * @returns Either the number or an account of its absence
+ */
+function renderMeasured(
+	value: Measured<number>,
+	format: (n: number) => string,
+): string {
+	return value.state === 'taken' ? format(value.value) : 'not measured';
+}
+
+/**
+ * The measured numbers, per page.
+ *
+ * The statistics used to be an aggregate of the model's own severity
+ * judgements and nothing else, which gave a reader no external reference
+ * point: every number in the table moved when the model's mood moved. These
+ * move only when the site does.
+ *
+ * @param pages - Every analysed page
+ * @returns The table, or nothing when no page was measured
+ */
+function renderMeasurementTable(pages: PageAnalysis[]): string[] {
+	const measured = pages.filter(page =>
+		['complete', 'partial', 'failed'].includes(page.status),
+	);
+
+	if (measured.length === 0) {
+		return [];
+	}
+
+	const rows = measured.map(page => {
+		const {audit, trace} = page.measurement;
+
+		const score =
+			audit.state === 'taken'
+				? `${audit.value.scores['accessibility'] ?? 0}/100`
+				: `not measured (${audit.reason})`;
+
+		const lcp =
+			trace.state === 'taken'
+				? renderMeasured(
+						trace.value.largestContentfulPaint,
+						value => `${value} ms`,
+					)
+				: `not measured (${trace.reason})`;
+
+		const cls =
+			trace.state === 'taken'
+				? renderMeasured(trace.value.cumulativeLayoutShift, value =>
+						value.toFixed(2),
+					)
+				: `not measured (${trace.reason})`;
+
+		return `| ${page.pageUrl} | ${score} | ${lcp} | ${cls} |`;
+	});
+
+	return [
+		'### Measured',
+		'',
+		'| Page | Accessibility | LCP | CLS |',
+		'|------|---------------|-----|-----|',
+		...rows,
+		'',
+		// Said plainly because the companion scores are taken in a mode that
+		// skips the audits needing a page load, and a reader comparing them
+		// against a full-navigation score would be comparing different things.
+		'Accessibility is audited without reloading the page, so it describes the same page load the analysis read. First Contentful Paint is not reported: the tracing tool does not measure one.',
+		'',
+	];
+}
+
+/**
+ * Rules that failed on more than one page.
+ *
+ * A single bad style rule across ten pages is ten findings, and the gate
+ * counts ten. This does not change that -- it makes it legible, so a reader
+ * can see one defect where the finding list shows ten.
+ *
+ * Derived from the findings each time rather than stored: a stored copy is a
+ * second source of truth, and this summary must never be able to claim
+ * something the findings do not say.
+ *
+ * @param pages - Every analysed page
+ * @returns The summary, or nothing when no rule recurred
+ */
+function renderRecurrence(pages: PageAnalysis[]): string[] {
+	const pagesByRule = new Map<string, {title: string; pages: Set<string>}>();
+
+	const measuredFindings = pages.flatMap(page =>
+		page.findings
+			.filter(finding => finding.origin === 'audit' && finding.ruleId)
+			.map(finding => ({finding, pageUrl: page.pageUrl})),
+	);
+
+	for (const {finding, pageUrl} of measuredFindings) {
+		const ruleId = finding.ruleId!;
+		const entry = pagesByRule.get(ruleId) ?? {
+			title: finding.description,
+			pages: new Set<string>(),
+		};
+		entry.pages.add(pageUrl);
+		pagesByRule.set(ruleId, entry);
+	}
+
+	const recurring = [...pagesByRule]
+		.filter(([, entry]) => entry.pages.size > 1)
+		.sort((a, b) => b[1].pages.size - a[1].pages.size);
+
+	if (recurring.length === 0) {
+		return [];
+	}
+
+	return [
+		'### Recurring across pages',
+		'',
+		'| Rule | Pages affected | Issue |',
+		'|------|----------------|-------|',
+		...recurring.map(
+			([ruleId, entry]) =>
+				`| \`${ruleId}\` | ${entry.pages.size} | ${entry.title} |`,
+		),
+		'',
+		'One site-wide defect appears once here and once per page in the findings. The gate counts the findings.',
+		'',
+	];
+}
+
+/**
+ * What was measured on one page, in the page's own section.
+ *
+ * Absence is stated rather than omitted. A page whose audit never ran and a
+ * page audited and found clean are different facts, and a silent section makes
+ * them look the same.
+ *
+ * @param page - The page being rendered
+ * @returns Lines for the page section
+ */
+function renderPageMeasurement(page: PageAnalysis): string[] {
+	const {audit} = page.measurement;
+
+	if (audit.state === 'not-taken') {
+		return [`**Measurement**: not taken (${audit.reason})\n`];
+	}
+
+	if (audit.value.violations.length === 0) {
+		return ['**Measurement**: audited, no accessibility violations found\n'];
+	}
+
+	return [
+		`**Measurement**: audited, ${audit.value.violations.length} accessibility rule${
+			audit.value.violations.length === 1 ? '' : 's'
+		} failing\n`,
+	];
+}
 
 /**
  * Format timestamp as readable date string
@@ -84,6 +289,12 @@ export function generateMarkdownReport(report: UxReport): string {
 		`**Browser**: ${metadata.tooling.browserVersion}`,
 	);
 
+	if (metadata.tooling.auditEngineVersion) {
+		sections.push(
+			`**Audit Engine**: Lighthouse ${metadata.tooling.auditEngineVersion}`,
+		);
+	}
+
 	if (metadata.tooling.externalDataAllowed) {
 		sections.push(
 			'**External Data**: this run was permitted to consult external data sources',
@@ -105,6 +316,8 @@ export function generateMarkdownReport(report: UxReport): string {
 		`| ${severityEmoji.medium} Medium | ${severityCounts.medium} |`,
 		`| ${severityEmoji.low} Low | ${severityCounts.low} |`,
 		'',
+		...renderMeasurementTable(pages),
+		...renderRecurrence(pages),
 		'**Target Persona**:',
 		`- ${metadata.persona}`,
 		'',
@@ -145,11 +358,25 @@ export function generateMarkdownReport(report: UxReport): string {
 				sections.push(
 					`- ${severityEmoji[finding.severity]} **${finding.category}**: ${
 						finding.description
-					}`,
+					} (${describeOrigin(finding)})`,
 				);
 			}
 
 			sections.push('');
+		}
+
+		sections.push(...renderPageMeasurement(page));
+
+		// The model's note, kept outside the findings it discusses and named as
+		// judgement. Sitting it among measured findings would let its prose be
+		// read as something a machine verified.
+		if (page.measurementNote) {
+			sections.push(
+				'**AI note on the measured issues** (judgement, not measurement):',
+				'',
+				page.measurementNote,
+				'',
+			);
 		}
 	}
 
@@ -185,6 +412,7 @@ export function generateMarkdownReport(report: UxReport): string {
 				}`,
 				`**Category**: ${finding.category}`,
 				`**Page**: ${finding.pageUrl}`,
+				`**Source**: ${describeOrigin(finding)}`,
 			);
 
 			if (finding.personaRelevance.length > 0) {
@@ -193,7 +421,15 @@ export function generateMarkdownReport(report: UxReport): string {
 				);
 			}
 
-			sections.push(`**Recommendation**: ${finding.recommendation}`, '');
+			// A measured finding carries no recommendation of ours. Printing an
+			// empty one would look like the tooling had nothing to suggest,
+			// rather than like this project declining to invent advice.
+			sections.push(
+				finding.recommendation
+					? `**Recommendation**: ${finding.recommendation}`
+					: '**Recommendation**: see the rule documentation for this violation',
+				'',
+			);
 		}
 	}
 
