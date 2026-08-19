@@ -6,3 +6,6 @@ coverage
 .uxlintrc.*
 .env
 logs
+
+# Chrome for Testing, downloaded locally for 007 measurement runs
+chrome
