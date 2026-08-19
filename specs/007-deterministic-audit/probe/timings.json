@@ -1,0 +1,37 @@
+[
+  {
+    "name": "navigate_page",
+    "ms": 1430,
+    "bytes": 108,
+    "isError": false,
+    "failed": false
+  },
+  {
+    "name": "take_snapshot",
+    "ms": 7,
+    "bytes": 334,
+    "isError": false,
+    "failed": false
+  },
+  {
+    "name": "lighthouse_audit",
+    "ms": 4709,
+    "bytes": 409,
+    "isError": false,
+    "failed": false
+  },
+  {
+    "name": "lighthouse_audit",
+    "ms": 1712,
+    "bytes": 393,
+    "isError": false,
+    "failed": false
+  },
+  {
+    "name": "performance_start_trace",
+    "ms": 5222,
+    "bytes": 5349,
+    "isError": false,
+    "failed": false
+  }
+]
