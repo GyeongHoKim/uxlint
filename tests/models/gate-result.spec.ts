@@ -39,6 +39,7 @@ const buildReport = (pages: PageSpec[]): UxReport => {
 				personaRelevance: ['Test persona'],
 				recommendation: 'Fix it',
 				pageUrl: page.url,
+				origin: 'judgement',
 			});
 		}
 

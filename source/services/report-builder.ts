@@ -14,6 +14,7 @@ import type {
 	UxFinding,
 	UxReport,
 } from '../models/analysis.js';
+import {noMeasurement, type PageMeasurement} from '../models/measurement.js';
 
 // Type definition for fs dependency injection
 type FsAsyncMethods = typeof fs.promises;
@@ -82,6 +83,39 @@ export class ReportBuilder {
 	}
 
 	/**
+	 * Record what was measured for the current page.
+	 *
+	 * Written by the loop rather than by a tool the model calls, for the same
+	 * reason the snapshot is: what a machine measured must reach the report
+	 * without a model in between, or it is no longer what the machine said.
+	 *
+	 * @param measurement - What was measured, and what was not
+	 */
+	setPageMeasurement(measurement: PageMeasurement): void {
+		if (!this.currentPageAnalysis) {
+			return;
+		}
+
+		this.currentPageAnalysis.measurement = measurement;
+	}
+
+	/**
+	 * Record the model's note about this page's measured violations.
+	 *
+	 * Kept out of `findings` so that model prose cannot be read as something
+	 * a machine verified.
+	 *
+	 * @param note - What the model said about the violation set
+	 */
+	setMeasurementNote(note: string): void {
+		if (!this.currentPageAnalysis) {
+			return;
+		}
+
+		this.currentPageAnalysis.measurementNote = note;
+	}
+
+	/**
 	 * Set the snapshot for the current page analysis
 	 *
 	 * @param snapshot - Accessibility tree snapshot
@@ -134,6 +168,18 @@ export class ReportBuilder {
 			analysisTimestamp:
 				this.currentPageAnalysis.analysisTimestamp ?? Date.now(),
 			status,
+			// A page that reached this point without a measurement being
+			// recorded was never measured, and says so. Defaulting to an empty
+			// success would let a page that was never audited render as one
+			// that was audited and found clean.
+			measurement:
+				this.currentPageAnalysis.measurement ??
+				noMeasurement('page-not-loaded'),
+			// Spread rather than assigned, so a page with no note carries no
+			// key at all instead of a key holding nothing.
+			...(this.currentPageAnalysis.measurementNote !== undefined && {
+				measurementNote: this.currentPageAnalysis.measurementNote,
+			}),
 		};
 
 		this.allAnalyses.push(completedAnalysis);
@@ -191,6 +237,16 @@ export class ReportBuilder {
 			analysisTimestamp:
 				this.currentPageAnalysis?.analysisTimestamp ?? Date.now(),
 			status: 'failed',
+			// Whatever was measured before the failure is kept. A page that
+			// failed after being audited still has an audit worth reporting,
+			// and discarding it would repeat the loss this project already
+			// fixed once.
+			measurement:
+				this.currentPageAnalysis?.measurement ??
+				noMeasurement('page-not-loaded'),
+			...(this.currentPageAnalysis?.measurementNote !== undefined && {
+				measurementNote: this.currentPageAnalysis.measurementNote,
+			}),
 			error,
 		};
 

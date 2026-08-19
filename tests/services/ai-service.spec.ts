@@ -86,6 +86,7 @@ test('generateFinalReport creates valid report when page analysis is completed',
 		personaRelevance: ['Visual impairment'],
 		recommendation: 'Add descriptive alt text',
 		pageUrl,
+		origin: 'judgement',
 	};
 	reportBuilder.addFinding(finding);
 

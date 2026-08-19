@@ -8,6 +8,7 @@
 
 import test from 'ava';
 import type {PageAnalysis, UxReport} from '../../../source/models/analysis.js';
+import {noMeasurement} from '../../../source/models/measurement.js';
 import {generateMarkdownReport} from '../../../source/infrastructure/reports/report-generator.js';
 
 const buildPage = (overrides: Partial<PageAnalysis>): PageAnalysis => ({
@@ -17,6 +18,9 @@ const buildPage = (overrides: Partial<PageAnalysis>): PageAnalysis => ({
 	findings: [],
 	analysisTimestamp: 0,
 	status: 'complete',
+	// Unmeasured unless a test says otherwise, which is the honest default:
+	// a page built without an audit is one that was not audited.
+	measurement: noMeasurement('page-not-loaded'),
 	...overrides,
 });
 
@@ -92,6 +96,7 @@ test('a failed page still shows what it managed to find', t => {
 						personaRelevance: ['Test persona'],
 						recommendation: 'Add alt text',
 						pageUrl: 'https://example.com/died',
+						origin: 'judgement',
 					},
 				],
 			}),
