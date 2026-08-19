@@ -11,6 +11,7 @@ import {promises as fsPromises} from 'node:fs';
 import test from 'ava';
 import sinon from 'sinon';
 import type {UxFinding} from '../../source/models/analysis.js';
+import {noMeasurement} from '../../source/models/measurement.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
 
 const buildFinding = (
@@ -332,4 +333,98 @@ test('the context diet leaves the report structure untouched (FR-011)', t => {
 	t.is(report.pages[0]?.status, 'complete');
 	t.deepEqual(report.metadata.analyzedPages, ['https://example.com']);
 	t.is(report.metadata.totalFindings, 1);
+});
+
+test('the audit engine is recorded once and not overwritten', t => {
+	// Every page in a run is judged by the same engine, so a later page that
+	// failed to measure must not erase what an earlier one established.
+	const builder = new ReportBuilder();
+	builder.setProvenance({
+		browserServer: 'chrome-devtools-mcp',
+		browserServerVersion: '1.7.0',
+		browserVersion: 'Chrome 152',
+		externalDataAllowed: false,
+	});
+
+	builder.recordAuditEngine('13.4.1');
+	builder.recordAuditEngine('99.0.0');
+
+	builder.initializePageAnalysis('https://example.com', 'features');
+	builder.completePageAnalysis('complete');
+
+	t.is(
+		builder.generateFinalReport().metadata.tooling.auditEngineVersion,
+		'13.4.1',
+	);
+});
+
+test('an audit engine with no provenance to attach to is dropped', t => {
+	// Provenance is set once at the start of a run. Recording an engine before
+	// that would have nothing to attach to, and inventing a provenance here
+	// would claim a browser and a server version nobody established.
+	const builder = new ReportBuilder();
+
+	t.notThrows(() => {
+		builder.recordAuditEngine('13.4.1');
+	});
+
+	builder.initializePageAnalysis('https://example.com', 'features');
+	builder.completePageAnalysis('complete');
+
+	t.is(
+		builder.generateFinalReport().metadata.tooling.auditEngineVersion,
+		undefined,
+	);
+});
+
+test('a measurement with no page open is dropped rather than thrown', t => {
+	// These are written by the loop, not by a tool the model calls, so a
+	// mistimed call is a bug in this project rather than user input. Losing a
+	// measurement is the right failure; taking the run down with it is not.
+	const builder = new ReportBuilder();
+
+	t.notThrows(() => {
+		builder.setPageMeasurement(noMeasurement('tool-failed'));
+	});
+	t.notThrows(() => {
+		builder.setMeasurementNote('a note with nowhere to go');
+	});
+});
+
+test('a page carries its note only when there is one', t => {
+	const builder = new ReportBuilder();
+
+	builder.initializePageAnalysis('https://example.com/a', 'features');
+	builder.setMeasurementNote('Grey-on-white pricing is the blocker.');
+	const withNote = builder.completePageAnalysis('complete');
+
+	builder.initializePageAnalysis('https://example.com/b', 'features');
+	const withoutNote = builder.completePageAnalysis('complete');
+
+	t.is(withNote.measurementNote, 'Grey-on-white pricing is the blocker.');
+	// Absent entirely, rather than present and holding nothing.
+	t.false(Object.hasOwn(withoutNote, 'measurementNote'));
+});
+
+test('a failed page keeps whatever was measured before it failed', t => {
+	// A page that failed after being audited still has an audit worth
+	// reporting. Discarding it would repeat the loss this project already
+	// fixed once.
+	const builder = new ReportBuilder();
+	builder.initializePageAnalysis('https://example.com', 'features');
+	builder.setPageMeasurement({
+		audit: {
+			state: 'taken',
+			value: {scores: {accessibility: 67}, violations: [], snapshotMode: true},
+		},
+		trace: {state: 'not-taken', reason: 'timed-out'},
+	});
+
+	const failed = builder.failCurrentPage('boom', {
+		url: 'https://example.com',
+		features: 'features',
+	});
+
+	t.is(failed.measurement.audit.state, 'taken');
+	t.is(failed.measurement.trace.state, 'not-taken');
 });
