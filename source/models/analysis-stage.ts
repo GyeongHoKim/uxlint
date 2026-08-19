@@ -59,9 +59,14 @@ const advancingTool: Record<
 /**
  * Which tools a stage offers.
  *
- * `addFinding` and `completePageAnalysis` are built by this project rather
- * than adapted from the browser server; only `navigate_page` and
- * `take_snapshot` are ever requested from it.
+ * `addFinding`, `noteOnMeasuredIssues` and `completePageAnalysis` are built by
+ * this project rather than adapted from the browser server; only
+ * `navigate_page` and `take_snapshot` are ever requested from it.
+ *
+ * The measurement tools are deliberately absent from every stage. This
+ * project calls them itself: their replies carry nothing the model could act
+ * on, and adding them here would put two more tool definitions into every
+ * request for no gain.
  *
  * Completion is offered at every stage because it is an exit, not a step in
  * the sequence. Withholding it until a capture succeeded left a page whose
@@ -74,7 +79,13 @@ const advancingTool: Record<
 const stageTools: Record<PageStage, readonly string[]> = {
 	unloaded: ['navigate_page', 'completePageAnalysis'],
 	loaded: ['take_snapshot', 'completePageAnalysis'],
-	analysable: ['addFinding', 'completePageAnalysis'],
+	analysable: [
+		'addFinding',
+		// Offered only here, because it is a note *about* measurements, and
+		// measurements exist only once the page has been read.
+		'noteOnMeasuredIssues',
+		'completePageAnalysis',
+	],
 };
 
 /**

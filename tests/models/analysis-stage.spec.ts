@@ -83,8 +83,19 @@ test('each stage offers exactly the tools its contract names', t => {
 	]);
 	t.deepEqual(toolsForStage('analysable'), [
 		'addFinding',
+		'noteOnMeasuredIssues',
 		'completePageAnalysis',
 	]);
+});
+
+test('the measurement tools are offered at no stage', t => {
+	// This project calls them itself. Offering them would add two tool
+	// definitions to every request -- undoing part of the previous feature's
+	// saving -- to deliver a reply the model cannot act on.
+	for (const stage of ['unloaded', 'loaded', 'analysable'] as const) {
+		t.false(toolsForStage(stage).includes('lighthouse_audit'));
+		t.false(toolsForStage(stage).includes('performance_start_trace'));
+	}
 });
 
 test('every stage can end the page', t => {

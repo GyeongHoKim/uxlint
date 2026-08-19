@@ -101,7 +101,7 @@ test('the report yields exactly the violations that failed', t => {
 	}
 
 	const byRule = Object.fromEntries(
-		violations.value.map(violation => [violation.ruleId, violation]),
+		violations.value.violations.map(violation => [violation.ruleId, violation]),
 	);
 
 	t.deepEqual(Object.keys(byRule).sort(), [
@@ -129,7 +129,7 @@ test('a violation carries the audit its own wording', t => {
 		audits: Record<string, {title: string}>;
 	};
 
-	for (const violation of violations.value) {
+	for (const violation of violations.value.violations) {
 		t.is(violation.title, report.audits[violation.ruleId]?.title ?? '');
 	}
 });
@@ -152,7 +152,11 @@ test('a not-applicable audit is not a failure', t => {
 	}
 
 	for (const [ruleId] of notApplicable) {
-		t.false(violations.value.some(violation => violation.ruleId === ruleId));
+		t.false(
+			violations.value.violations.some(
+				violation => violation.ruleId === ruleId,
+			),
+		);
 	}
 });
 
@@ -164,7 +168,9 @@ test('a passing audit is not a violation', t => {
 	}
 
 	t.false(
-		violations.value.some(violation => violation.ruleId === 'button-name'),
+		violations.value.violations.some(
+			violation => violation.ruleId === 'button-name',
+		),
 	);
 });
 
@@ -251,7 +257,9 @@ test('an audit with no impact rating is skipped, not defaulted', t => {
 	}
 
 	t.false(
-		violations.value.some(violation => violation.ruleId === 'color-contrast'),
+		violations.value.violations.some(
+			violation => violation.ruleId === 'color-contrast',
+		),
 	);
-	t.is(violations.value.length, 3);
+	t.is(violations.value.violations.length, 3);
 });

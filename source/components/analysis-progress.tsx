@@ -76,6 +76,33 @@ export function AnalysisProgress({
 				</Box>
 			)}
 
+			{/* Measuring.
+
+				The longest single wait in a run: the audit and the trace take
+				seconds, not milliseconds. Nothing else in this component
+				renders during that stage, so without this the display would go
+				blank for the whole of it -- and a blank display is exactly what
+				a hang looks like. Naming the phase is what tells the two apart.
+			*/}
+			{stage === 'measuring' && (
+				<Box flexDirection="column" marginTop={1}>
+					<Box>
+						<Box marginRight={1}>
+							<Text color={theme.accent}>
+								<Spinner type="dots" />
+							</Text>
+						</Box>
+						<Text color="cyan">
+							{waitingMessage ?? 'Measuring accessibility and performance'}
+						</Text>
+					</Box>
+					<Text dimColor>
+						Running an accessibility audit and a performance trace. This takes a
+						few seconds per page.
+					</Text>
+				</Box>
+			)}
+
 			{/* Waiting message with spinner */}
 			{Boolean(isWaitingForLLM && waitingMessage && stage === 'analyzing') && (
 				<Box flexDirection="column" marginTop={1}>

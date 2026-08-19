@@ -502,3 +502,71 @@ test('a coverage line that caused the failure carries no qualifier', t => {
 	t.regex(rendered, /failed\s+1 page could not be analysed$/m);
 	t.notRegex(rendered, /not gated/);
 });
+
+test('measured findings count toward the gate like any other', t => {
+	// FR-020, and a breaking change for anyone whose thresholds were tuned
+	// against guessed findings: measured ones are counted on the same terms,
+	// so a run can start failing on a site that did not change.
+	const builder = new ReportBuilder();
+	builder.setPersona('Test persona');
+	builder.initializePageAnalysis('https://example.com', 'features');
+
+	builder.addFinding({
+		severity: 'critical',
+		category: 'Accessibility',
+		description: 'Image elements do not have `[alt]` attributes',
+		personaRelevance: [],
+		recommendation: '',
+		pageUrl: 'https://example.com',
+		origin: 'audit',
+		ruleId: 'image-alt',
+		affectedElements: 1,
+	});
+	builder.completePageAnalysis('complete');
+
+	const report = builder.generateFinalReport();
+	const verdict = evaluateGate(report, {maxCritical: 0});
+
+	t.false(verdict.passed);
+	t.true(
+		verdict.breaches.some(
+			breach => breach.kind === 'severity' && breach.severity === 'critical',
+		),
+	);
+});
+
+test('one site-wide defect can exhaust a threshold on its own', t => {
+	// The consequence of keeping findings page-scoped. Recorded as a test so
+	// the behaviour is deliberate rather than discovered by a user whose build
+	// broke.
+	const builder = new ReportBuilder();
+	builder.setPersona('Test persona');
+
+	for (const name of ['a', 'b', 'c']) {
+		const url = `https://example.com/${name}`;
+		builder.initializePageAnalysis(url, 'features');
+		builder.addFinding({
+			severity: 'high',
+			category: 'Accessibility',
+			description:
+				'Background and foreground colors do not have a sufficient contrast ratio.',
+			personaRelevance: [],
+			recommendation: '',
+			pageUrl: url,
+			origin: 'audit',
+			ruleId: 'color-contrast',
+			affectedElements: 3,
+		});
+		builder.completePageAnalysis('complete');
+	}
+
+	const verdict = evaluateGate(builder.generateFinalReport(), {maxHigh: 2});
+
+	t.false(verdict.passed);
+	// Three findings from one rule, and the gate counts three.
+	t.true(
+		verdict.breaches.some(
+			breach => breach.kind === 'severity' && breach.count === 3,
+		),
+	);
+});

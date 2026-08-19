@@ -129,6 +129,15 @@ export type AuditResult = {
 	violations: Violation[];
 
 	/**
+	 * Version of the engine that produced this result.
+	 *
+	 * Read from the report rather than hardcoded: the engine ships inside the
+	 * browser server and moves independently of this package, so a report
+	 * found weeks later could not otherwise say what judged it.
+	 */
+	engineVersion?: string;
+
+	/**
 	 * Whether the companion scores were taken without reloading the page.
 	 *
 	 * Always true here. Recorded rather than assumed because that mode

@@ -144,16 +144,17 @@ export class AIService {
 	 * @param model - Language model backing the analysis
 	 * @param mcpClient - Connected MCP client providing browser tools
 	 * @param builder - Report builder collecting findings
-	 * @param cacheKey - Module cache key for this instance
-	 * @param measurement - Takes the audit and trace; defaults to one bound to this client
+	 * @param options - Optional collaborators and identity
+	 * @param options.cacheKey - Module cache key, so close() can evict itself
+	 * @param options.measurement - Measurement service; defaults to one bound to this client
 	 */
 	constructor(
 		model: LanguageModelV4,
 		mcpClient: MCPClient,
 		builder: ReportBuilder,
-		cacheKey?: string,
-		measurement?: MeasurementService,
+		options: {cacheKey?: string; measurement?: MeasurementService} = {},
 	) {
+		const {cacheKey, measurement} = options;
 		this.model = model;
 		this.mcpClient = mcpClient;
 		this.reportBuilder = builder;
@@ -493,6 +494,15 @@ export class AIService {
 		this.reportBuilder.setPageMeasurement(measurement);
 		this.registerMeasuredFindings(measurement, page.url);
 
+		if (
+			measurement.audit.state === 'taken' &&
+			measurement.audit.value.engineVersion
+		) {
+			this.reportBuilder.recordAuditEngine(
+				measurement.audit.value.engineVersion,
+			);
+		}
+
 		if (measurement.audit.state === 'not-taken') {
 			onProgress?.(
 				'measuring',
@@ -662,6 +672,17 @@ Usage: Call this tool multiple times, once per issue. Do not batch findings toge
 				},
 			}),
 
+			noteOnMeasuredIssues: tool({
+				description: `Record ONE note about the accessibility violations that were measured on this page: why they matter to this persona, and how to address them in this product.
+
+Call this at most once per page, and only when measurements were supplied. Do not restate the violations -- they are already recorded. Explain what they mean for this persona.`,
+				inputSchema: z.object({note: z.string()}),
+				async execute(input) {
+					builder.setMeasurementNote(input.note);
+					return {success: true, message: 'Note recorded'};
+				},
+			}),
+
 			completePageAnalysis: tool({
 				description:
 					'Mark the current page analysis as complete. REQUIRED: You MUST call this tool when you have finished analyzing all UX aspects and reporting findings. The analysis is not complete until you call this.',
@@ -738,9 +759,13 @@ ${page.features}
    - Cover multiple UX categories
    - Do NOT report anything already listed as a verified measurement. It is
      recorded already, and reporting it again would put a guess beside a fact
+5. If verified measurements were supplied for this page, call
+   noteOnMeasuredIssues ONCE to say what that set of violations means for this
+   persona and how to address it here. Do not call it more than once, and do
+   not restate the violations themselves
 
 **Step 3: Complete**
-5. Call completePageAnalysis when finished
+6. Call completePageAnalysis when finished
    - This is REQUIRED to complete the analysis
    - Do not stop until you call this tool
 
@@ -770,7 +795,7 @@ export async function getAIService(
 	if (!aiServiceInstances.has(cacheKey)) {
 		const model = await getLanguageModel(config);
 		const client = await getMCPClient(verdict, config.browser);
-		const service = new AIService(model, client, reportBuilder, cacheKey);
+		const service = new AIService(model, client, reportBuilder, {cacheKey});
 		aiServiceInstances.set(cacheKey, service);
 	}
 

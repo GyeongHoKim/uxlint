@@ -287,3 +287,45 @@ test('does not render error message when error prop is not provided', t => {
 	// Should not show error message when error prop is missing
 	t.false(output?.includes('Error occurred'));
 });
+
+test('measuring phase', t => {
+	// SC-009a. Asserted against what the display renders, not against the
+	// state that drove it -- the correction feature 005 and 006 both paid for.
+	const {lastFrame, unmount} = render(
+		<AnalysisProgress
+			theme={defaultTheme}
+			stage="measuring"
+			currentPage={2}
+			totalPages={5}
+			pageUrl="https://example.com/checkout"
+			waitingMessage="Measuring https://example.com/checkout"
+		/>,
+	);
+
+	const frame = lastFrame() ?? '';
+
+	t.true(frame.includes('Measuring https://example.com/checkout'));
+	// And it says why the wait is long, so a slow audit is not read as a hang.
+	t.true(frame.includes('few seconds per page'));
+
+	unmount();
+});
+
+test('an abandoned measurement is said out loud', t => {
+	// FR-013d. Moving on silently would leave the reader believing the page
+	// was measured when it was not.
+	const {lastFrame, unmount} = render(
+		<AnalysisProgress
+			theme={defaultTheme}
+			stage="measuring"
+			currentPage={1}
+			totalPages={1}
+			waitingMessage="Measurement not taken for https://example.com: timed-out"
+		/>,
+	);
+
+	t.true((lastFrame() ?? '').includes('not taken'));
+	t.true((lastFrame() ?? '').includes('timed-out'));
+
+	unmount();
+});

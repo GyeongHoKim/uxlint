@@ -134,7 +134,10 @@ export function parseAuditReply(reply: string): Measured<ParsedAuditReply> {
  * @param json - The report file's contents
  * @returns The violations, or why they could not be read
  */
-export function readAuditReport(json: string): Measured<Violation[]> {
+export function readAuditReport(json: string): Measured<{
+	violations: Violation[];
+	engineVersion?: string;
+}> {
 	let report: unknown;
 
 	try {
@@ -158,7 +161,13 @@ export function readAuditReport(json: string): Measured<Violation[]> {
 		.map(ref => toViolation(ref.id ? audits[ref.id] : undefined, ref.id))
 		.filter((violation): violation is Violation => violation !== undefined);
 
-	return taken(violations);
+	const {lighthouseVersion} = report as {lighthouseVersion?: unknown};
+
+	return taken({
+		violations,
+		engineVersion:
+			typeof lighthouseVersion === 'string' ? lighthouseVersion : undefined,
+	});
 }
 
 /**
@@ -473,16 +482,17 @@ export class MeasurementService {
 			return parsed;
 		}
 
-		const violations = await this.readAndDiscardReport(parsed.value.reportPath);
+		const report = await this.readAndDiscardReport(parsed.value.reportPath);
 
-		if (violations.state !== 'taken') {
-			this.record('audit', violations.reason);
-			return violations;
+		if (report.state !== 'taken') {
+			this.record('audit', report.reason);
+			return report;
 		}
 
 		return taken({
 			scores: parsed.value.scores,
-			violations: violations.value,
+			violations: report.value.violations,
+			engineVersion: report.value.engineVersion,
 			snapshotMode: true,
 		});
 	}
@@ -499,7 +509,7 @@ export class MeasurementService {
 	 */
 	private async readAndDiscardReport(
 		reportPath: string,
-	): Promise<Measured<Violation[]>> {
+	): Promise<Measured<{violations: Violation[]; engineVersion?: string}>> {
 		let contents: string;
 
 		try {
