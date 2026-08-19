@@ -25,6 +25,11 @@ import {
 } from '../models/analysis-stage.js';
 import type {PreflightVerdict} from '../models/browser-preflight.js';
 import {readToolOutcome} from '../models/tool-output.js';
+import {
+	impactToSeverity,
+	noMeasurement,
+	type PageMeasurement,
+} from '../models/measurement.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
 import {getLanguageModel} from './llm-provider.js';
@@ -33,6 +38,7 @@ import {
 	narrowBrowserTools,
 	resetMCPClient,
 } from './mcp-client.js';
+import {MeasurementService, describeMeasurement} from './measurement.js';
 import {reportBuilder, type ReportBuilder} from './report-builder.js';
 
 /**
@@ -111,6 +117,11 @@ const UxFindingSchema = z.object({
 	pageUrl: z.string(),
 });
 
+// Deliberately absent from the schema above: `origin`. The model does not get
+// to say where a finding came from -- the code that received it does. A model
+// able to declare its own output measured would make the distinction this
+// feature exists for worthless.
+
 /**
  * AI Service
  * Orchestrates AI-powered UX analysis using MCP tools
@@ -118,6 +129,7 @@ const UxFindingSchema = z.object({
 export class AIService {
 	private readonly model: LanguageModelV4;
 	private readonly mcpClient: MCPClient;
+	private readonly measurement: MeasurementService;
 	private readonly reportBuilder: ReportBuilder;
 	private readonly cacheKey: string | undefined;
 	private isClosed = false;
@@ -133,17 +145,23 @@ export class AIService {
 	 * @param mcpClient - Connected MCP client providing browser tools
 	 * @param builder - Report builder collecting findings
 	 * @param cacheKey - Module cache key for this instance
+	 * @param measurement - Takes the audit and trace; defaults to one bound to this client
 	 */
 	constructor(
 		model: LanguageModelV4,
 		mcpClient: MCPClient,
 		builder: ReportBuilder,
 		cacheKey?: string,
+		measurement?: MeasurementService,
 	) {
 		this.model = model;
 		this.mcpClient = mcpClient;
 		this.reportBuilder = builder;
 		this.cacheKey = cacheKey;
+		// Built from the same client the browser tools come from. Injectable so
+		// a test can drive the measurement paths without a browser, which is
+		// most of what makes this feature testable at all.
+		this.measurement = measurement ?? new MeasurementService(mcpClient);
 	}
 
 	/**
@@ -203,6 +221,7 @@ export class AIService {
 				findings: [],
 				analysisTimestamp: Date.now(),
 				status: 'failed',
+				measurement: noMeasurement('page-not-loaded'),
 				error:
 					'AIService has been closed; create a new instance before analyzing again',
 			};
@@ -303,9 +322,19 @@ export class AIService {
 					},
 				});
 
+				const stageBefore = stage;
 				for (const observation of observed) {
 					stage = advanceStage(stage, observation);
 				}
+
+				// eslint-disable-next-line no-await-in-loop
+				const digest = await this.measureOnceReadable(
+					stageBefore,
+					stage,
+					page,
+					onProgress,
+				);
+				messages.push(...digest);
 
 				// Log AI response
 				logger.info('AI Response', {
@@ -415,6 +444,108 @@ export class AIService {
 	}
 
 	/**
+	 * Measure the page if this is the step that made it readable.
+	 *
+	 * The condition lives here rather than in the loop because it is one
+	 * question -- has the page just become readable? -- and the loop already
+	 * carries enough.
+	 *
+	 * @param before - Stage before this step's results were applied
+	 * @param after - Stage after them
+	 * @param page - The page under analysis
+	 * @param onProgress - Progress reporter for the interactive display
+	 * @returns Messages to append, empty unless a measurement was just taken
+	 */
+	private async measureOnceReadable(
+		before: PageStage,
+		after: PageStage,
+		page: Page,
+		onProgress?: AnalysisProgressCallback,
+	): Promise<ModelMessage[]> {
+		if (before === 'analysable' || after !== 'analysable') {
+			return [];
+		}
+
+		const digest = await this.measurePage(page, onProgress);
+
+		return digest ? [{role: 'user', content: digest}] : [];
+	}
+
+	/**
+	 * Measure the page, record what was found, and describe it to the model.
+	 *
+	 * Called at the single moment the page has become readable and nothing has
+	 * yet been judged: the facts exist, and the model has not had a chance to
+	 * invent competing ones. Measuring later would mean judging first.
+	 *
+	 * @param page - The page under analysis
+	 * @param onProgress - Progress reporter for the interactive display
+	 * @returns The digest to put in front of the model, empty when nothing was measured
+	 */
+	private async measurePage(
+		page: Page,
+		onProgress?: AnalysisProgressCallback,
+	): Promise<string> {
+		onProgress?.('measuring', `Measuring ${page.url}`);
+
+		const measurement = await this.measurement.measure('analysable');
+
+		this.reportBuilder.setPageMeasurement(measurement);
+		this.registerMeasuredFindings(measurement, page.url);
+
+		if (measurement.audit.state === 'not-taken') {
+			onProgress?.(
+				'measuring',
+				`Measurement not taken for ${page.url}: ${measurement.audit.reason}`,
+			);
+		}
+
+		return describeMeasurement(measurement);
+	}
+
+	/**
+	 * Turn measured violations into findings.
+	 *
+	 * Registered by this code, not by the model: the violations arrive with a
+	 * rule id, an impact rating and an element count, and every one of those
+	 * would be degraded by asking a model to restate them. The description is
+	 * the audit's own title, unaltered, so that nothing the report marks as
+	 * measured carries a sentence this project or a model wrote.
+	 *
+	 * One finding per rule, whatever the element count. A single CSS rule
+	 * failing on forty buttons is one problem, and forty findings would drown
+	 * the report this feature is trying to make trustworthy.
+	 *
+	 * @param measurement - What was measured for the page
+	 * @param pageUrl - The page they were measured on
+	 */
+	private registerMeasuredFindings(
+		measurement: PageMeasurement,
+		pageUrl: string,
+	): void {
+		if (measurement.audit.state !== 'taken') {
+			return;
+		}
+
+		for (const violation of measurement.audit.value.violations) {
+			this.reportBuilder.addFinding({
+				severity: impactToSeverity[violation.impact],
+				category: 'Accessibility',
+				description: violation.title,
+				// Left empty on purpose. Who this affects is a judgement, and
+				// this finding is not one; the model's page note is where that
+				// belongs.
+				personaRelevance: [],
+				recommendation: '',
+				pageUrl,
+				origin: 'audit',
+				ruleId: violation.ruleId,
+				affectedElements: violation.affectedElements,
+			});
+		}
+	}
+
+	/**
 	 * Record a page structure capture as the browser produced it.
 	 *
 	 * The model is shown the capture as a tool result and is not asked to
@@ -517,7 +648,10 @@ export class AIService {
 Usage: Call this tool multiple times, once per issue. Do not batch findings together.`,
 				inputSchema: UxFindingSchema,
 				async execute(input) {
-					builder.addFinding(input);
+					// The origin is set here rather than accepted from the model.
+					// Everything arriving through this tool is the model's own
+					// conclusion, whatever the model believes about it.
+					builder.addFinding({...input, origin: 'judgement'});
 					return {
 						success: true,
 						message: 'Finding added successfully',
@@ -563,7 +697,20 @@ Usage: Call this tool multiple times, once per issue. Do not batch findings toge
 ## Target Persona
 ${config.persona}
 
-Analyze pages from this persona's perspective, identifying usability issues across: Accessibility, Navigation, Visual Design, Content, Interaction, Performance, and Mobile Responsiveness.`;
+Analyze pages from this persona's perspective, identifying usability issues across: Navigation, Visual Design, Content, Interaction, and Mobile Responsiveness.
+
+## What you are not asked to judge
+
+Accessibility violations and performance are **measured** on every page by
+tooling, and the results are given to you. You are not asked to find them, and
+you cannot: you are reading a text description of the page, which carries no
+contrast ratios, no computed roles, no focus order and no paint timings. A
+severity you assign to something you cannot observe is a guess.
+
+Where measurements are supplied, treat them as established fact. Your work is
+what measurement cannot reach -- whether the wording makes sense, whether the
+structure matches how this persona thinks, whether the flow is one they could
+finish.`;
 	}
 
 	/**
@@ -589,6 +736,8 @@ ${page.features}
    - Report 3-10 issues per page typically
    - Call addFinding once per issue (do not batch)
    - Cover multiple UX categories
+   - Do NOT report anything already listed as a verified measurement. It is
+     recorded already, and reporting it again would put a guess beside a fact
 
 **Step 3: Complete**
 5. Call completePageAnalysis when finished

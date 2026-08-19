@@ -137,6 +137,7 @@ test('resolves to 0 with findings present and no thresholds configured', async t
 			personaRelevance: ['Test persona'],
 			recommendation: 'Fix it',
 			pageUrl: page.url,
+			origin: 'judgement',
 		});
 		return b.completePageAnalysis();
 	});
@@ -171,6 +172,7 @@ test('a breached threshold fails the run', async t => {
 			personaRelevance: ['Test persona'],
 			recommendation: 'Fix it',
 			pageUrl: page.url,
+			origin: 'judgement',
 		});
 		return b.completePageAnalysis();
 	});
@@ -288,6 +290,7 @@ test('SC-004: a run full of critical findings and no thresholds still exits 0', 
 				personaRelevance: ['Test persona'],
 				recommendation: 'Fix it',
 				pageUrl: page.url,
+				origin: 'judgement',
 			});
 		}
 

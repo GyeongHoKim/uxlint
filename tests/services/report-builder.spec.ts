@@ -22,6 +22,7 @@ const buildFinding = (
 	description: `Issue on ${pageUrl}`,
 	personaRelevance: ['Test persona'],
 	recommendation: 'Fix it',
+	origin: 'judgement',
 	pageUrl,
 });
 
@@ -293,6 +294,7 @@ test('the context diet leaves the report structure untouched (FR-011)', t => {
 		personaRelevance: ['Test persona'],
 		recommendation: 'Add one',
 		pageUrl: 'https://example.com',
+		origin: 'judgement',
 	});
 	builder.completePageAnalysis();
 
@@ -320,6 +322,7 @@ test('the context diet leaves the report structure untouched (FR-011)', t => {
 		'analysisTimestamp',
 		'features',
 		'findings',
+		'measurement',
 		'pageUrl',
 		'snapshot',
 		'status',

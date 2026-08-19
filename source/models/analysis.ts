@@ -7,6 +7,7 @@
 
 import type {GateResult} from './gate-result.js';
 import type {LLMResponseData} from './llm-response.js';
+import type {PageMeasurement} from './measurement.js';
 
 /**
  * Analysis status for a single page
@@ -65,6 +66,25 @@ export type PageAnalysis = {
 	 * Error message if analysis failed
 	 */
 	error?: string;
+
+	/**
+	 * What was measured for this page, and what was not.
+	 *
+	 * Required, so that a page cannot exist without an answer to "was this
+	 * measured?". An optional field would let the first page built without one
+	 * render as neither measured nor unmeasured, which is the blank that reads
+	 * as a pass.
+	 */
+	measurement: PageMeasurement;
+
+	/**
+	 * The model's single note about this page's measured violations.
+	 *
+	 * Absent when there were no violations to write about. Held apart from
+	 * `findings` so that model prose can never be read as something a machine
+	 * verified.
+	 */
+	measurementNote?: string;
 };
 
 /**
@@ -72,6 +92,21 @@ export type PageAnalysis = {
  * Used for prioritizing issues in reports
  */
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+/**
+ * What produced a finding.
+ *
+ * Named for the kind of evidence rather than for the tool that supplied it.
+ * A reader needs to know whether a machine checked this or an AI concluded
+ * it; a vendor name would answer a question nobody asked and would need
+ * renaming the day the tool changed.
+ *
+ * `trace` is declared although nothing registers findings from traces yet:
+ * vitals are reported as numbers, not as findings. It is here because this
+ * union is rendered into reports that outlive the release, and widening a
+ * stored format later is more expensive than one unused branch now.
+ */
+export type FindingOrigin = 'audit' | 'trace' | 'judgement';
 
 /**
  * UX finding (issue or recommendation)
@@ -107,6 +142,31 @@ export type UxFinding = {
 	 * Page where issue was found
 	 */
 	pageUrl: string;
+
+	/**
+	 * What produced this finding.
+	 *
+	 * Required. The whole point of the field is that a reader can tell a
+	 * measured fact from a judgement, and an optional one would let a finding
+	 * exist that is neither.
+	 */
+	origin: FindingOrigin;
+
+	/**
+	 * The rule that caught it, e.g. `color-contrast`.
+	 *
+	 * Present only on measured findings, and its presence is what a reader
+	 * checks. A judged finding carrying one would be claiming a verification
+	 * that never happened.
+	 */
+	ruleId?: string;
+
+	/**
+	 * How many elements the rule failed on.
+	 *
+	 * One rule failing on forty buttons is one problem, not forty findings.
+	 */
+	affectedElements?: number;
 };
 
 /**
@@ -168,6 +228,15 @@ export type RunProvenance = {
 	browserVersion: string;
 
 	/**
+	 * Version of the audit engine that produced the measurements.
+	 *
+	 * Read from the audit's own report rather than hardcoded: the engine ships
+	 * inside the browser server and moves independently of this package, so a
+	 * report found weeks later could not otherwise say what judged it.
+	 */
+	auditEngineVersion?: string;
+
+	/**
 	 * Whether the run was permitted to consult external data sources.
 	 *
 	 * Named for permission, not for use: nothing here observes traffic, so a
@@ -212,6 +281,10 @@ const analysisStages = [
 	'idle',
 	'navigating',
 	'capturing',
+	// Between capture and judgement, because that is when it happens -- and it
+	// is the longest single wait in a run, so leaving it unnamed would make a
+	// working measurement indistinguishable from a hang.
+	'measuring',
 	'analyzing',
 	'page-complete',
 	'generating-report',
@@ -356,6 +429,7 @@ export function isAnalysisInProgress(state: AnalysisState): boolean {
 	return [
 		'navigating',
 		'capturing',
+		'measuring',
 		'analyzing',
 		'page-complete',
 		'generating-report',
