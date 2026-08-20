@@ -428,3 +428,48 @@ test('a failed page keeps whatever was measured before it failed', t => {
 	t.is(failed.measurement.audit.state, 'taken');
 	t.is(failed.measurement.trace.state, 'not-taken');
 });
+
+test('a measured finding without a rule is refused', t => {
+	// The measured/judged distinction is what the report is for. Until this
+	// guard it held only because both call sites happened to be right.
+	const builder = new ReportBuilder();
+	builder.initializePageAnalysis('https://example.com', 'features');
+
+	t.throws(
+		() => {
+			builder.addFinding({
+				severity: 'high',
+				category: 'Accessibility',
+				description: 'Something a machine supposedly verified',
+				personaRelevance: [],
+				recommendation: '',
+				pageUrl: 'https://example.com',
+				origin: 'audit',
+			});
+		},
+		{message: /must carry a ruleId/},
+	);
+});
+
+test('a judged finding carrying a rule is refused', t => {
+	// The opposite mislabelling: model prose presented with a rule identifier
+	// claims a verification that never happened.
+	const builder = new ReportBuilder();
+	builder.initializePageAnalysis('https://example.com', 'features');
+
+	t.throws(
+		() => {
+			builder.addFinding({
+				severity: 'medium',
+				category: 'Content',
+				description: 'The model thinks this looks like a contrast problem',
+				personaRelevance: [],
+				recommendation: 'Fix it',
+				pageUrl: 'https://example.com',
+				origin: 'judgement',
+				ruleId: 'color-contrast',
+			});
+		},
+		{message: /must not carry a ruleId/},
+	);
+});

@@ -77,6 +77,20 @@ export class ReportBuilder {
 			);
 		}
 
+		// The whole report turns on this distinction, and until now it held
+		// only because both callers happened to set `origin` correctly. A
+		// finding labelled measured but carrying no rule is one a reader would
+		// be told a machine verified, with nothing to check that against; a
+		// judged finding carrying a rule claims a verification that never
+		// happened. Refused at the boundary rather than trusted upstream.
+		const measured = finding.origin === 'audit';
+
+		if (measured !== (finding.ruleId !== undefined)) {
+			throw new Error(
+				`A ${finding.origin} finding must ${measured ? '' : 'not '}carry a ruleId`,
+			);
+		}
+
 		this.currentPageAnalysis.findings ??= [];
 
 		this.currentPageAnalysis.findings.push(finding);

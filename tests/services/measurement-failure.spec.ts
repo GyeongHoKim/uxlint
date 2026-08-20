@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {cwd} from 'node:process';
+import {cwd, pid} from 'node:process';
 import test from 'ava';
 import {auditReportJson} from '../fixtures/lighthouse-report.js';
 import {
@@ -11,6 +11,7 @@ import {
 import {traceWithNavigationReply} from '../fixtures/trace-reply.js';
 import {mcpError, mcpResult} from '../fixtures/mcp-result.js';
 import {
+	isAuditPathRemovable,
 	MeasurementService,
 	type MeasurementClient,
 } from '../../source/services/measurement.js';
@@ -459,9 +460,11 @@ test('a report path outside the temp directory is never deleted', async t => {
 
 test('a relative report path is never deleted', async t => {
 	const {reply, dir} = replyWithRealReport();
-	// `- /` is what the parser keys on, so a relative path is not even
-	// collected -- this pins that, since a future looser parser would hand
-	// `path.dirname('report.html')` (`.`) to a recursive delete.
+	// `isAbsolutePath` is what the parser keys on -- it accepts `/tmp/...`,
+	// `C:\...` and `\\server\share\...`, and rejects everything else -- so a
+	// relative path is not even collected. Pinned here because a future looser
+	// parser would hand `path.dirname('report.html')` (`.`) to a recursive
+	// delete.
 	const relative = reply.replace(/- \S*report\.html/, () => '- report.html');
 
 	const client = scriptedClient({
@@ -479,5 +482,93 @@ test('a relative report path is never deleted', async t => {
 		t.true(fs.existsSync('package.json'), 'the working directory survived');
 	} finally {
 		fs.rmSync(dir, {recursive: true, force: true});
+	}
+});
+
+test('a symlinked temp root still permits cleanup', async t => {
+	// The macOS shape, reproduced here: os.tmpdir() answers a path that goes
+	// through a symlink (/var/folders/...) while the server reports the
+	// resolved form (/private/var/folders/...). Comparing them lexically fails
+	// on every audit, and the guard then refuses to clean up anything at all --
+	// silently, because the measurement still succeeds. That is the leak this
+	// guard shipped alongside, reintroduced on one platform.
+	const real = fs.mkdtempSync(path.join(os.tmpdir(), 'uxlint-real-'));
+	const link = path.join(os.tmpdir(), `uxlint-link-${pid}`);
+	fs.symlinkSync(real, link, 'dir');
+
+	try {
+		const reportDirectory = fs.mkdtempSync(path.join(real, 'report-'));
+
+		// The candidate is under the *resolved* root; the temp root we compare
+		// against is the symlinked one.
+		t.true(await isAuditPathRemovable(reportDirectory, link));
+
+		// And the refusal still works for somewhere genuinely outside.
+		t.false(await isAuditPathRemovable(cwd(), link));
+	} finally {
+		fs.rmSync(link, {force: true});
+		fs.rmSync(real, {recursive: true, force: true});
+	}
+});
+
+test('the temp root itself is never removed', async t => {
+	// Removing it would take every other process's scratch space with it.
+	t.false(await isAuditPathRemovable(os.tmpdir()));
+});
+
+test('a relative directory is never removed', async t => {
+	t.false(await isAuditPathRemovable('report'));
+	t.false(await isAuditPathRemovable('.'));
+	t.false(await isAuditPathRemovable('../..'));
+});
+
+test('an unreadable report still gets its directories cleaned up', async t => {
+	// The cleanup used to run only after the read succeeded. A report that
+	// exists at parse time but cannot be read -- a permission error, a
+	// transient I/O failure -- returned early and left both directories on
+	// disk for good. Same leak as before, down the error path instead of the
+	// happy one, and no test went near it: the nearest one fails earlier, in
+	// `parseAuditReply`, so this method was never even called.
+	const jsonDir = fs.mkdtempSync(path.join(os.tmpdir(), 'uxlint-unreadable-'));
+	const htmlDir = fs.mkdtempSync(path.join(os.tmpdir(), 'uxlint-unreadable-'));
+	const reportPath = path.join(jsonDir, 'report.json');
+
+	// A directory where the file should be: readFile fails with EISDIR, which
+	// is a read failure on a path that exists.
+	fs.mkdirSync(reportPath);
+	fs.writeFileSync(path.join(htmlDir, 'report.html'), '<html></html>');
+
+	const reply = auditSnapshotReply
+		.replace(/- \S*report\.json/, () => `- ${reportPath}`)
+		.replace(
+			/- \S*report\.html/,
+			() => `- ${path.join(htmlDir, 'report.html')}`,
+		);
+
+	const client = scriptedClient({
+		async lighthouse_audit() {
+			return mcpResult(reply);
+		},
+		performance_start_trace: okTrace,
+	});
+
+	try {
+		const measurement = await new MeasurementService(client).measure(
+			'analysable',
+		);
+
+		// The measurement is honestly reported as not taken...
+		t.is(measurement.audit.state, 'not-taken');
+		t.is(
+			measurement.audit.state === 'not-taken' ? measurement.audit.reason : '',
+			'unparseable',
+		);
+
+		// ...and nothing is left behind.
+		t.false(fs.existsSync(jsonDir), 'the JSON report directory survived');
+		t.false(fs.existsSync(htmlDir), 'the HTML report directory survived');
+	} finally {
+		fs.rmSync(jsonDir, {recursive: true, force: true});
+		fs.rmSync(htmlDir, {recursive: true, force: true});
 	}
 });

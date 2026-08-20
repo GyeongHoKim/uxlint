@@ -126,6 +126,22 @@ is not `about:blank`.
 **The budget was measured without its digest.** See the note under the table
 above.
 
+**A second review round found two more, both in code the first round's fixes
+had just touched.** Cleanup ran only after the report was read, so a report
+that existed but could not be read left both directories behind for good --
+the same leak, down the error path instead of the happy one, and the nearest
+test failed earlier and never reached that method. And the accessibility score
+rendered `?? 0`, publishing a maximally-failing `0/100` for a score the audit
+never reported, while the model's digest already guarded that case. Both are
+the defect this feature is named for: a number presented as a measurement of
+something unmeasured.
+
+The guard against path traversal added in the first round also carried its own
+version of the leak -- `os.tmpdir()` on macOS answers a path through a symlink
+while the server reports the resolved form, so the prefix test failed on every
+audit and cleanup was refused, silently. Both sides are now resolved before
+comparing.
+
 ### Re-measured after the fix
 
 Against `probe/fixture2.html`, which has a real navigation:
@@ -153,10 +169,10 @@ always 0 (D18, out of scope here).
 | `source/models/measurement.ts` | 100 | 100 | 100 | 100 |
 | `source/models/analysis-stage.ts` | 100 | 100 | 100 | 100 |
 | `source/components/analysis-progress.tsx` | 100 | 90.9 | 100 | 100 |
-| `source/infrastructure/reports/report-generator.ts` | 99.54 | 91.54 | 100 | 99.54 |
-| `source/services/measurement.ts` | 96.86 | 85.71 | 100 | 96.86 |
+| `source/infrastructure/reports/report-generator.ts` | 99.55 | 93.15 | 100 | 99.55 |
+| `source/services/measurement.ts` | 98.11 | 87.61 | 100 | 98.11 |
 | `source/services/ai-service.ts` | 95.83 | 82.27 | 85.00 | 95.83 |
-| `source/services/report-builder.ts` | 95.21 | 84.61 | 100 | 95.21 |
+| `source/services/report-builder.ts` | 95.36 | 85.50 | 100 | 95.36 |
 
 **Every file this feature adds or changes clears 80% on all four metrics.**
 `report-builder.ts` did not at first — 77.41% branch — and the gap was exactly
@@ -168,7 +184,7 @@ note. Tested rather than waived.
 runtime helpers had no tests before this feature and still have none. Out of
 scope here, and part of D18.
 
-Whole-project coverage moved 74.32% → 74.80%, branches 80.55% → 81.89%. D18 stands.
+Whole-project coverage moved 74.32% → 74.98%, branches 80.55% → 82.29%. D18 stands.
 
 ## Success criteria
 

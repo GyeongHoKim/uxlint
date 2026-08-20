@@ -425,3 +425,44 @@ test('the report names the audit engine that judged it', t => {
 
 	t.true(markdown.includes('Lighthouse 13.4.1'));
 });
+
+test('an audit with no accessibility score says so, rather than zero', t => {
+	// An audit can succeed while its accessibility score is absent -- the
+	// digest builder already guards for it. Rendering `?? 0` put a
+	// maximally-failing 0/100 in the table for a score nothing measured, which
+	// is the same defect as a fabricated paint timing.
+	const page = buildPage({
+		measurement: {
+			audit: {
+				state: 'taken',
+				// Other categories came back; accessibility did not.
+				value: {scores: {seo: 90}, violations: [], snapshotMode: true},
+			},
+			trace: {state: 'not-taken', reason: 'tool-failed'},
+		},
+	});
+
+	const markdown = generateMarkdownReport(buildReport([page]));
+
+	t.false(markdown.includes('0/100'));
+	t.true(markdown.includes('not measured (no score reported)'));
+});
+
+test('a genuine zero score is still reported as zero', t => {
+	// The opposite error would be as bad: a page that really scored zero must
+	// not be reported as unmeasured.
+	const page = buildPage({
+		measurement: {
+			audit: {
+				state: 'taken',
+				value: {scores: {accessibility: 0}, violations: [], snapshotMode: true},
+			},
+			trace: {state: 'not-taken', reason: 'tool-failed'},
+		},
+	});
+
+	const markdown = generateMarkdownReport(buildReport([page]));
+
+	t.true(markdown.includes('0/100'));
+	t.false(markdown.includes('not measured (no score reported)'));
+});
