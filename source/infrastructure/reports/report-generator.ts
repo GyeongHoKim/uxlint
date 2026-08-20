@@ -103,9 +103,19 @@ function renderMeasurementTable(pages: PageAnalysis[]): string[] {
 	const rows = measured.map(page => {
 		const {audit, trace} = page.measurement;
 
+		// `?? 0` here rendered a maximally-failing 0/100 for a score the audit
+		// never reported -- an audit can succeed while its accessibility score
+		// is absent, which is why the model's digest already guards this. A
+		// fabricated zero is the same defect as a fabricated paint timing:
+		// a number published as a measurement of something unmeasured.
+		const accessibility =
+			audit.state === 'taken' && audit.value.scores['accessibility'];
+
 		const score =
 			audit.state === 'taken'
-				? `${audit.value.scores['accessibility'] ?? 0}/100`
+				? typeof accessibility === 'number'
+					? `${accessibility}/100`
+					: 'not measured (no score reported)'
 				: `not measured (${audit.reason})`;
 
 		const lcp =

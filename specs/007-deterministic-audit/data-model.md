@@ -14,7 +14,7 @@ specification of its data — see `source/models/analysis.ts`.
 ### `FindingOrigin`
 
 ```ts
-export type FindingOrigin = 'audit' | 'trace' | 'judgement';
+export type FindingOrigin = 'audit' | 'judgement';
 ```
 
 Named for **what produced the statement**, not for the vendor that produced it.
@@ -23,10 +23,12 @@ report, and would have to be renamed the day the tool changes — while what the
 reader needs to know ("did a machine check this, or did an AI conclude it?")
 would not have changed at all.
 
-`'trace'` is declared now although this feature registers no findings from
-traces (FR-004 records vitals as numbers, not as findings). It is here because
-the union is rendered to users and stored in reports: adding a member later is
-a format change, and the cost of declaring it now is one unused branch.
+A `'trace'` member was declared first, on the argument that widening a stored
+format later is expensive. It is gone: nothing can emit one, because vitals are
+reported as numbers rather than as findings, and a member no code can produce
+is a promise the report cannot keep. Adding it the day something registers a
+trace finding is a smaller change than explaining an origin that never
+appears.
 
 ### `UxFinding` — modified
 

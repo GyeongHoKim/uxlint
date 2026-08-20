@@ -411,6 +411,23 @@ export function describeMeasurement(measurement: PageMeasurement): string {
 }
 
 /**
+ * Resolve a path through symlinks, falling back to a lexical resolve.
+ *
+ * @param target - Path to resolve
+ * @returns The real path where one exists, the resolved path otherwise
+ */
+async function realPathOf(target: string): Promise<string> {
+	try {
+		return await fs.realpath(target);
+	} catch {
+		// The directory may already be gone, or be unreadable. Falling back
+		// keeps the comparison lexical rather than throwing inside a guard
+		// whose whole job is to refuse rather than fail.
+		return path.resolve(target);
+	}
+}
+
+/**
  * Whether a directory the audit named may be deleted.
  *
  * `writtenPaths` is parsed out of text an external server produced, and it is
@@ -423,19 +440,32 @@ export function describeMeasurement(measurement: PageMeasurement): string {
  * naming that restriction itself -- so anything outside it is not a report
  * directory and is left alone.
  *
- * Compared after resolving, so that a path walking back out through `..`
- * cannot present itself as living inside the temp tree.
+ * **Both sides are resolved through symlinks before comparing.** On macOS
+ * `os.tmpdir()` answers `/var/folders/...` while `/var` is a symlink to
+ * `/private/var`, and the server reports the resolved form. Comparing them
+ * lexically fails on every audit, and the guard would then refuse to clean up
+ * anything at all -- silently, since the measurement still succeeds. That is
+ * the leak this guard was added alongside, reintroduced on one platform.
  *
  * @param directory - Directory the audit reported writing to
+ * @param temporaryDirectory - Temp root to require it under, injectable for tests
  * @returns Whether it is safe to remove
  */
-function isRemovable(directory: string): boolean {
+export async function isAuditPathRemovable(
+	directory: string,
+	temporaryDirectory: string = os.tmpdir(),
+): Promise<boolean> {
+	// Platform-native on purpose: this path came from a server running on this
+	// machine. A foreign-looking absolute path is refused, which is the safe
+	// direction to be wrong in.
 	if (!path.isAbsolute(directory)) {
 		return false;
 	}
 
-	const resolved = path.resolve(directory);
-	const temporaryRoot = path.resolve(os.tmpdir());
+	const [resolved, temporaryRoot] = await Promise.all([
+		realPathOf(directory),
+		realPathOf(temporaryDirectory),
+	]);
 
 	if (resolved === temporaryRoot) {
 		// The temp root itself, which would take every other process's
@@ -629,31 +659,44 @@ export class MeasurementService {
 		reportPath: string,
 		writtenPaths: string[],
 	): Promise<Measured<{violations: Violation[]; engineVersion?: string}>> {
-		let contents: string;
-
 		try {
-			contents = await fs.readFile(reportPath, 'utf8');
+			const contents = await fs.readFile(reportPath, 'utf8');
+			return readAuditReport(contents);
 		} catch {
 			return notTaken('unparseable');
+		} finally {
+			// In `finally`, so that a report we could not read is still cleaned
+			// up. Returning early on a read failure left both directories --
+			// the JSON and the quarter-megabyte HTML -- on disk for good, which
+			// is the same leak this cleanup was added to stop, just down the
+			// error path instead of the happy one.
+			await this.discardReportDirectories(writtenPaths);
 		}
+	}
 
-		const violations = readAuditReport(contents);
-
-		// Every file the audit wrote, not only the one read. The HTML report is
-		// a quarter of a megabyte and sits in a directory of its own.
-		const directories = new Set(
-			writtenPaths
-				.map(file => path.dirname(file))
-				.filter(directory => isRemovable(directory)),
-		);
+	/**
+	 * Remove the directories the audit wrote its reports into.
+	 *
+	 * The server makes a fresh temp directory per file, so a run of any length
+	 * leaves them accumulating. Nothing here can fail the measurement: tidying
+	 * up is not a reason to lose a reading that was taken.
+	 *
+	 * @param writtenPaths - Every file the audit reported writing
+	 */
+	private async discardReportDirectories(
+		writtenPaths: string[],
+	): Promise<void> {
+		const directories = new Set(writtenPaths.map(file => path.dirname(file)));
 
 		await Promise.all(
 			[...directories].map(async directory => {
+				if (!(await isAuditPathRemovable(directory))) {
+					return;
+				}
+
 				try {
 					await fs.rm(directory, {recursive: true, force: true});
 				} catch (error) {
-					// Failing to tidy up is not a reason to lose a measurement
-					// that was taken successfully.
 					logger.warn('Could not remove audit report directory', {
 						directory,
 						error: error instanceof Error ? error.message : String(error),
@@ -661,8 +704,6 @@ export class MeasurementService {
 				}
 			}),
 		);
-
-		return violations;
 	}
 
 	/** Run the trace. */

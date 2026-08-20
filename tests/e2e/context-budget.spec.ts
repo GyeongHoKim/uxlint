@@ -537,10 +537,14 @@ test.serial('a tool call and its result are never separated', async t => {
 			.filter(({item}) => item.type === 'function_call');
 
 		for (const {next, index} of afterCalls) {
-			t.not(
-				next?.role,
-				'user',
-				`a user turn was inserted directly after a tool call at index ${index}`,
+			// Asserted positively. `not user` also passes when the output is
+			// missing entirely, or is some third thing -- so it would have held
+			// for transcripts that are broken in a different way than the one
+			// this test is named for.
+			t.is(
+				next?.type,
+				'function_call_output',
+				`the tool call at index ${index} is not followed by its output`,
 			);
 		}
 	}
