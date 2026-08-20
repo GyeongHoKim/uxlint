@@ -22,3 +22,16 @@ export const traceWithoutNavigationReply =
 
 /** The trace reply as it arrives through the MCP adapter. */
 export const traceResult = () => mcpResult(traceWithNavigationReply);
+
+/**
+ * A trace whose blank-page set reports a different layout shift.
+ *
+ * The real replies both happened to report 0.00 in every insight set, which
+ * is why reading the metrics from the whole reply looked correct: the wrong
+ * number and the right one were the same number. Built from the recorded
+ * reply by changing only the `about:blank` set's CLS, so a parser that reads
+ * the first match reports 0.42 for a page that did not shift at all.
+ */
+export const traceWithShiftingBlankPage = traceWithNavigationReply
+	.replace('URL: about:blank\nBounds', 'URL: about:blank\nBounds')
+	.replace(/(URL: about:blank[\s\S]*?- CLS: )0\.00/, '$10.42');

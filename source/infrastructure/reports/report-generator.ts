@@ -33,7 +33,6 @@ const severityEmoji: Record<FindingSeverity, string> = {
  */
 const originLabel: Record<FindingOrigin, string> = {
 	audit: 'measured',
-	trace: 'measured',
 	judgement: 'AI judgement',
 };
 

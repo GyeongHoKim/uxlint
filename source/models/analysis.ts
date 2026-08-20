@@ -101,12 +101,14 @@ export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low';
  * it; a vendor name would answer a question nobody asked and would need
  * renaming the day the tool changed.
  *
- * `trace` is declared although nothing registers findings from traces yet:
- * vitals are reported as numbers, not as findings. It is here because this
- * union is rendered into reports that outlive the release, and widening a
- * stored format later is more expensive than one unused branch now.
+ * Only the two that exist. A `trace` member was declared first, on the
+ * argument that widening a stored format later is expensive -- but nothing
+ * produces one, since vitals are reported as numbers rather than as findings,
+ * and a member no code can emit is a promise the report cannot keep. Adding
+ * it the day something registers a trace finding is a smaller change than
+ * explaining an origin that never appears.
  */
-export type FindingOrigin = 'audit' | 'trace' | 'judgement';
+export type FindingOrigin = 'audit' | 'judgement';
 
 /**
  * UX finding (issue or recommendation)

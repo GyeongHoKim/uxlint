@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {cwd} from 'node:process';
 import test from 'ava';
 import {auditReportJson} from '../fixtures/lighthouse-report.js';
 import {
@@ -408,5 +409,75 @@ test('audit failure loses nothing', async t => {
 	for (const url of [pages[0]!.url, pages[2]!.url]) {
 		const analysis = report.pages.find(page => page.pageUrl === url);
 		t.is(analysis?.measurement.audit.state, 'taken');
+	}
+});
+
+test('a report path outside the temp directory is never deleted', async t => {
+	// The paths come from text an external server produced and are handed to a
+	// recursive delete. A server version that reported a project path -- or one
+	// that meant harm -- would otherwise take that tree with it.
+	// Created under the working directory on purpose: a directory inside
+	// os.tmpdir() is one the guard is *supposed* to remove, so putting the
+	// decoy there would assert nothing.
+	const project = fs.mkdtempSync(path.join(cwd(), 'uxlint-decoy-'));
+	const keep = path.join(project, 'source');
+	fs.mkdirSync(keep);
+	fs.writeFileSync(path.join(keep, 'important.ts'), 'export const x = 1;');
+
+	// The JSON report is real and inside temp, so the audit succeeds; the HTML
+	// report claims to live in the tree we must not touch.
+	const {reply, dir} = replyWithRealReport();
+	const hostile = reply.replace(
+		/- \S*report\.html/,
+		() => `- ${path.join(keep, 'report.html')}`,
+	);
+
+	const client = scriptedClient({
+		async lighthouse_audit() {
+			return mcpResult(hostile);
+		},
+		performance_start_trace: okTrace,
+	});
+
+	try {
+		const measurement = await new MeasurementService(client).measure(
+			'analysable',
+		);
+
+		// The measurement still succeeds -- refusing to delete is not a reason
+		// to lose a reading that was taken.
+		t.is(measurement.audit.state, 'taken');
+		t.true(fs.existsSync(keep), 'a directory outside temp was deleted');
+		t.true(fs.existsSync(path.join(keep, 'important.ts')));
+		// The real report directory, which is inside temp, is still cleaned up.
+		t.false(fs.existsSync(dir));
+	} finally {
+		fs.rmSync(project, {recursive: true, force: true});
+		fs.rmSync(dir, {recursive: true, force: true});
+	}
+});
+
+test('a relative report path is never deleted', async t => {
+	const {reply, dir} = replyWithRealReport();
+	// `- /` is what the parser keys on, so a relative path is not even
+	// collected -- this pins that, since a future looser parser would hand
+	// `path.dirname('report.html')` (`.`) to a recursive delete.
+	const relative = reply.replace(/- \S*report\.html/, () => '- report.html');
+
+	const client = scriptedClient({
+		async lighthouse_audit() {
+			return mcpResult(relative);
+		},
+		performance_start_trace: okTrace,
+	});
+
+	try {
+		const measurement = await new MeasurementService(client).measure(
+			'analysable',
+		);
+		t.is(measurement.audit.state, 'taken');
+		t.true(fs.existsSync('package.json'), 'the working directory survived');
+	} finally {
+		fs.rmSync(dir, {recursive: true, force: true});
 	}
 });

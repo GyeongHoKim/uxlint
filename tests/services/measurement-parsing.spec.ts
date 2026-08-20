@@ -10,8 +10,14 @@ import {
 } from '../fixtures/lighthouse-reply.js';
 import {
 	parseAuditReply,
+	parseTraceReply,
 	readAuditReport,
 } from '../../source/services/measurement.js';
+import {
+	traceWithNavigationReply,
+	traceWithoutNavigationReply,
+	traceWithShiftingBlankPage,
+} from '../fixtures/trace-reply.js';
 
 const reportFixture = auditReportJson;
 
@@ -262,4 +268,134 @@ test('an audit with no impact rating is skipped, not defaulted', t => {
 		),
 	);
 	t.is(violations.value.violations.length, 3);
+});
+
+// --- trace metrics --------------------------------------------------------
+
+test('the trace reports the page, not the blank page before it', t => {
+	// A trace started with `reload` visits about:blank first, so the reply
+	// carries two insight sets. Reading each metric from the whole reply takes
+	// layout shift from the blank page -- structurally 0.00, and a statement
+	// about nothing. Both recorded replies happened to report 0.00 everywhere,
+	// so the wrong number and the right one were identical; this fixture makes
+	// them differ.
+	const parsed = parseTraceReply(traceWithShiftingBlankPage);
+
+	t.true(parsed.state === 'taken');
+	if (parsed.state !== 'taken') {
+		return;
+	}
+
+	const {cumulativeLayoutShift: cls, largestContentfulPaint: lcp} =
+		parsed.value;
+
+	t.is(cls.state === 'taken' ? cls.value : undefined, 0);
+	t.is(lcp.state === 'taken' ? lcp.value : undefined, 65);
+});
+
+test('a trace with a navigation reports both metrics', t => {
+	const parsed = parseTraceReply(traceWithNavigationReply);
+
+	t.true(parsed.state === 'taken');
+	if (parsed.state !== 'taken') {
+		return;
+	}
+
+	t.is(parsed.value.largestContentfulPaint.state, 'taken');
+	t.is(parsed.value.cumulativeLayoutShift.state, 'taken');
+});
+
+test('a trace with no navigation has layout shift but no paint', t => {
+	// FR-006a: a measurement succeeding is not a guarantee that every metric
+	// within it exists.
+	const parsed = parseTraceReply(traceWithoutNavigationReply);
+
+	t.true(parsed.state === 'taken');
+	if (parsed.state !== 'taken') {
+		return;
+	}
+
+	t.is(parsed.value.cumulativeLayoutShift.state, 'taken');
+	t.is(parsed.value.largestContentfulPaint.state, 'not-taken');
+});
+
+test('no First Contentful Paint is ever produced', t => {
+	// The only FCP figure the reply carries is a projected saving from a
+	// suggested fix. Reporting it as the page's FCP would fabricate exactly
+	// the kind of number this feature removes.
+	t.true(traceWithNavigationReply.includes('FCP'));
+
+	const parsed = parseTraceReply(traceWithNavigationReply);
+	t.true(parsed.state === 'taken');
+	if (parsed.state !== 'taken') {
+		return;
+	}
+
+	t.false(Object.hasOwn(parsed.value, 'firstContentfulPaint'));
+	t.false(JSON.stringify(parsed.value).toLowerCase().includes('fcp'));
+});
+
+test('`LCP breakdown` is a heading, not a metric', t => {
+	// A loose match on the name consumes it and reports no paint at all.
+	t.true(traceWithNavigationReply.includes('- LCP breakdown:'));
+
+	const parsed = parseTraceReply(traceWithNavigationReply);
+	t.true(parsed.state === 'taken');
+	if (parsed.state !== 'taken') {
+		return;
+	}
+
+	t.is(
+		parsed.value.largestContentfulPaint.state === 'taken'
+			? parsed.value.largestContentfulPaint.value
+			: undefined,
+		65,
+	);
+});
+
+test('a reply with no insight set is unparseable', t => {
+	t.is(parseTraceReply('Metrics (lab / observed)').state, 'not-taken');
+	t.is(parseTraceReply('nothing like a trace').state, 'not-taken');
+	t.notThrows(() => parseTraceReply(''));
+});
+
+test('a Windows report path is read, not discarded', t => {
+	// Windows is a supported target -- this project stores credentials in its
+	// credential manager -- and the server reports `C:\\...` there. Keying the
+	// filter on a leading slash rejected those and reported the whole audit as
+	// unparseable, on the one platform where nobody here would notice.
+	const windows = auditSnapshotReply
+		.replace(
+			/- \/\S*report\.json/,
+			() => String.raw`- C:\Users\dev\AppData\Local\Temp\cdp-1\report.json`,
+		)
+		.replace(
+			/- \/\S*report\.html/,
+			() => String.raw`- C:\Users\dev\AppData\Local\Temp\cdp-2\report.html`,
+		);
+
+	const parsed = parseAuditReply(windows);
+
+	t.true(parsed.state === 'taken');
+	if (parsed.state !== 'taken') {
+		return;
+	}
+
+	t.true(parsed.value.reportPath.endsWith(String.raw`cdp-1\report.json`));
+	t.is(parsed.value.writtenPaths.length, 2);
+});
+
+test('the category score lines are not mistaken for paths', t => {
+	// Both are bullet lists. Only one of them names files.
+	const parsed = parseAuditReply(auditSnapshotReply);
+
+	t.true(parsed.state === 'taken');
+	if (parsed.state !== 'taken') {
+		return;
+	}
+
+	t.is(parsed.value.writtenPaths.length, 2);
+	t.false(
+		parsed.value.writtenPaths.some(file => file.includes('Accessibility')),
+	);
 });

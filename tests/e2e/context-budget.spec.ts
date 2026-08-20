@@ -54,16 +54,28 @@ const baseConfig = (): UxLintConfig => ({
 /**
  * A browser server offering the two tools the analysis uses.
  */
-// The audit's real reply, pointed at a report on disk so the measurement
-// completes and its digest lands in the request the budget measures.
-const auditReportDir = fs.mkdtempSync(
-	path.join(os.tmpdir(), 'uxlint-budget-audit-'),
-);
-fs.writeFileSync(path.join(auditReportDir, 'report.json'), auditReportJson);
-const auditReplyForFixture = auditSnapshotReply.replace(
-	/- \S*report\.json/,
-	() => `- ${path.join(auditReportDir, 'report.json')}`,
-);
+/**
+ * The audit's real reply, pointed at a report that exists for this call only.
+ *
+ * Written per call rather than once for the module: the code under test
+ * deletes the report directory after reading it, so a single shared fixture is
+ * consumed by whichever run goes first and every later run sees a failed
+ * audit. That silently emptied the digest out of the very measurement this
+ * file exists to take -- the figure recorded for this feature came from a page
+ * whose audit had never been read.
+ *
+ * @returns A reply naming a report on disk
+ */
+function auditReplyForFixture(): string {
+	const directory = fs.mkdtempSync(
+		path.join(os.tmpdir(), 'uxlint-budget-audit-'),
+	);
+	fs.writeFileSync(path.join(directory, 'report.json'), auditReportJson);
+	return auditSnapshotReply.replace(
+		/- \S*report\.json/,
+		() => `- ${path.join(directory, 'report.json')}`,
+	);
+}
 
 const browserServer = (): MCPClient =>
 	({
@@ -91,7 +103,7 @@ const browserServer = (): MCPClient =>
 		// budget, so SC-007 covers what a real run actually sends.
 		async callTool({name}: {name: string}) {
 			return mcpResult(
-				name === 'lighthouse_audit' ? auditReplyForFixture : traceReply,
+				name === 'lighthouse_audit' ? auditReplyForFixture() : traceReply,
 			);
 		},
 		async close() {
@@ -447,6 +459,19 @@ test.serial('the measurement is reproducible across runs (SC-008)', async t => {
 	);
 });
 
+test.serial('the measured budget includes the digest', async t => {
+	// Without this the figure below can come from a run whose audit was never
+	// read, which is what happened: the shared report fixture was consumed by
+	// the first run and every later one measured an empty digest.
+	const {recorder} = await analyse(happyPath);
+
+	const carriesDigest = recorder
+		.all()
+		.some(request => JSON.stringify(request.body).includes('color-contrast'));
+
+	t.true(carriesDigest, 'no request carried the measurement digest');
+});
+
 test.serial(
 	'the request budget for a page is within the threshold (SC-007)',
 	async t => {
@@ -490,4 +515,33 @@ test.serial('measurement adds no browser tool to any request', async t => {
 	// use it: the note the model writes about the measured violations.
 	const perRequest = recorder.all().map(request => request.toolNames.length);
 	t.deepEqual(perRequest, [2, 2, 3, 3]);
+});
+
+test.serial('a tool call and its result are never separated', async t => {
+	// The digest is a new user turn. Inserted before this step's assistant
+	// message and the tool results answering it, it splits a call from its
+	// result -- a malformed transcript that some providers reject outright.
+	// The byte count cannot see this, and the scripted model does not care,
+	// which is why the shape is asserted directly.
+	const {recorder} = await analyse(happyPath);
+
+	for (const request of recorder.all()) {
+		const input = Array.isArray(request.body['input'])
+			? (request.body['input'] as Array<{type?: string; role?: string}>)
+			: [];
+
+		// Whatever follows a call must be its output, never a fresh user turn
+		// that has pushed the answer further down.
+		const afterCalls = input
+			.map((item, index) => ({item, next: input[index + 1], index}))
+			.filter(({item}) => item.type === 'function_call');
+
+		for (const {next, index} of afterCalls) {
+			t.not(
+				next?.role,
+				'user',
+				`a user turn was inserted directly after a tool call at index ${index}`,
+			);
+		}
+	}
 });

@@ -1,36 +1,36 @@
 [
   {
     "name": "navigate_page",
-    "ms": 1430,
+    "ms": 1563,
     "bytes": 108,
     "isError": false,
     "failed": false
   },
   {
     "name": "take_snapshot",
-    "ms": 7,
+    "ms": 28,
     "bytes": 334,
     "isError": false,
     "failed": false
   },
   {
     "name": "lighthouse_audit",
-    "ms": 4709,
+    "ms": 4717,
     "bytes": 409,
     "isError": false,
     "failed": false
   },
   {
     "name": "lighthouse_audit",
-    "ms": 1712,
+    "ms": 1801,
     "bytes": 393,
     "isError": false,
     "failed": false
   },
   {
     "name": "performance_start_trace",
-    "ms": 5222,
-    "bytes": 5349,
+    "ms": 5291,
+    "bytes": 5353,
     "isError": false,
     "failed": false
   }

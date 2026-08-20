@@ -23,6 +23,7 @@
  */
 
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {logger} from '../infrastructure/logger.js';
 import type {PageStage} from '../models/analysis-stage.js';
@@ -96,6 +97,25 @@ export type ParsedAuditReply = {
 export type MeasurementLog = (message: string) => void;
 
 /**
+ * Whether a reported path is absolute, on either family of platform.
+ *
+ * Keyed on the shape rather than on `path.isAbsolute`, which answers for the
+ * platform this process runs on: a Windows path read on Linux would be called
+ * relative and quietly dropped. The server writes `C:\\Users\\...` there and
+ * `/tmp/...` here, and this project supports both.
+ *
+ * Non-absolute lines are not paths at all -- the reply's other bullet lists
+ * are category scores -- so they are filtered out rather than rejected.
+ *
+ * @param file - A line the reply listed under its reports
+ * @returns Whether it looks like an absolute path
+ */
+function isAbsolutePath(file: string): boolean {
+	// `/tmp/...`, `C:\\...` or `\\\\server\\share\\...`
+	return /^(?:[/\\]|[a-z]:[/\\])/i.test(file);
+}
+
+/**
  * Read the audit's summary reply.
  *
  * The reply is text. `@ai-sdk/mcp` does not pass the server's structured
@@ -126,8 +146,9 @@ export function parseAuditReply(reply: string): Measured<ParsedAuditReply> {
 	const writtenPaths = reply
 		.split('\n')
 		.map(line => line.trim())
-		.filter(line => line.startsWith('- /'))
-		.map(line => line.slice(2));
+		.filter(line => line.startsWith('- '))
+		.map(line => line.slice(2))
+		.filter(file => isAbsolutePath(file));
 
 	const reportPath = writtenPaths.find(file => file.endsWith('.json'));
 
@@ -245,9 +266,38 @@ function toViolation(
 }
 
 /**
+ * The insight set describing the page under test.
+ *
+ * A trace started with `reload` navigates to `about:blank` first, so the reply
+ * carries **more than one** insight set and the blank page is the earlier of
+ * them. Reading a metric from the whole reply therefore reads whichever set
+ * happens to mention it first, which for layout shift is the blank page --
+ * structurally 0.00, and a statement about nothing.
+ *
+ * The page's own set is the last one that is not `about:blank`. When the page
+ * produced no navigation at all there is a single `NO_NAVIGATION` set, and
+ * that is the one to read.
+ *
+ * @param reply - The trace's text reply
+ * @returns The block for the page under test, or nothing when there is none
+ */
+function pageInsightSet(reply: string): string | undefined {
+	const blocks = reply
+		.split(/^## insight set id: /m)
+		.slice(1)
+		.filter(block => !/^[\t ]*URL:[\t ]*about:blank[\t ]*$/m.test(block));
+
+	return blocks.at(-1);
+}
+
+/**
  * Read the observed metrics out of a trace reply.
  *
- * Each metric is wrapped separately: a trace over a page that produced no
+ * Both metrics are taken from **one** insight set, never from the reply as a
+ * whole: see `pageInsightSet` for why reading them independently reports the
+ * blank page's layout shift as the page's own.
+ *
+ * Each metric is then wrapped separately: a trace over a page that produced no
  * navigation reports layout shift and no paint, so a successful trace is not a
  * guarantee that every metric within it exists.
  *
@@ -263,10 +313,16 @@ export function parseTraceReply(reply: string): Measured<TraceResult> {
 		return notTaken('unparseable');
 	}
 
+	const block = pageInsightSet(reply);
+
+	if (!block) {
+		return notTaken('unparseable');
+	}
+
 	// `  - LCP: 80 ms, event: ...`. Matching the value form rather than the
 	// name, because `- LCP breakdown:` is a heading and a loose match eats it.
-	const lcp = /^[\t ]*- LCP: (?<value>[\d.]+) ms/m.exec(reply);
-	const cls = /^[\t ]*- CLS: (?<value>[\d.]+)[\t ]*$/m.exec(reply);
+	const lcp = /^[\t ]*- LCP: (?<value>[\d.]+) ms/m.exec(block);
+	const cls = /^[\t ]*- CLS: (?<value>[\d.]+)[\t ]*$/m.exec(block);
 
 	return taken({
 		largestContentfulPaint: lcp?.groups
@@ -352,6 +408,50 @@ export function describeMeasurement(measurement: PageMeasurement): string {
 		'',
 		'Performance has been measured. Do not offer performance findings of your own -- you cannot see anything these numbers do not show.',
 	].join('\n');
+}
+
+/**
+ * Whether a directory the audit named may be deleted.
+ *
+ * `writtenPaths` is parsed out of text an external server produced, and it is
+ * handed to a recursive delete. A server version that reported a project path,
+ * a misconfiguration, or a server that meant harm would otherwise have this
+ * code remove that tree. Nothing about the value is trustworthy simply because
+ * we asked for it.
+ *
+ * The server writes into the OS temp directory -- it says so on connect,
+ * naming that restriction itself -- so anything outside it is not a report
+ * directory and is left alone.
+ *
+ * Compared after resolving, so that a path walking back out through `..`
+ * cannot present itself as living inside the temp tree.
+ *
+ * @param directory - Directory the audit reported writing to
+ * @returns Whether it is safe to remove
+ */
+function isRemovable(directory: string): boolean {
+	if (!path.isAbsolute(directory)) {
+		return false;
+	}
+
+	const resolved = path.resolve(directory);
+	const temporaryRoot = path.resolve(os.tmpdir());
+
+	if (resolved === temporaryRoot) {
+		// The temp root itself, which would take every other process's
+		// scratch space with it.
+		return false;
+	}
+
+	const inside = resolved.startsWith(temporaryRoot + path.sep);
+
+	if (!inside) {
+		logger.warn('Refusing to remove an audit path outside the temp directory', {
+			directory: resolved,
+		});
+	}
+
+	return inside;
 }
 
 /** Raised when a measurement outlives its bound. */
@@ -541,7 +641,11 @@ export class MeasurementService {
 
 		// Every file the audit wrote, not only the one read. The HTML report is
 		// a quarter of a megabyte and sits in a directory of its own.
-		const directories = new Set(writtenPaths.map(file => path.dirname(file)));
+		const directories = new Set(
+			writtenPaths
+				.map(file => path.dirname(file))
+				.filter(directory => isRemovable(directory)),
+		);
 
 		await Promise.all(
 			[...directories].map(async directory => {
