@@ -32,8 +32,47 @@ export type CallbackResult = {
 	errorDescription?: string;
 };
 
+/**
+ * The one call that owns a socket.
+ *
+ * Everything else in this class is a decision about what `getAuthCode`
+ * returned: which port to try next, whether the state matches, which error
+ * code an OAuth failure maps to. Naming that boundary as a type is what lets
+ * those decisions be tested for what they are, rather than through a real
+ * browser redirect against a real listening port.
+ *
+ * Typed structurally rather than as `typeof getAuthCode`: the package's
+ * `GetAuthCodeOptions` does not resolve through its `exports` map, so
+ * borrowing the signature would make every field read as `any` -- the same
+ * reason `OAuthErrorShape` above is declared locally.
+ */
+export type AuthCodeRequester = (options: {
+	authorizationUrl: string;
+	port: number;
+	callbackPath: string;
+	timeout: number;
+	openBrowser: boolean;
+	signal?: AbortSignal;
+}) => Promise<unknown>;
+
 export class CallbackServer {
 	private abortController?: AbortController;
+
+	/**
+	 * Create a callback server.
+	 *
+	 * The requester is injected so that the decisions this class makes -- port
+	 * fallback, state comparison, error mapping, result validation -- can be
+	 * driven directly rather than through a live server. Going through a real
+	 * socket did not merely make those tests slow and racy; it put the length
+	 * guards out of reach entirely, since exercising them means a callback
+	 * carrying a ten-thousand-character code.
+	 *
+	 * @param requestAuthCode - Opens the callback socket and waits on it
+	 */
+	constructor(
+		private readonly requestAuthCode: AuthCodeRequester = getAuthCode,
+	) {}
 
 	async waitForCallback(
 		options: CallbackServerOptions,
@@ -95,7 +134,7 @@ export class CallbackServer {
 		try {
 			const dummyAuthUrl = this.buildDummyAuthUrl(port, callbackPath);
 
-			const rawResult: unknown = await getAuthCode({
+			const rawResult: unknown = await this.requestAuthCode({
 				authorizationUrl: dummyAuthUrl,
 				port,
 				callbackPath,
