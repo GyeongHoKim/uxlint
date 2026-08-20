@@ -1,7 +1,7 @@
 # Baseline & Measurements: 007-deterministic-audit
 
 **Feature**: 007-deterministic-audit
-**Recorded**: 2026-08-19
+**Recorded**: 2026-08-19 · **Corrected**: 2026-08-21 after code review
 **Merge-base**: `52e799c` (v4.3.0)
 **Browser**: Chrome for Testing 152.0.7977.42 · **Lighthouse**: 13.4.1 (bundled in `chrome-devtools-mcp@1.7.0`)
 
@@ -13,13 +13,23 @@ page-structure fixture, so the comparison is between like and like.
 | | v4.3.0 | This feature | Change |
 | --- | --- | --- | --- |
 | Requests per page | 4 | 4 | unchanged |
-| **Total request bytes** | 153,913 | **159,869** | **+3.9%** |
+| **Total request bytes** | 153,913 | **160,911** | **+4.5%** |
 | Tool definitions per request | 2, 2, 2, 2 | 2, 2, 3, 3 | +1 at the `analysable` stage |
-| SC-007 ceiling | — | 192,000 | **17% of headroom used** |
+| SC-007 ceiling | — | 192,000 | **18% of headroom used** |
 
-The 5,956 extra bytes are the measurement digest (**747 bytes** on the fixture
-page, measured live), the note tool's definition on the two requests that offer
-it, and the prompt changes that stop the model guessing at what is now known.
+The 6,998 extra bytes are the measurement digest, the note tool's definition on
+the two requests that offer it, and the prompt changes that stop the model
+guessing at what is now known.
+
+**This figure was wrong when first recorded, and the correction matters more
+than the number.** The harness created one audit report directory for the whole
+module, and the code under test deletes that directory after reading it. So the
+first run consumed it and every later run measured a page whose audit had
+failed -- with an empty digest. The originally recorded 159,869 was that: a
+budget for a run that never read an audit. The harness now writes a fresh
+report per call, and `the measured budget includes the digest` asserts the
+digest is actually present in the bytes being counted, so the figure cannot
+silently become a measurement of something else again.
 
 **The audit and trace tools cost nothing**, because they are never offered to
 the model. `measurement adds no browser tool to any request` asserts that on
@@ -75,6 +85,9 @@ Real numbers, on a page with four planted accessibility defects:
 | http://127.0.0.1:44593/ | 67/100        | 95 ms | 0.00 |
 ```
 
+**The CLS in that table is the blank page's**, not this page's — see the review
+findings below. The LCP was correct, because the blank page produces none.
+
 and the violations, each carrying the rule that caught it:
 
 ```text
@@ -83,6 +96,51 @@ html-has-lang  (serious, 1 element)  → high
 image-alt      (critical, 1 element) → critical
 landmark-one-main (moderate, 1)      → medium
 ```
+
+## What code review found (PR #37)
+
+Two of the numbers above were wrong when first recorded, and both were wrong in
+the same way: something was being measured, and it was not the thing named.
+
+**Layout shift was measuring `about:blank`.** A trace started with `reload`
+visits the blank page first, so the reply carries **two** insight sets. The
+parser read each metric from the reply as a whole and so took layout shift from
+whichever set mentioned it first — the blank one. Structurally 0.00, and a
+statement about nothing.
+
+```text
+NAVIGATION_0 -> URL: about:blank              | CLS: 0.00
+NAVIGATION_1 -> URL: http://127.0.0.1:34869/  | LCP: 65 ms, CLS: 0.00
+```
+
+Every recorded reply reported 0.00 in **both** sets, so the wrong number and
+the right one were the same number and no test could tell them apart. The
+regression fixture now changes only the blank set's CLS to 0.42; against the
+old parser the test reports 0.42 for a page that never shifted.
+
+This is the defect this whole feature exists to remove — a number published as
+a measurement of something it did not measure — reintroduced by the feature
+itself. Both metrics now come from one insight set, chosen as the last one that
+is not `about:blank`.
+
+**The budget was measured without its digest.** See the note under the table
+above.
+
+### Re-measured after the fix
+
+Against `probe/fixture2.html`, which has a real navigation:
+
+| | |
+| --- | --- |
+| Measurement per page | 7,979 ms |
+| Largest Contentful Paint | 88 ms (page's own insight set) |
+| Cumulative Layout Shift | 0 (page's own insight set) |
+| Digest | 492 bytes |
+| Temp directories left behind | 0 |
+
+The layout shift is genuinely 0 for this page — a static fixture does not
+shift — which is precisely why the bug survived a live run. It was fixed by
+review reading the parser, not by any measurement disagreeing.
 
 ## Coverage (T059)
 
@@ -96,8 +154,8 @@ always 0 (D18, out of scope here).
 | `source/models/analysis-stage.ts` | 100 | 100 | 100 | 100 |
 | `source/components/analysis-progress.tsx` | 100 | 90.9 | 100 | 100 |
 | `source/infrastructure/reports/report-generator.ts` | 99.54 | 91.54 | 100 | 99.54 |
-| `source/services/measurement.ts` | 96.98 | 83.69 | 100 | 96.98 |
-| `source/services/ai-service.ts` | 95.80 | 82.71 | 85.00 | 95.80 |
+| `source/services/measurement.ts` | 96.86 | 85.71 | 100 | 96.86 |
+| `source/services/ai-service.ts` | 95.83 | 82.27 | 85.00 | 95.83 |
 | `source/services/report-builder.ts` | 95.21 | 84.61 | 100 | 95.21 |
 
 **Every file this feature adds or changes clears 80% on all four metrics.**
@@ -110,7 +168,7 @@ note. Tested rather than waived.
 runtime helpers had no tests before this feature and still have none. Out of
 scope here, and part of D18.
 
-Whole-project coverage moved 74.32% → 74.40%. D18 stands.
+Whole-project coverage moved 74.32% → 74.80%, branches 80.55% → 81.89%. D18 stands.
 
 ## Success criteria
 
@@ -122,7 +180,7 @@ Whole-project coverage moved 74.32% → 74.40%. D18 stands.
 | SC-004 absence renders as absence | `absent measurement` | ✅ |
 | SC-005 a failed audit loses no findings | `audit failure loses nothing` | ✅ |
 | SC-006 one finding per rule, stating N | `one finding per rule` | ✅ |
-| SC-007 ≤ 192,000 bytes per page | `the request budget for a page is within the threshold (SC-007)` | ✅ 159,869 |
+| SC-007 ≤ 192,000 bytes per page | `the request budget for a page is within the threshold (SC-007)` | ✅ 160,911 |
 | SC-008 ≤ 60 s per page | live run | ✅ 7.6 s |
 | SC-008a a measurement that never returns | `a measurement that never returns` | ✅ |
 | SC-009 no performance finding | `no performance finding` | ✅ |

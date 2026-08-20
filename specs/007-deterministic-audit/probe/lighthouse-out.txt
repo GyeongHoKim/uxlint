@@ -1,0 +1,16 @@
+## Lighthouse Audit Results
+Mode: navigation
+Device: desktop
+URL: http://127.0.0.1:39963/
+### Category Scores
+- Accessibility: 67 (accessibility)
+- Best Practices: 100 (best-practices)
+- SEO: 75 (seo)
+- Agentic Browsing: 67 (agentic-browsing)
+### Audit Summary
+Passed: 34
+Failed: 7
+Total Timing: 4328.17ms
+### Reports
+- /tmp/chrome-devtools-mcp-NeAO4h/report.json
+- /tmp/chrome-devtools-mcp-yBfYRi/report.html

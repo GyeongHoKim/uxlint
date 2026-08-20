@@ -335,7 +335,6 @@ export class AIService {
 					page,
 					onProgress,
 				);
-				messages.push(...digest);
 
 				// Log AI response
 				logger.info('AI Response', {
@@ -356,7 +355,14 @@ export class AIService {
 				// `result.response` is deprecated in AI SDK 7 in favour of
 				// `finalStep.response`; `responseMessages` is the accumulated
 				// assistant/tool message list this loop needs.
-				messages.push(...result.responseMessages);
+				//
+				// The digest follows them rather than preceding them. This step's
+				// assistant message and the tool results answering it have to stay
+				// adjacent: a user message inserted between a tool call and its
+				// result is a malformed transcript, which some providers reject
+				// outright. The digest is a new user turn, so it belongs after the
+				// exchange it comments on, not inside it.
+				messages.push(...result.responseMessages, ...digest);
 
 				// Process result and check if analysis is complete
 				const shouldContinue = this.processAgentResult(result);

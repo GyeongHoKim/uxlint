@@ -4,8 +4,31 @@ import path from 'node:path';
 import {createMCPClient} from '@ai-sdk/mcp';
 import {Experimental_StdioMCPTransport as StdioMCPTransport} from '@ai-sdk/mcp/mcp-stdio';
 
+import {createRequire} from 'node:module';
+import process from 'node:process';
+
+const require = createRequire(import.meta.url);
+
+/**
+ * The pinned server's entry point, resolved from the installed package rather
+ * than from a path on one machine.
+ */
+const SERVER = require.resolve('chrome-devtools-mcp/package.json').replace(
+	/package\.json$/,
+	require('chrome-devtools-mcp/package.json').bin['chrome-devtools-mcp'].replace(/^\.\//, ''),
+);
+
+/**
+ * Chrome to drive. Set UXLINT_CHROME to point at your own; the default is the
+ * copy `npx @puppeteer/browsers install chrome@stable` leaves in the repo.
+ */
+const CHROME =
+	process.env['UXLINT_CHROME'] ??
+	path.resolve('chrome/linux-152.0.7977.42/chrome-linux64/chrome');
+
 const DIR = path.dirname(new URL(import.meta.url).pathname);
-const CHROME = '/home/gyeongho/workspace/uxlint/chrome/linux-152.0.7977.42/chrome-linux64/chrome';
+
+
 const html = fs.readFileSync(path.join(DIR, 'fixture2.html'));
 
 const server = http.createServer(async (req, res) => {
@@ -23,7 +46,7 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 
 const client = await createMCPClient({transport: new StdioMCPTransport({
 	command: 'node',
-	args: ['/home/gyeongho/workspace/uxlint/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js',
+	args: [SERVER,
 		'--headless', '--isolated', '--no-performance-crux', '--no-usage-statistics',
 		'--executablePath', CHROME, '--chromeArg=--no-sandbox'],
 	env: {...process.env}, stderr: 'ignore',
