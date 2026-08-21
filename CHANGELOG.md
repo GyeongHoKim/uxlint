@@ -1,3 +1,19 @@
+# [4.4.0](https://github.com/GyeongHoKim/uxlint/compare/v4.3.0...v4.4.0) (2026-08-21)
+
+
+### Bug Fixes
+
+* address the code review on PR [#37](https://github.com/GyeongHoKim/uxlint/issues/37) ([00f12cc](https://github.com/GyeongHoKim/uxlint/commit/00f12cc08b894bef40277d8067ac4e68b47b327d))
+* address the second review round on PR [#37](https://github.com/GyeongHoKim/uxlint/issues/37) ([1d25d6e](https://github.com/GyeongHoKim/uxlint/commit/1d25d6ec7dcd900f9c5878c7ab2a31023df13f64))
+* wait for the callback server instead of sleeping at it ([0e56309](https://github.com/GyeongHoKim/uxlint/commit/0e56309ded63943b5d258deb8c307447a43db730))
+
+
+### Features
+
+* document the audit and verify it against a real browser (007) ([ce4bba9](https://github.com/GyeongHoKim/uxlint/commit/ce4bba950638e37b31dd1630df9cf240e8d3d2fb))
+* measure accessibility instead of asking the model to guess (007) ([0adf0d2](https://github.com/GyeongHoKim/uxlint/commit/0adf0d27e1bfea1023d474244892bee25dfad7cd))
+* tell measured facts from AI judgement in the report (007) ([63f3350](https://github.com/GyeongHoKim/uxlint/commit/63f33500c2491fc19ffbdacd6172afd6c884886d))
+
 # [4.3.0](https://github.com/GyeongHoKim/uxlint/compare/v4.2.0...v4.3.0) (2026-08-17)
 
 
