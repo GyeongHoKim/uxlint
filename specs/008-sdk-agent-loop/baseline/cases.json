@@ -1,0 +1,26 @@
+{
+	"happy-path": {
+		"status": "complete",
+		"requests": 4,
+		"totalBytes": 160911,
+		"wallClockMs": 130
+	},
+	"budget-exhaustion": {
+		"status": "partial",
+		"requests": 20,
+		"totalBytes": 1463756,
+		"wallClockMs": 218
+	},
+	"failed-navigation": {
+		"status": "partial",
+		"requests": 2,
+		"totalBytes": 6372,
+		"wallClockMs": 8
+	},
+	"mid-run-failure": {
+		"status": "failed",
+		"requests": 4,
+		"totalBytes": 160911,
+		"wallClockMs": 6075
+	}
+}

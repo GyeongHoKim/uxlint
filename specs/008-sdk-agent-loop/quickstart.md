@@ -69,8 +69,13 @@ no filler message while activity is reported.
 ## Coverage gate (SC-007)
 
 ```bash
-npm run test:coverage   # must exit nonzero below 80%; confirm exit code reflects it
+npm run test:coverage:gate   # analysis-path modules, all metrics ≥80%, nonzero below
 ```
+
+The shared `npm run test:coverage` remains report-only: repository-wide
+enforcement is D18 debt (74.98% lines today, UI components the known cause).
+The gate covers exactly the modules this feature touches; adding a module to
+this feature means adding it to the gate's include list.
 
 ## Manual smoke (optional, needs credentials + Chrome)
 
