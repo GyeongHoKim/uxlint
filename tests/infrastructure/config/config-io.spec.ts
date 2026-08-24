@@ -522,3 +522,45 @@ for (const [label, browser, expectedField] of [
 		);
 	});
 }
+
+const validateAnalysis = (analysis?: unknown) =>
+	new ConfigIO().validateConfig(
+		analysis === undefined
+			? validConfigObject
+			: {...validConfigObject, analysis},
+		'.uxlintrc.yml',
+	);
+
+test('validateConfig leaves an absent analysis block absent', t => {
+	t.is(validateAnalysis().analysis, undefined);
+});
+
+test('validateConfig accepts a populated analysis block', t => {
+	t.deepEqual(validateAnalysis({pageTimeLimitMs: 120_000}).analysis, {
+		pageTimeLimitMs: 120_000,
+	});
+});
+
+for (const [label, analysis, expectedField] of [
+	['a non-object block', 'quick', 'analysis'],
+	['an unrecognised key', {pageTimeLimtMs: 1000}, 'analysis.pageTimeLimtMs'],
+	['zero', {pageTimeLimitMs: 0}, 'analysis.pageTimeLimitMs'],
+	['a negative bound', {pageTimeLimitMs: -1}, 'analysis.pageTimeLimitMs'],
+	['a fractional bound', {pageTimeLimitMs: 1.5}, 'analysis.pageTimeLimitMs'],
+	[
+		'a non-numeric bound',
+		{pageTimeLimitMs: '60000'},
+		'analysis.pageTimeLimitMs',
+	],
+] as const) {
+	test(`validateConfig rejects an analysis block with ${label}`, t => {
+		const error = t.throws(
+			() => {
+				validateAnalysis(analysis);
+			},
+			{instanceOf: ConfigurationError},
+		);
+
+		t.is(error?.configField, expectedField);
+	});
+}

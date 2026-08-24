@@ -34,8 +34,8 @@
 
 **⚠️ CRITICAL**: US2's bound and US1's engine swap both assume these exist.
 
-- [ ] T003 Extract the owned-deadline race from `source/services/measurement.ts` into a shared helper (e.g. `source/services/deadline.ts`): ref'd `setTimeout` timer owned by the caller, raced against the awaited promise, controller handed to the callee, timer cleared in `finally`, typed expiry error. Keep `MeasurementTimeout` semantics and message intact for measurement callers; move, don't copy, the explanatory comment about unref'd `AbortSignal.timeout`. All existing `measurement*.spec.ts` tests stay green untouched.
-- [ ] T004 Add the configurable page bound to the config model in `source/models/config.ts` (+ validation and defaults where config parsing lives): `.uxlintrc` key `analysis.pageTimeLimitMs`, a positive integer of milliseconds on `UxLintConfig`, provisional default 600000, rejected as non-positive, documented as subject to SC-004 calibration. No behaviour reads it yet. Quality gates: `npm run compile && npm run format && npm run lint`.
+- [x] T003 Extract the owned-deadline race from `source/services/measurement.ts` into a shared helper (e.g. `source/services/deadline.ts`): ref'd `setTimeout` timer owned by the caller, raced against the awaited promise, controller handed to the callee, timer cleared in `finally`, typed expiry error. Keep `MeasurementTimeout` semantics and message intact for measurement callers; move, don't copy, the explanatory comment about unref'd `AbortSignal.timeout`. All existing `measurement*.spec.ts` tests stay green untouched.
+- [x] T004 Add the configurable page bound to the config model in `source/models/config.ts` (+ validation and defaults where config parsing lives): `.uxlintrc` key `analysis.pageTimeLimitMs`, a positive integer of milliseconds on `UxLintConfig`, provisional default 600000, rejected as non-positive, documented as subject to SC-004 calibration. No behaviour reads it yet. Quality gates: `npm run compile && npm run format && npm run lint`.
 
 **Checkpoint**: Deadline primitive + config surface exist. Stories can begin.
 

@@ -7,7 +7,10 @@ import * as fs from 'node:fs';
 import {join} from 'node:path';
 import process from 'node:process';
 import {load as parseYaml, dump as yamlDump} from 'js-yaml';
-import type {UxLintConfig} from '../../models/config.js';
+import {
+	type UxLintConfig,
+	validateAnalysisConfig,
+} from '../../models/config.js';
 import {validateBrowserSettings} from '../../models/browser.js';
 import {ConfigurationError} from '../../models/errors.js';
 import {validateThresholds} from '../../models/thresholds.js';
@@ -321,6 +324,17 @@ export class ConfigIO {
 				browserIssue.message,
 				filePath,
 				browserIssue.key,
+			);
+		}
+
+		// And the analysis block, for the same reason: a bound the validator
+		// never checked is a bound the user does not have.
+		const analysisIssue = validateAnalysisConfig(config['analysis']);
+		if (analysisIssue) {
+			throw new ConfigurationError(
+				analysisIssue.message,
+				filePath,
+				analysisIssue.key,
 			);
 		}
 
