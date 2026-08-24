@@ -1,9 +1,18 @@
 # Format the staged files and re-stage the result. `npm run format` alone
 # rewrites the working tree without staging it, so an unformatted commit still
 # reaches CI and fails there while the local tree looks clean.
+# Symbolic links are excluded: Prettier 3 errors on explicitly specified
+# symlink patterns ("is a symbolic link") and exits non-zero.
 if [ -n "$(git diff --cached --name-only --diff-filter=ACMR)" ]; then
-	git diff --cached --name-only --diff-filter=ACMR -z |
-		xargs -0 npx prettier --ignore-unknown --write
+	# husky runs hooks with `sh -e`; NUL-delimited path handling is delegated
+	# to bash via the heredoc pattern recommended in the husky docs.
+	bash << 'EOF'
+	while IFS= read -r -d '' file; do
+		[ -L "$file" ] || printf '%s\0' "$file"
+	done < <(git diff --cached --name-only --diff-filter=ACMR -z) |
+		xargs -0 -r npx prettier --ignore-unknown --write
+EOF
+
 	git diff --cached --name-only --diff-filter=ACMR -z | xargs -0 git add
 fi
 
