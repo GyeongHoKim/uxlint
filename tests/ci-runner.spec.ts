@@ -66,10 +66,9 @@ const createDeps = (
 		sandbox,
 		builder,
 		deps: {
-			async getAIService() {
-				return aiService as never;
+			async createRun() {
+				return {aiService: aiService as never, reportBuilder: builder};
 			},
-			reportBuilder: builder,
 			// Preflight is stubbed ready so these tests exercise the analysis
 			// path rather than the environment. The real probe spawns a browser,
 			// which no unit test should depend on.
@@ -102,7 +101,7 @@ test('resolves to 1 when analysis throws', async t => {
 	const {sandbox, deps} = createDeps();
 	const failing = {
 		...deps,
-		async getAIService() {
+		async createRun() {
 			throw new Error('MCP client unavailable');
 		},
 	};
@@ -239,7 +238,7 @@ test('the report is saved and the transport closed before the verdict is emitted
 
 	const closingDeps = {
 		...deps,
-		async getAIService() {
+		async createRun() {
 			const service = {
 				async analyzePage(
 					_config: UxLintConfig,
@@ -253,7 +252,7 @@ test('the report is saved and the transport closed before the verdict is emitted
 				},
 			};
 
-			return service as never;
+			return {aiService: service as never, reportBuilder: builder};
 		},
 		emitVerdict() {
 			order.push('emitVerdict');
@@ -327,7 +326,7 @@ test('the AI service is closed even when saving the report throws', async t => {
 
 	const leakyDeps = {
 		...deps,
-		async getAIService() {
+		async createRun() {
 			const service = {
 				async analyzePage(
 					_config: UxLintConfig,
@@ -341,7 +340,7 @@ test('the AI service is closed even when saving the report throws', async t => {
 				},
 			};
 
-			return service as never;
+			return {aiService: service as never, reportBuilder: builder};
 		},
 	};
 
@@ -358,7 +357,7 @@ test('the AI service is closed when a page analysis throws', async t => {
 
 	const throwingDeps = {
 		...deps,
-		async getAIService() {
+		async createRun() {
 			const service = {
 				async analyzePage() {
 					throw new Error('transport died mid-run');
@@ -368,7 +367,7 @@ test('the AI service is closed when a page analysis throws', async t => {
 				},
 			};
 
-			return service as never;
+			return {aiService: service as never, reportBuilder: builder};
 		},
 		reportBuilder: builder,
 	};
@@ -386,7 +385,7 @@ test('a close that throws does not trigger a second close', async t => {
 
 	const failingCloseDeps = {
 		...deps,
-		async getAIService() {
+		async createRun() {
 			const service = {
 				async analyzePage(
 					_config: UxLintConfig,
@@ -401,7 +400,7 @@ test('a close that throws does not trigger a second close', async t => {
 				},
 			};
 
-			return service as never;
+			return {aiService: service as never, reportBuilder: builder};
 		},
 		emitVerdict() {
 			// Swallowed: the assertion is about close(), not the message.
@@ -423,7 +422,7 @@ test('an analysis failure reports its reason, not just an exit code', async t =>
 
 	const code = await runCIAnalysis(baseConfig(), {
 		...deps,
-		async getAIService() {
+		async createRun() {
 			throw new Error('MCP client unavailable');
 		},
 		emitVerdict(verdict) {
@@ -442,7 +441,7 @@ test('an unmet preflight exits non-zero without ever reaching the model', async 
 
 	const noBrowser = {
 		...deps,
-		async getAIService() {
+		async createRun() {
 			aiServiceCalls++;
 			throw new Error('the model must never be reached');
 		},
@@ -549,7 +548,7 @@ test('a preflight that throws exits 1 with a message about the environment', asy
 
 	const throwing = {
 		...deps,
-		async getAIService() {
+		async createRun() {
 			aiServiceCalls++;
 			throw new Error('the model must never be reached');
 		},

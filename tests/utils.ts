@@ -2,7 +2,9 @@
  * Test utilities for creating mock objects
  */
 
+import fs from 'node:fs';
 import net from 'node:net';
+import path from 'node:path';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {tool} from 'ai';
 import {z} from 'zod/v4';
@@ -200,4 +202,28 @@ export function createMockMCPClient(): MCPClient {
 			// Mock implementation - no-op
 		},
 	} as unknown as MCPClient;
+}
+
+/**
+ * Walk up from `start` to the directory containing `package.json`.
+ *
+ * Compiled test files live under `dist/tests/...`, so counting `../`
+ * segments from `import.meta.url` lands in `dist/specs` instead of the real
+ * specs directory -- exactly how a fixture path silently stops resolving.
+ *
+ * @param start - Any path inside the repository
+ * @returns The repository root
+ */
+export function locateRepoRoot(start: string): string {
+	let current = start;
+	while (!fs.existsSync(path.join(current, 'package.json'))) {
+		const parent = path.dirname(current);
+		if (parent === current) {
+			throw new Error(`Repository root not found from ${start}`);
+		}
+
+		current = parent;
+	}
+
+	return current;
 }

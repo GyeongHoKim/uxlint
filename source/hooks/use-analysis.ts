@@ -1,6 +1,6 @@
 /**
  * UseAnalysis Hook
- * Thin wrapper around AIService singleton for React state management
+ * Thin wrapper around an analysis run for React state management
  *
  * @packageDocumentation
  */
@@ -19,14 +19,7 @@ import {browserServerIdentity} from '../services/mcp-client.js';
 import {evaluateGate} from '../models/gate-result.js';
 import type {UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
-import {
-	getAIService as defaultGetAIService,
-	type AIService,
-} from '../services/ai-service.js';
-import {
-	reportBuilder as defaultReportBuilder,
-	type ReportBuilder,
-} from '../services/report-builder.js';
+import {createAIService, type AnalysisRun} from '../services/ai-service.js';
 
 /**
  * State change callback type
@@ -50,23 +43,23 @@ export type UseAnalysisResult = {
 	onAnalysisStateChange: (callback: AnalysisStateChangeCallback) => () => void;
 };
 
+const defaultCreateRun = createAIService;
+
 /**
  * UseAnalysis Hook
  * Manages analysis state and delegates to AIService
  *
  * @param config - UxLint configuration
- * @param getAIService - Optional function to get AIService instance (for testing)
- * @param reportBuilder - Optional ReportBuilder instance (for testing, defaults to singleton)
+ * @param createRun - Optional run factory (for testing); each call assembles one isolated {service, builder} pair
  * @param runPreflight - Optional browser preflight check (for testing, defaults to the real probe)
  * @returns Analysis state and control functions
  */
 export function useAnalysis(
 	config: UxLintConfig,
-	getAIService: (
+	createRun: (
 		config: UxLintConfig,
 		verdict: PreflightVerdict,
-	) => Promise<AIService> = defaultGetAIService,
-	reportBuilder: ReportBuilder = defaultReportBuilder,
+	) => Promise<AnalysisRun> = defaultCreateRun,
 	runPreflight: (
 		settings: UxLintConfig['browser'],
 	) => Promise<PreflightVerdict> = defaultRunPreflight,
@@ -128,11 +121,8 @@ export function useAnalysis(
 	 * Uses AIService singleton with Manual Agent Loop pattern
 	 */
 	const runAnalysis = useCallback(async () => {
-		// Held outside the try so the finally can close the same instance. The
-		// old code re-fetched it from getAIService there, which builds a fresh
-		// MCP client -- and therefore spawns a browser -- if the cache has been
-		// evicted, just to close it again.
-		let aiService: AIService | undefined;
+		// Held outside the try so the finally can close the same instance.
+		let run: AnalysisRun | undefined;
 
 		try {
 			// Preflight before the service exists, so an environment that cannot
@@ -154,6 +144,10 @@ export function useAnalysis(
 				}));
 			}
 
+			// Assemble the run, then record provenance on ITS builder.
+			run = await createRun(config, preflight);
+			const {reportBuilder} = run;
+
 			const server = browserServerIdentity();
 			reportBuilder.setProvenance({
 				browserServer: server.name,
@@ -162,8 +156,7 @@ export function useAnalysis(
 				externalDataAllowed: config.browser?.allowExternalData ?? false,
 			});
 
-			// Get AI Service instance (lazy initialization)
-			aiService = await getAIService(config, preflight);
+			const {aiService} = run;
 
 			// Process each page sequentially - await in loop is intentional
 			for (let i = 0; i < config.pages.length; i++) {
@@ -280,7 +273,7 @@ export function useAnalysis(
 			// Doing it after lets the UI reach its exit path first and leave the
 			// MCP subprocess behind.
 			await aiService.close();
-			aiService = undefined;
+			run = undefined;
 
 			// Update state to complete with final report
 			updateAnalysisState(previous => ({
@@ -309,11 +302,11 @@ export function useAnalysis(
 			}));
 		} finally {
 			// Only reached when the happy path did not already close it.
-			if (aiService) {
-				await aiService.close();
+			if (run) {
+				await run.aiService.close();
 			}
 		}
-	}, [config, updateAnalysisState, getAIService, reportBuilder, runPreflight]);
+	}, [config, updateAnalysisState, createRun, runPreflight]);
 
 	return {
 		analysisState,

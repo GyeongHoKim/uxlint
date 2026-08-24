@@ -304,9 +304,9 @@ async function createBrowserMCPClient(
  * first launch -- including its sandbox decision. Both entry points honour
  * this today (one preflight, then one run, then exit). A retry path in the
  * interactive UI would break it, and should key the cache on the verdict
- * rather than assume; the same applies to the `getAIService` cache, which is
- * keyed only on provider and model. Phase 4 of the roadmap replaces both with
- * per-run instances.
+ * rather than assume. The per-config service cache this comment once warned
+ * about is gone: 008 replaced it with explicit per-run instances
+ * (`createAIService`), leaving only this transport memoised.
  */
 export async function getMCPClient(
 	verdict: PreflightVerdict,

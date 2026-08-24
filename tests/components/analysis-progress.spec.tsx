@@ -329,3 +329,24 @@ test('an abandoned measurement is said out loud', t => {
 
 	unmount();
 });
+
+test('renders a concrete activity label verbatim while work is active (US3)', t => {
+	const {lastFrame, unmount} = render(
+		<AnalysisProgress
+			isWaitingForLLM
+			waitingMessage="Running take_snapshot…"
+			theme={defaultTheme}
+			stage="analyzing"
+			currentPage={1}
+			totalPages={1}
+		/>,
+	);
+
+	const output = lastFrame();
+	unmount();
+
+	t.true(
+		output?.includes('Running take_snapshot…') ?? false,
+		'the activity label the engine emitted must reach the terminal',
+	);
+});
