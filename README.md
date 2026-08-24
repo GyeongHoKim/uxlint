@@ -111,6 +111,19 @@ browser:
 
 An unrecognised key or a wrong type in this block stops the run before any page is analysed, naming the offending key.
 
+### Analysis settings
+
+```yaml
+analysis:
+  pageTimeLimitMs: 600000 # optional; default 600000 — per-page wall-clock bound in milliseconds
+```
+
+| Setting           | Default  | Meaning                                                                                                                                                                       |
+| ----------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pageTimeLimitMs` | `600000` | How long one page may take before uxlint gives up on it. An expired page is recorded `partial` with the expiry as its reason, and the run continues with the remaining pages. |
+
+The default is calibrated to leave wide headroom over measured healthy page durations; a stuck provider or a wedged browser can no longer stall the whole pipeline until an external job timeout kills it. As with `browser`, an unrecognised key or wrong type here fails fast before any analysis.
+
 ## Quick start
 
 ```bash

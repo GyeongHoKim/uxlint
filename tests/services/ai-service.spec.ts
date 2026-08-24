@@ -4,7 +4,9 @@
  */
 
 import {Buffer} from 'node:buffer';
-import {promises as fsPromises} from 'node:fs';
+import fs, {promises as fsPromises} from 'node:fs';
+import os from 'node:os';
+import pathModule from 'node:path';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {tool} from 'ai';
 import {MockLanguageModelV4} from 'ai/test';
@@ -20,6 +22,10 @@ import {
 } from '../../source/services/ai-service.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
 import {mcpError, mcpResult} from '../fixtures/mcp-result.js';
+import {pageSnapshotFixture} from '../fixtures/page-snapshot.js';
+import {auditReportJson} from '../fixtures/lighthouse-report.js';
+import {auditSnapshotReply} from '../fixtures/lighthouse-reply.js';
+import {traceWithNavigationReply as traceReplyFixture} from '../fixtures/trace-reply.js';
 import {createMockMCPClient} from '../utils.js';
 
 test('onProgress callback type accepts llmResponse parameter', t => {
@@ -1234,3 +1240,385 @@ test('a capture wrapped in the adapter result shape is still recorded', async t 
 
 	t.is(analysis.snapshot, 'link "Docs"');
 });
+
+/* ==========================================================================
+ * Preservation pins for the engine swap (008 T005).
+ *
+ * These freeze what ANY engine driving analyzePage must reproduce: statuses,
+ * the structural tool sequence, transcript shape, and snapshot fidelity.
+ * They are written against the manual loop and must survive the
+ * ToolLoopAgent swap unchanged -- a diff here is a regression first.
+ * ========================================================================== */
+
+/** One scripted model turn. */
+type ScriptStep =
+	| {kind: 'tool-call'; toolName: string; input?: string}
+	| {
+			kind: 'tool-calls';
+			calls: Array<{toolName: string; input?: string}>;
+	  }
+	| {kind: 'text'; text: string};
+
+/**
+ * A browser double with controllable navigation plus measurement answers,
+ * so the full happy path -- capture, measurement digest, judgement -- runs
+ * without a real browser or provider.
+ */
+function configurableBrowser(
+	options: {navigateSucceeds?: boolean} = {},
+): MCPClient {
+	const {navigateSucceeds = true} = options;
+	const directory = fs.mkdtempSync(
+		pathModule.join(os.tmpdir(), 'uxlint-pin-audit-'),
+	);
+	fs.writeFileSync(pathModule.join(directory, 'report.json'), auditReportJson);
+
+	return {
+		async tools() {
+			return {
+				navigate_page: tool({
+					description: 'Navigate to a URL',
+					inputSchema: z.object({url: z.string()}),
+					async execute() {
+						return navigateSucceeds
+							? mcpResult('Successfully navigated.')
+							: mcpError('Navigation failed: refused');
+					},
+				}),
+				take_snapshot: tool({
+					description: 'Capture the accessibility tree',
+					inputSchema: z.object({}),
+					async execute() {
+						return mcpResult(pageSnapshotFixture);
+					},
+				}),
+			};
+		},
+		async callTool({name}: {name: string}) {
+			const reply =
+				name === 'lighthouse_audit'
+					? auditSnapshotReply.replace(
+							/- \S*report\.json/,
+							() => `- ${pathModule.join(directory, 'report.json')}`,
+						)
+					: traceReplyFixture;
+
+			return mcpResult(reply);
+		},
+		async close() {
+			// No transport to close
+		},
+	} as unknown as MCPClient;
+}
+
+/** What one model call observed: the tools it was offered, and the transcript. */
+type ObservedCall = {
+	tools: string[];
+	messages: Array<{role?: string; content?: unknown}>;
+};
+
+/**
+ * A language model that replays `steps`, one per call, recording what each
+ * call was offered. Beyond the script's end it repeats the last step, so an
+ * engine bug shows up as a wrong call count rather than a crash.
+ */
+function scriptedModel(steps: ScriptStep[]): {
+	model: MockLanguageModelV4;
+	calls: ObservedCall[];
+} {
+	const calls: ObservedCall[] = [];
+	let turn = 0;
+
+	const asToolCall = (
+		call: {toolName: string; input?: string},
+		index: number,
+	) => ({
+		type: 'tool-call' as const,
+		toolCallId: `call-${index}`,
+		toolName: call.toolName,
+		input: call.input ?? '{}',
+	});
+
+	const model = new MockLanguageModelV4({
+		async doGenerate(options) {
+			// The V4 call options carry tools as an array of named specs; a
+			// record-shaped read yields index keys that match nothing.
+			const rawTools: unknown = options.tools;
+			const offeredTools: string[] = Array.isArray(rawTools)
+				? rawTools
+						.map(spec => (spec as {name?: string} | undefined)?.name)
+						.filter((name): name is string => typeof name === 'string')
+				: Object.keys(rawTools ?? {});
+
+			calls.push({
+				tools: offeredTools,
+				messages: structuredClone(options.prompt ?? []),
+			});
+
+			const step = steps[Math.min(turn, steps.length - 1)]!;
+			turn++;
+
+			if (step.kind === 'text') {
+				return {
+					finishReason: {unified: 'stop', raw: undefined},
+					usage: {
+						inputTokens: {
+							total: 1,
+							noCache: 1,
+							cacheRead: undefined,
+							cacheWrite: undefined,
+						},
+						outputTokens: {total: 1, text: 1, reasoning: undefined},
+					},
+					content: [{type: 'text', text: step.text}],
+					warnings: [],
+				};
+			}
+
+			const produced = step.kind === 'tool-call' ? [step] : step.calls;
+
+			return {
+				finishReason: {unified: 'tool-calls', raw: undefined},
+				usage: {
+					inputTokens: {
+						total: 1,
+						noCache: 1,
+						cacheRead: undefined,
+						cacheWrite: undefined,
+					},
+					outputTokens: {total: 1, text: 1, reasoning: undefined},
+				},
+				content: produced.map((item, itemIndex) => asToolCall(item, itemIndex)),
+				warnings: [],
+			};
+		},
+	});
+
+	return {model, calls};
+}
+
+const pinConfig = (): UxLintConfig => ({
+	mainPageUrl: 'https://example.com',
+	subPageUrls: [],
+	pages: [{url: 'https://example.com', features: 'Landing page'}],
+	persona: 'Pin persona',
+	report: {output: './pin-report.md'},
+});
+
+const runPinnedPage = async (
+	steps: ScriptStep[],
+	browser: MCPClient,
+): Promise<{
+	analysis: PageAnalysisLike;
+	builder: ReportBuilder;
+	calls: ObservedCall[];
+}> => {
+	const sandbox = sinon.createSandbox();
+	const builder = new ReportBuilder({
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	});
+	const {model, calls} = scriptedModel(steps);
+	const service = new AIService(model, browser, builder);
+	const config = pinConfig();
+	const analysis = await service.analyzePage(config, config.pages[0]!);
+	await service.close();
+	sandbox.restore();
+	return {analysis, builder, calls};
+};
+
+type PageAnalysisLike = {
+	status: string;
+	snapshot: string;
+	findings: Array<{description: string}>;
+};
+
+const finding = (description: string) => ({
+	kind: 'tool-call' as const,
+	toolName: 'addFinding',
+	input: JSON.stringify({
+		severity: 'medium',
+		category: 'Navigation',
+		description,
+		personaRelevance: ['Pin persona'],
+		recommendation: 'Fix it',
+		pageUrl: 'https://example.com',
+	}),
+});
+
+test.serial(
+	'PIN happy path ends complete with the browser snapshot verbatim',
+	async t => {
+		const {analysis} = await runPinnedPage(
+			[
+				{
+					kind: 'tool-call',
+					toolName: 'navigate_page',
+					input: '{"url":"https://example.com"}',
+				},
+				{kind: 'tool-call', toolName: 'take_snapshot'},
+				finding('The primary action is below the fold'),
+				{kind: 'tool-call', toolName: 'completePageAnalysis'},
+			],
+			configurableBrowser(),
+		);
+
+		t.is(analysis.status, 'complete');
+		t.is(analysis.snapshot, pageSnapshotFixture);
+		t.true(
+			analysis.findings.some(
+				f => f.description === 'The primary action is below the fold',
+			),
+		);
+	},
+);
+
+test.serial(
+	'PIN budget exhaustion records partial after twenty calls',
+	async t => {
+		const budgetSteps: ScriptStep[] = [
+			{
+				kind: 'tool-call',
+				toolName: 'navigate_page',
+				input: '{"url":"https://example.com"}',
+			},
+			{kind: 'tool-call', toolName: 'take_snapshot'},
+			...Array.from({length: 18}, (_, index) =>
+				finding(`Finding ${index + 1}`),
+			),
+		];
+
+		const {analysis, calls} = await runPinnedPage(
+			budgetSteps,
+			configurableBrowser(),
+		);
+
+		t.is(analysis.status, 'partial');
+		t.is(calls.length, 20, 'the loop spent exactly its budget');
+	},
+);
+
+test.serial(
+	'PIN a failed navigation never offers the capture tool',
+	async t => {
+		const {analysis, calls} = await runPinnedPage(
+			[
+				{
+					kind: 'tool-call',
+					toolName: 'navigate_page',
+					input: '{"url":"https://example.com"}',
+				},
+				{kind: 'tool-call', toolName: 'completePageAnalysis'},
+			],
+			configurableBrowser({navigateSucceeds: false}),
+		);
+
+		t.is(analysis.status, 'partial');
+		for (const [index, call] of calls.entries()) {
+			t.false(
+				call.tools.includes('take_snapshot'),
+				`request ${index} offered the capture to an unloaded page`,
+			);
+			t.true(
+				call.tools.includes('completePageAnalysis'),
+				`request ${index} hid the exit`,
+			);
+		}
+
+		t.is(analysis.snapshot, '', 'nothing captured, nothing recorded');
+	},
+);
+
+test.serial('PIN completion and capture in one response both land', async t => {
+	const {analysis, calls} = await runPinnedPage(
+		[
+			{
+				kind: 'tool-call',
+				toolName: 'navigate_page',
+				input: '{"url":"https://example.com"}',
+			},
+			{
+				kind: 'tool-calls',
+				calls: [
+					{toolName: 'take_snapshot'},
+					{toolName: 'completePageAnalysis'},
+				],
+			},
+		],
+		configurableBrowser(),
+	);
+
+	t.is(analysis.status, 'complete', 'the capture happened before close-out');
+	t.is(
+		analysis.snapshot,
+		pageSnapshotFixture,
+		'and its result was not dropped',
+	);
+	t.is(calls.length, 2);
+});
+
+test.serial(
+	'PIN each request offers exactly its stage tools, in sequence',
+	async t => {
+		const {calls} = await runPinnedPage(
+			[
+				{
+					kind: 'tool-call',
+					toolName: 'navigate_page',
+					input: '{"url":"https://example.com"}',
+				},
+				{kind: 'tool-call', toolName: 'take_snapshot'},
+				finding('One judgement'),
+				{kind: 'tool-call', toolName: 'completePageAnalysis'},
+			],
+			configurableBrowser(),
+		);
+
+		const sequences = calls.map(call =>
+			call.tools.filter(name => name !== 'noteOnMeasuredIssues').sort(),
+		);
+
+		// Sorted per request; the stage progression is the assertion. Completion
+		// rides along at every stage; measurement tools appear nowhere.
+		t.deepEqual(sequences, [
+			['completePageAnalysis', 'navigate_page'],
+			['completePageAnalysis', 'take_snapshot'],
+			['addFinding', 'completePageAnalysis'],
+			// The turn that completes is still served the analysable set.
+			['addFinding', 'completePageAnalysis'],
+		]);
+	},
+);
+
+test.serial(
+	'PIN the measurement digest lands after the exchange it comments on',
+	async t => {
+		const {calls} = await runPinnedPage(
+			[
+				{
+					kind: 'tool-call',
+					toolName: 'navigate_page',
+					input: '{"url":"https://example.com"}',
+				},
+				{kind: 'tool-call', toolName: 'take_snapshot'},
+				{kind: 'tool-call', toolName: 'completePageAnalysis'},
+			],
+			configurableBrowser(),
+		);
+
+		const third = calls[2]!;
+		const roles = third.messages.map(message => message.role ?? 'unknown');
+		const digestIndex = third.messages.findIndex(
+			message =>
+				message.role === 'user' &&
+				JSON.stringify(message.content).includes('color-contrast'),
+		);
+
+		t.true(digestIndex > 0, 'the digest reached this request');
+		t.is(
+			roles[digestIndex - 1],
+			'tool',
+			'the user-turn digest sits directly after the tool results, never inside the exchange',
+		);
+	},
+);

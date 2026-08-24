@@ -6,7 +6,6 @@
  */
 
 import type * as fs from 'node:fs';
-import {promises as fsPromises} from 'node:fs';
 import {generateMarkdownReport} from '../infrastructure/reports/report-generator.js';
 import type {
 	PageAnalysis,
@@ -152,11 +151,13 @@ export class ReportBuilder {
 	 * completion -- it exhausted its iterations rather than finishing.
 	 *
 	 * @param status - Terminal status for the page; defaults to `'complete'`
+	 * @param error - Why a page stopped short, when it ended partial for a named reason
 	 * @returns The completed page analysis
 	 * @throws Error if no page analysis is initialized or required fields are missing
 	 */
 	completePageAnalysis(
 		status: 'complete' | 'partial' = 'complete',
+		error?: string,
 	): PageAnalysis {
 		if (!this.currentPageAnalysis) {
 			throw new Error(
@@ -182,6 +183,10 @@ export class ReportBuilder {
 			analysisTimestamp:
 				this.currentPageAnalysis.analysisTimestamp ?? Date.now(),
 			status,
+			// A partial page may still carry the reason it stopped short --
+			// an exhausted budget or an expired time bound -- through the same
+			// channel a failure names its cause.
+			...(error !== undefined && {error}),
 			// A page that reached this point without a measurement being
 			// recorded was never measured, and says so. Defaulting to an empty
 			// success would let a page that was never audited render as one
@@ -447,7 +452,7 @@ export class ReportBuilder {
 	}
 }
 
-/**
- * Singleton instance of ReportBuilder with fs dependency
- */
-export const reportBuilder = new ReportBuilder(fsPromises);
+// Deliberately no module singleton. A builder belongs to the run that created
+// it (see createAIService in ai-service.ts); a process-wide instance is what
+// let one failing page erase every analysed page and let a closed service
+// poison the next run.

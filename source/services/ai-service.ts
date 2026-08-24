@@ -6,9 +6,16 @@
  * @packageDocumentation
  */
 
+import {promises as fsPromises} from 'node:fs';
 import {type experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {type LanguageModelV4} from '@ai-sdk/provider';
-import {generateText, tool, type ModelMessage} from 'ai';
+import {
+	hasToolCall,
+	stepCountIs,
+	tool,
+	ToolLoopAgent,
+	type ModelMessage,
+} from 'ai';
 import {z} from 'zod/v4';
 import {getRandomWaitingMessage} from '../constants/waiting-messages.js';
 import {logger} from '../infrastructure/logger.js';
@@ -26,25 +33,38 @@ import {
 import type {PreflightVerdict} from '../models/browser-preflight.js';
 import {readToolOutcome} from '../models/tool-output.js';
 import {
+	defaultPageTimeLimitMs,
+	type Page,
+	type UxLintConfig,
+} from '../models/config.js';
+import type {LLMResponseData} from '../models/llm-response.js';
+import {
 	impactToSeverity,
 	noMeasurement,
 	type PageMeasurement,
 } from '../models/measurement.js';
-import type {Page, UxLintConfig} from '../models/config.js';
-import type {LLMResponseData} from '../models/llm-response.js';
+import {withDeadline} from './deadline.js';
 import {getLanguageModel} from './llm-provider.js';
-import {
-	getMCPClient,
-	narrowBrowserTools,
-	resetMCPClient,
-} from './mcp-client.js';
+import {getMCPClient, narrowBrowserTools} from './mcp-client.js';
 import {MeasurementService, describeMeasurement} from './measurement.js';
-import {reportBuilder, type ReportBuilder} from './report-builder.js';
+import {ReportBuilder} from './report-builder.js';
 
 /**
- * Maximum iterations for the agent loop to prevent infinite loops
+ * Maximum steps for the agent loop, expressed as a stop condition. The value
+ * is unchanged from the hand-written counter it replaces: budget exhaustion
+ * still closes a page `partial`, so existing pipelines see no difference.
  */
-const MAX_AGENT_ITERATIONS = 20;
+const MAX_AGENT_STEPS = 20;
+
+/**
+ * Raised by the page bound when a page outlives its configured time limit.
+ */
+class PageBoundExceeded extends Error {
+	constructor(limitMs: number) {
+		super(`Page analysis exceeded its ${limitMs} ms time bound`);
+		this.name = 'PageBoundExceeded';
+	}
+}
 
 /**
  * The browser tool whose result is the page structure.
@@ -87,13 +107,12 @@ type ToolExecutionEndEvent = {
 /**
  * The shape `generateText` actually returns.
  *
- * Derived from the SDK rather than hand-written: the helpers below used to
+ * Imported from the SDK rather than hand-written: the helpers below used to
  * declare their own all-optional structural type, which is why reading the
  * pre-v5 `toolCalls[].args` kept compiling and shipped empty tool-call
  * arguments to the UI for a whole major version. Anchoring to the SDK turns
  * the next rename into a compile error.
  */
-type GenerateTextResult = Awaited<ReturnType<typeof generateText>>;
 
 /**
  * Analysis progress callback type
@@ -131,34 +150,35 @@ export class AIService {
 	private readonly mcpClient: MCPClient;
 	private readonly measurement: MeasurementService;
 	private readonly reportBuilder: ReportBuilder;
-	private readonly cacheKey: string | undefined;
 	private isClosed = false;
+
+	/**
+	 * Incremented per analyzePage call. Lifecycle events carrying an older
+	 * epoch belong to an abandoned engine call -- a page whose bound expired
+	 * while its capture was still in flight -- and must never touch the run's
+	 * report state again.
+	 */
+	private pageEpoch = 0;
 
 	/**
 	 * Create an analysis service bound to one model and MCP connection.
 	 *
-	 * `cacheKey` is the key this instance is filed under in the module cache,
-	 * which lets `close()` evict itself. It is omitted when the service is
-	 * constructed directly, as tests do.
-	 *
 	 * @param model - Language model backing the analysis
 	 * @param mcpClient - Connected MCP client providing browser tools
 	 * @param builder - Report builder collecting findings
-	 * @param options - Optional collaborators and identity
-	 * @param options.cacheKey - Module cache key, so close() can evict itself
+	 * @param options - Optional collaborators
 	 * @param options.measurement - Measurement service; defaults to one bound to this client
 	 */
 	constructor(
 		model: LanguageModelV4,
 		mcpClient: MCPClient,
 		builder: ReportBuilder,
-		options: {cacheKey?: string; measurement?: MeasurementService} = {},
+		options: {measurement?: MeasurementService} = {},
 	) {
-		const {cacheKey, measurement} = options;
+		const {measurement} = options;
 		this.model = model;
 		this.mcpClient = mcpClient;
 		this.reportBuilder = builder;
-		this.cacheKey = cacheKey;
 		// Built from the same client the browser tools come from. Injectable so
 		// a test can drive the measurement paths without a browser, which is
 		// most of what makes this feature testable at all.
@@ -166,14 +186,12 @@ export class AIService {
 	}
 
 	/**
-	 * Close the MCP client connection and reset state
+	 * Close the MCP client connection.
 	 *
-	 * Both caches in front of this object have to be cleared, not just one.
-	 * `getAIService` memoises the service and `getMCPClient` memoises the
-	 * transport at module scope, so dropping only the service handed the next
-	 * run a brand new AIService wrapped around the same closed client -- and
-	 * because that instance is not itself closed, the guard in `analyzePage`
-	 * would not catch it either.
+	 * Nothing else: report state belongs to the run that owns this service,
+	 * not to the process, so teardown here would reach into someone else's
+	 * run. A closed instance answers further analyzePage calls with a failed
+	 * page naming the cause, which is all the guard a per-run object needs.
 	 */
 	async close(): Promise<void> {
 		try {
@@ -181,19 +199,7 @@ export class AIService {
 				await this.mcpClient.close();
 			}
 		} finally {
-			// A transport that throws on the way down is still down. Leaving the
-			// caches populated because its close() failed reproduces the exact
-			// symptom this teardown exists to prevent.
-			this.reportBuilder.reset();
 			this.isClosed = true;
-
-			// Only a cache-managed instance owns the module-level caches. A
-			// service constructed directly (tests) brings its own client and
-			// must not clobber them.
-			if (this.cacheKey) {
-				aiServiceInstances.delete(this.cacheKey);
-				resetMCPClient();
-			}
 		}
 	}
 
@@ -238,6 +244,14 @@ export class AIService {
 			// Initialize page analysis in report builder
 			this.reportBuilder.initializePageAnalysis(page.url, page.features);
 
+			// Identity of THIS page's engine run. Any lifecycle event arriving
+			// after the page settles -- or after a newer page began -- belongs
+			// to an abandoned call and is dropped before it can touch state.
+			const epoch = ++this.pageEpoch;
+			let pageSettled = false;
+			const boundMs =
+				config.analysis?.pageTimeLimitMs ?? defaultPageTimeLimitMs;
+
 			// Get browser tools from the MCP server, narrowed to the ones the
 			// analysis uses. Everything else the server offers would be re-sent,
 			// in full, on every request.
@@ -260,128 +274,217 @@ export class AIService {
 				...reportTools,
 			};
 
-			// Initialize messages
-			const messages: ModelMessage[] = [
-				{
-					role: 'user',
-					content: userPrompt,
-				},
-			];
-
-			let iterations = 0;
-			let isAnalysisCompleted = false;
+			// Where the page's analysis has reached. Advances only on observed
+			// tool results -- never on the model asserting it did something --
+			// so an unloaded page has no capture tool to call and the sequence
+			// holds by construction rather than by reminder.
 			let stage = initialStage;
 
-			// Manual Agent Loop - await in loop is intentional for sequential LLM calls
-			while (iterations < MAX_AGENT_ITERATIONS && !isAnalysisCompleted) {
-				iterations++;
+			// Observations land here from the execution callback and are
+			// drained in prepareStep, i.e. after the step that produced them
+			// has fully finished. The close-out decision therefore never
+			// depends on the order concurrent executions happened to resolve.
+			const observed: ObservedToolResult[] = [];
 
-				// Show waiting message before LLM call
-				onProgress?.('analyzing', getRandomWaitingMessage(), undefined);
+			// Take everything observed so far, leaving the queue empty.
+			const drainObservations = (): ObservedToolResult[] => {
+				const drained = [...observed];
+				observed.length = 0;
+				return drained;
+			};
 
-				// Log AI request
-				logger.info('AI Request', {
-					context: `Page Analysis - ${page.url} - Iteration ${iterations}`,
-					request: {systemPrompt, messages},
-				});
+			// One measurement per page: the moment the page first becomes
+			// readable is the moment to measure it, before the model can
+			// judge -- INCLUDING the turn where the model captures and
+			// completes together, which is why this lives outside prepareStep.
+			let measured = false;
+			let digestSent = false;
+			let pendingDigest: ModelMessage | undefined;
 
-				// No `stopWhen`, so generateText performs exactly one step per
-				// call and this loop drives the agent itself. That assumption is
-				// load-bearing: in AI SDK 7 the top-level `toolCalls`, `content`
-				// and `usage` accumulate across *all* steps, so adding a
-				// multi-step stop condition would make processAgentResult see
-				// tool calls from earlier steps. If multi-step is ever wanted,
-				// switch processAgentResult to read `result.finalStep`.
-				// Only this stage's tools. The sequence is enforced by what is
-				// available rather than by asking and then reminding: an unloaded
-				// page has no capture tool to call.
-				const tools = Object.fromEntries(
-					toolsForStage(stage)
-						.filter(name => Object.hasOwn(allTools, name))
-						.map(name => [name, allTools[name as keyof typeof allTools]]),
-				);
+			const ensureMeasured = async () => {
+				if (measured || stage !== 'analysable') {
+					return;
+				}
 
-				// Observations are collected here and applied after the call, so
-				// the callback does not close over the loop's mutable stage.
-				const observed: ObservedToolResult[] = [];
+				measured = true;
+				const digest = await this.measurePage(page, onProgress);
 
-				// eslint-disable-next-line no-await-in-loop
-				const result = await generateText({
-					model: this.model,
-					instructions: systemPrompt,
-					messages,
-					tools,
-					onToolExecutionEnd: event => {
-						// Derived once. Three places used to decide independently
-						// whether a capture had succeeded -- the stage machine, the
-						// snapshot write, and the page's final status -- and
-						// nothing kept them in step. One observation now feeds all
-						// three.
-						const observation = observeTool(event);
-						this.recordCapture(observation);
-						observed.push(observation);
+				if (digest) {
+					pendingDigest = {role: 'user', content: digest};
+				}
+			};
+
+			const agent = new ToolLoopAgent({
+				model: this.model,
+				instructions: systemPrompt,
+				tools: allTools,
+				stopWhen: [
+					stepCountIs(MAX_AGENT_STEPS),
+					hasToolCall('completePageAnalysis'),
+				],
+				prepareStep: async options => {
+					if (pageSettled || epoch !== this.pageEpoch) {
+						// This loop was abandoned at its page's bound. Throwing
+						// stops it for good; its rejection is swallowed below.
+						throw new PageBoundExceeded(boundMs);
+					}
+
+					for (const observation of drainObservations()) {
+						stage = advanceStage(stage, observation);
+					}
+
+					await ensureMeasured();
+
+					const messages = [...options.messages];
+					if (pendingDigest && !digestSent) {
+						digestSent = true;
+						// The digest is a new user turn appended AFTER the
+						// assistant/tool exchange it comments on. Inserted
+						// anywhere else it splits a call from its result --
+						// a malformed transcript some providers reject.
+						messages.push(pendingDigest);
+					}
+
+					return {
+						activeTools: toolsForStage(stage).filter(
+							(name): name is keyof typeof allTools =>
+								Object.hasOwn(allTools, name),
+						),
+						// Returning messages overrides the list for this step
+						// and carries forward, which is how the digest rides
+						// along without the loop ever assembling transcripts.
+						messages,
+					};
+				},
+				onToolExecutionStart: event => {
+					if (pageSettled || epoch !== this.pageEpoch) {
+						return;
+					}
+
+					onProgress?.('analyzing', `Running ${event.toolCall.toolName}…`);
+				},
+				onToolExecutionEnd: event => {
+					// A late execution from an abandoned run must not write a
+					// snapshot into whatever page is open now (F1 guard).
+					if (pageSettled || epoch !== this.pageEpoch) {
+						return;
+					}
+
+					// Derived once. The stage machine, the snapshot write and
+					// the page's final status all read this one observation,
+					// which is what keeps them in step.
+					const observation = observeTool(event);
+					this.recordCapture(observation);
+					observed.push(observation);
+				},
+			});
+
+			onProgress?.('analyzing', getRandomWaitingMessage(), undefined);
+
+			// The page bound is a timer THIS run owns, raced against the whole
+			// engine call. The derived signal is handed in so the engine can
+			// abandon its work early, but the race is what guarantees this
+			// await settles at the bound whether or not the callee honours it.
+			// (The SDK's own totalMs rides an unref'd AbortSignal.timeout and
+			// has been observed never to fire as the sole pending handle.)
+			const controller = new AbortController();
+			const generation = agent.generate({
+				messages: [{role: 'user', content: userPrompt}],
+				abortSignal: controller.signal,
+				onStepStart(event) {
+					logger.info('AI Request', {
+						context: `Page Analysis - ${page.url} - Step ${event.stepNumber}`,
+					});
+
+					// Honest placeholder for pure model-thinking time: the
+					// rotating pool stays reserved for phases with no
+					// engine events at all (startup, report writing).
+					onProgress?.('analyzing', 'Analyzing with the model…');
+				},
+				onStepEnd: event => {
+					logger.info('AI Response', {
+						context: `Page Analysis - ${page.url} - Step ${event.stepNumber}`,
+						response: {
+							text: event.text,
+							finishReason: event.finishReason,
+							toolCalls: event.toolCalls,
+							usage: event.usage,
+						},
+					});
+
+					const llmResponse = this.createLLMResponseData(
+						event,
+						event.stepNumber + 1,
+					);
+					onProgress?.('analyzing', undefined, llmResponse);
+				},
+			});
+
+			// A zombie loop that keeps stepping after expiry rejects here;
+			// nobody is awaiting it any more, so swallow that rejection.
+			generation.catch(() => undefined);
+
+			let result;
+			try {
+				result = await withDeadline(boundMs, async () => generation, {
+					timeoutError() {
+						controller.abort();
+						return new PageBoundExceeded(boundMs);
 					},
 				});
+			} catch (error) {
+				if (error instanceof PageBoundExceeded) {
+					// The page's evidence is whatever landed before expiry:
+					// drain observations, advance the stage, close out partial
+					// with the expiry named, and let the run move on.
+					for (const observation of drainObservations()) {
+						stage = advanceStage(stage, observation);
+					}
 
-				const stageBefore = stage;
-				for (const observation of observed) {
-					stage = advanceStage(stage, observation);
+					this.finalisePage(false, stage, error.message);
+					pageSettled = true;
+
+					const expiredState = this.reportBuilder.getCurrentState();
+					const expiredAnalysis = expiredState.completedAnalyses.at(-1);
+
+					if (!expiredAnalysis) {
+						throw new Error('Failed to complete page analysis', {
+							cause: error,
+						});
+					}
+
+					return expiredAnalysis;
 				}
 
-				// eslint-disable-next-line no-await-in-loop
-				const digest = await this.measureOnceReadable(
-					stageBefore,
-					stage,
-					page,
-					onProgress,
-				);
-
-				// Log AI response
-				logger.info('AI Response', {
-					context: `Page Analysis - ${page.url} - Iteration ${iterations}`,
-					response: {
-						text: result.text,
-						finishReason: result.finishReason,
-						toolCalls: result.toolCalls,
-						usage: result.usage,
-					},
-				});
-
-				// Create and send LLM response to UI
-				const llmResponse = this.createLLMResponseData(result, iterations);
-				onProgress?.('analyzing', undefined, llmResponse);
-
-				// Add response messages to history.
-				// `result.response` is deprecated in AI SDK 7 in favour of
-				// `finalStep.response`; `responseMessages` is the accumulated
-				// assistant/tool message list this loop needs.
-				//
-				// The digest follows them rather than preceding them. This step's
-				// assistant message and the tool results answering it have to stay
-				// adjacent: a user message inserted between a tool call and its
-				// result is a malformed transcript, which some providers reject
-				// outright. The digest is a new user turn, so it belongs after the
-				// exchange it comments on, not inside it.
-				messages.push(...result.responseMessages, ...digest);
-
-				// Process result and check if analysis is complete
-				const shouldContinue = this.processAgentResult(result);
-
-				if (shouldContinue === false) {
-					break;
-				}
-
-				if (shouldContinue === 'completed') {
-					isAnalysisCompleted = true;
-				}
+				throw error;
 			}
 
-			// The loop ended without the model calling completePageAnalysis --
-			// it exhausted MAX_AGENT_ITERATIONS or stopped early. Close the page
-			// out as `partial`: recording it as `complete` made a truncated
-			// sweep indistinguishable from a finished one, which is exactly the
-			// distinction a CI gate has to be able to make.
-			this.finalisePage(isAnalysisCompleted, stage);
+			// Observations from the final step (the one whose completion tool
+			// fired, if any) still have to advance the stage before the page
+			// is closed out on its evidence.
+			for (const observation of drainObservations()) {
+				stage = advanceStage(stage, observation);
+			}
+
+			// The completing turn may itself be the one that made the page
+			// readable; the old loop measured on that turn and so must this.
+			await ensureMeasured();
+
+			const signalledComplete = result.steps.some(step =>
+				step.content.some(
+					part =>
+						part.type === 'tool-call' &&
+						part.toolName === 'completePageAnalysis',
+				),
+			);
+
+			// Close the page out with the status its evidence supports:
+			// `complete` needs both the completion signal AND a captured page;
+			// anything shorter -- budget spent, model stopping early, no
+			// capture -- is exactly what `partial` exists to record for the
+			// CI gate to distinguish from a finished sweep.
+			this.finalisePage(signalledComplete && stage === 'analysable', stage);
+			pageSettled = true;
 
 			// Get the completed analysis from report builder
 			const state = this.reportBuilder.getCurrentState();
@@ -434,8 +537,13 @@ export class AIService {
 	 *
 	 * @param signalledComplete - Whether the model called the completion tool
 	 * @param stage - Where the page's analysis reached
+	 * @param reason - Why the page stopped short, when the bound or an outer failure ended it; recorded on the partial page
 	 */
-	private finalisePage(signalledComplete: boolean, stage: PageStage): void {
+	private finalisePage(
+		signalledComplete: boolean,
+		stage: PageStage,
+		reason?: string,
+	): void {
 		const pending = this.reportBuilder.getCurrentState().currentPageAnalysis;
 		if (!pending) {
 			return;
@@ -447,35 +555,8 @@ export class AIService {
 		// the question instead of two that must be kept in agreement.
 		this.reportBuilder.completePageAnalysis(
 			signalledComplete && stage === 'analysable' ? 'complete' : 'partial',
+			reason,
 		);
-	}
-
-	/**
-	 * Measure the page if this is the step that made it readable.
-	 *
-	 * The condition lives here rather than in the loop because it is one
-	 * question -- has the page just become readable? -- and the loop already
-	 * carries enough.
-	 *
-	 * @param before - Stage before this step's results were applied
-	 * @param after - Stage after them
-	 * @param page - The page under analysis
-	 * @param onProgress - Progress reporter for the interactive display
-	 * @returns Messages to append, empty unless a measurement was just taken
-	 */
-	private async measureOnceReadable(
-		before: PageStage,
-		after: PageStage,
-		page: Page,
-		onProgress?: AnalysisProgressCallback,
-	): Promise<ModelMessage[]> {
-		if (before === 'analysable' || after !== 'analysable') {
-			return [];
-		}
-
-		const digest = await this.measurePage(page, onProgress);
-
-		return digest ? [{role: 'user', content: digest}] : [];
 	}
 
 	/**
@@ -595,9 +676,21 @@ export class AIService {
 	 * Create LLM response data for UI display
 	 */
 	private createLLMResponseData(
-		result: Pick<GenerateTextResult, 'text' | 'toolCalls' | 'finishReason'>,
+		result: {
+			text?: string;
+			toolCalls?: ReadonlyArray<{
+				toolName: string;
+				toolCallId?: string;
+				input?: unknown;
+			}>;
+			finishReason?: unknown;
+		},
 		iteration: number,
 	): LLMResponseData {
+		// Structural on purpose: the caller is the loop's step-end event, and
+		// only these three fields drive the UI. Tying the signature to a
+		// specific SDK result type is what once shipped empty tool-call args
+		// past a rename; reading exactly what the UI needs is the stable seam.
 		const emptyArgs: Record<string, unknown> = {};
 		return {
 			text: result.text,
@@ -613,42 +706,13 @@ export class AIService {
 						? (tc.input as Record<string, unknown>)
 						: emptyArgs,
 			})),
-			finishReason: result.finishReason,
+			finishReason:
+				typeof result.finishReason === 'string'
+					? result.finishReason
+					: undefined,
 			iteration,
 			timestamp: Date.now(),
 		};
-	}
-
-	/**
-	 * Process agent loop result and determine next action
-	 *
-	 * @param result - What the model returned this iteration
-	 * @returns false to break loop, true to continue, 'completed' if analysis done
-	 */
-	private processAgentResult(
-		result: Pick<GenerateTextResult, 'finishReason' | 'toolCalls'>,
-	): boolean | 'completed' {
-		if (result.finishReason === 'tool-calls' && result.toolCalls) {
-			const isComplete = result.toolCalls.some(
-				tc => tc.toolName === 'completePageAnalysis',
-			);
-
-			if (isComplete) {
-				return 'completed';
-			}
-
-			return true;
-		}
-
-		// A model that stops has stopped. The loop used to push a "Please
-		// complete your analysis..." message back into the conversation and
-		// carry on, which spent tokens precisely when the context was already
-		// under strain, and which only ever existed because the sequence was
-		// requested in prose rather than enforced by what was offered. Now that
-		// each stage exposes only what it can act on -- and completion is
-		// always available -- there is nothing to nag about: a page that ends
-		// early ends as `partial`, which is what it is.
-		return false;
 	}
 
 	/**
@@ -780,37 +844,77 @@ IMPORTANT: You MUST call completePageAnalysis before finishing. The analysis is 
 }
 
 /**
- * Singleton instance of AIService (per config)
+ * One analysis run: a service and the report accumulator it writes to,
+ * created together and shared with nothing.
+ *
+ * Previously an implicit module singleton plus a per-config service cache --
+ * the arrangement behind one failing page erasing every analysed page, and
+ * behind a closed client being handed to the next run. Explicit ownership
+ * makes both impossible by construction.
  */
-const aiServiceInstances = new Map<string, AIService>();
+export type AnalysisRun = {
+	aiService: AIService;
+	reportBuilder: ReportBuilder;
+};
 
 /**
- * Get or create AIService instance for a given configuration
+ * Collaborators for tests: supply any subset and `createAIService` uses it
+ * instead of building the real thing, so isolation can be exercised without
+ * credentials or a browser.
  */
-export async function getAIService(
+export type AIServiceOverrides = {
+	model?: LanguageModelV4;
+	client?: MCPClient;
+	builder?: ReportBuilder;
+};
+
+/**
+ * Assemble one analysis run from a validated configuration.
+ *
+ * Every call returns a fresh pair; there is no cache to be poisoned and no
+ * singleton to reset. Callers own the builder for provenance, finalisation
+ * and saving -- see ci-runner.ts and use-analysis.ts.
+ *
+ * @param config - Validated configuration for this run
+ * @param verdict - The preflight verdict proving a browser is usable
+ * @param overrides - Test collaborators replacing real construction
+ * @returns The run's service and report builder
+ */
+export async function createAIService(
 	config: UxLintConfig,
-	verdict: PreflightVerdict,
-): Promise<AIService> {
-	// Import envIO dynamically to get AI config for cache key
-	const {envIO} = await import('../infrastructure/config/env-io.js');
-	const aiConfig = envIO.loadAiConfig();
+	verdict: PreflightVerdict | undefined,
+	overrides: AIServiceOverrides = {},
+): Promise<AnalysisRun> {
+	const {model, client, builder} = overrides;
 
-	// Create a cache key from AI environment config
-	const cacheKey = `${aiConfig.provider}-${aiConfig.model ?? 'default'}`;
+	const resolvedModel = model ?? (await getLanguageModel(config));
+	const resolvedClient =
+		client ?? (await getMCPClient(requireVerdict(verdict), config.browser));
+	const resolvedBuilder = builder ?? new ReportBuilder(fsPromises);
 
-	if (!aiServiceInstances.has(cacheKey)) {
-		const model = await getLanguageModel(config);
-		const client = await getMCPClient(verdict, config.browser);
-		const service = new AIService(model, client, reportBuilder, {cacheKey});
-		aiServiceInstances.set(cacheKey, service);
-	}
-
-	return aiServiceInstances.get(cacheKey)!;
+	return {
+		aiService: new AIService(resolvedModel, resolvedClient, resolvedBuilder),
+		reportBuilder: resolvedBuilder,
+	};
 }
 
 /**
- * Reset AIService instance (useful for testing)
+ * A browser client cannot be built without proof a browser exists. Reaching
+ * here without a verdict means a caller skipped preflight -- an ordering bug
+ * worth naming rather than silently analysing with whatever transport answers.
+ *
+ * @param verdict - The preflight verdict, when one was produced
+ * @returns The verdict, narrowed
+ * @throws Error when the verdict is missing
  */
-export function resetAIService(): void {
-	aiServiceInstances.clear();
+function requireVerdict(
+	verdict: PreflightVerdict | undefined,
+): PreflightVerdict {
+	if (!verdict) {
+		throw new Error(
+			'A usable browser preflight verdict is required before creating an analysis run',
+		);
+	}
+
+	return verdict;
 }

@@ -15,13 +15,9 @@ import {
 	type PreflightVerdict,
 } from './models/browser-preflight.js';
 import {evaluateGate, renderGateVerdict} from './models/gate-result.js';
-import {getAIService as defaultGetAIService} from './services/ai-service.js';
+import {createAIService, type AnalysisRun} from './services/ai-service.js';
 import {runPreflight as defaultRunPreflight} from './services/browser-preflight.js';
 import {browserServerIdentity} from './services/mcp-client.js';
-import {
-	reportBuilder as defaultReportBuilder,
-	type ReportBuilder,
-} from './services/report-builder.js';
 
 /**
  * Create a progress callback for page analysis
@@ -46,8 +42,7 @@ function createProgressCallback(
  * asserted without a model, a browser, or a live MCP transport.
  */
 export type CIAnalysisDependencies = {
-	getAIService: typeof defaultGetAIService;
-	reportBuilder: ReportBuilder;
+	createRun: typeof defaultCreateRun;
 
 	/**
 	 * Where the gate verdict goes.
@@ -83,9 +78,10 @@ function defaultEmitVerdict(verdict: string): void {
 	writeTerminalMessage(verdict);
 }
 
+const defaultCreateRun = createAIService;
+
 const defaultDependencies: CIAnalysisDependencies = {
-	getAIService: defaultGetAIService,
-	reportBuilder: defaultReportBuilder,
+	createRun: defaultCreateRun,
 	emitVerdict: defaultEmitVerdict,
 	runPreflight: defaultRunPreflight,
 };
@@ -168,8 +164,7 @@ export async function runCIAnalysis(
 	dependencies: CIAnalysisDependencies = defaultDependencies,
 ): Promise<number> {
 	const {
-		getAIService,
-		reportBuilder,
+		createRun,
 		emitVerdict = defaultEmitVerdict,
 		runPreflight = defaultRunPreflight,
 	} = dependencies;
@@ -191,22 +186,24 @@ export async function runCIAnalysis(
 	}
 
 	// Held outside the try so the finally closes it on every path.
-	let aiService: Awaited<ReturnType<typeof getAIService>> | undefined;
+	let run: AnalysisRun | undefined;
 	let failure: string | undefined;
 
-	const server = browserServerIdentity();
-	reportBuilder.setProvenance({
-		browserServer: server.name,
-		browserServerVersion: server.version,
-		browserVersion: preflight.browser.version,
-		externalDataAllowed: config.browser?.allowExternalData ?? false,
-	});
-
 	try {
-		// Get AI Service instance
+		// Assemble the run. Provenance lands on THIS run's builder -- there is
+		// no module-level report for it to land on any more.
 		logger.debug('Initializing AI service');
-		aiService = await getAIService(config, preflight);
+		run = await createRun(config, preflight);
+		const {aiService, reportBuilder} = run;
 		logger.debug('AI service initialized');
+
+		const server = browserServerIdentity();
+		reportBuilder.setProvenance({
+			browserServer: server.name,
+			browserServerVersion: server.version,
+			browserVersion: preflight.browser.version,
+			externalDataAllowed: config.browser?.allowExternalData ?? false,
+		});
 
 		// Process each page sequentially (not in parallel)
 		// Sequential processing is required because:
@@ -273,7 +270,7 @@ export async function runCIAnalysis(
 		} finally {
 			// Cleared even when close() throws, so the finally below does not
 			// close a torn-down instance a second time.
-			aiService = undefined;
+			run = undefined;
 		}
 
 		const gate = evaluateGate(report, config.thresholds);
@@ -306,10 +303,10 @@ export async function runCIAnalysis(
 		failure = errorMessage;
 	} finally {
 		// Only reached when the happy path did not already close it.
-		if (aiService) {
+		if (run) {
 			logger.debug('Closing AI service after a failed run');
 			try {
-				await aiService.close();
+				await run.aiService.close();
 			} catch (closeError) {
 				logger.error('Failed to close AI service', {
 					error:

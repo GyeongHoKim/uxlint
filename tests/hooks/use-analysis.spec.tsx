@@ -105,8 +105,8 @@ test.serial(
 		const reportBuilder = new ReportBuilder(mockFsAsync);
 		const aiService = new AIService(mockModel, mockMCPClient, reportBuilder);
 
-		// Create mock getAIService function for dependency injection
-		const mockGetAIService = async (_config: UxLintConfig) => aiService;
+		// Create a mock run factory: one isolated pair per call.
+		const mockCreateRun = async () => ({aiService, reportBuilder});
 
 		const config: UxLintConfig = {
 			mainPageUrl: 'https://example.com',
@@ -132,7 +132,7 @@ test.serial(
 		}> = [];
 
 		const {result}: RenderHookResult<UseAnalysisResult, unknown> = renderHook(
-			() => useAnalysis(config, mockGetAIService, reportBuilder, stubPreflight),
+			() => useAnalysis(config, mockCreateRun, stubPreflight),
 		);
 
 		// Subscribe to state changes - must be done before runAnalysis
@@ -284,8 +284,7 @@ test.serial(
 			() =>
 				useAnalysis(
 					config,
-					async () => aiService,
-					reportBuilder,
+					async () => ({aiService, reportBuilder}),
 					stubPreflight,
 				),
 		);
@@ -362,8 +361,7 @@ test.serial(
 			() =>
 				useAnalysis(
 					config,
-					async () => aiService,
-					reportBuilder,
+					async () => ({aiService, reportBuilder}),
 					stubPreflight,
 				),
 		);
