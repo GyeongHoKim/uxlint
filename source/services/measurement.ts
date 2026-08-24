@@ -40,6 +40,7 @@ import {
 	type Violation,
 } from '../models/measurement.js';
 import {readToolOutcome} from '../models/tool-output.js';
+import {withDeadline} from './deadline.js';
 
 /**
  * How long one measurement may take before it is abandoned.
@@ -492,45 +493,8 @@ class MeasurementTimeout extends Error {
 	}
 }
 
-/**
- * Run something under a deadline this process actually owns.
- *
- * `AbortSignal.timeout` is not usable here: its internal timer is unref'd, so
- * a call that never settles leaves nothing keeping the event loop alive and
- * the abort never fires -- the run simply stops. The bound has to be a timer
- * this code holds and clears.
- *
- * The controller is still handed to the callee so it can abandon its own
- * work; the race is what guarantees *we* stop waiting, whether or not it
- * does. A bound that depends on the callee honouring it is not a bound.
- *
- * @param timeoutMs - How long to wait
- * @param run - Given a signal, does the work
- * @returns Whatever the work returned
- * @throws MeasurementTimeout when the deadline passes first
- */
-async function withDeadline<T>(
-	timeoutMs: number,
-	run: (signal: AbortSignal) => Promise<T>,
-): Promise<T> {
-	const controller = new AbortController();
-	let expire: NodeJS.Timeout | undefined;
-
-	const deadline = new Promise<never>((_resolve, reject) => {
-		expire = setTimeout(() => {
-			controller.abort();
-			reject(new MeasurementTimeout());
-		}, timeoutMs);
-	});
-
-	try {
-		return await Promise.race([run(controller.signal), deadline]);
-	} finally {
-		// Without this a finished measurement would hold the process open for
-		// the rest of the bound -- a minute per page, on every page.
-		clearTimeout(expire);
-	}
-}
+/* The owned-deadline race lives in `deadline.ts`; this module supplies its
+ * domain error so expiry stays classifiable as measurement timeout. */
 
 /**
  * Takes the measurements for a page.
@@ -586,8 +550,11 @@ export class MeasurementService {
 		args: Record<string, unknown>,
 	): Promise<Measured<string>> {
 		try {
-			const result = await withDeadline(this.timeoutMs, async signal =>
-				this.client.callTool({name, arguments: args, options: {signal}}),
+			const result = await withDeadline(
+				this.timeoutMs,
+				async signal =>
+					this.client.callTool({name, arguments: args, options: {signal}}),
+				{timeoutError: () => new MeasurementTimeout()},
 			);
 
 			const outcome = readToolOutcome(result);
