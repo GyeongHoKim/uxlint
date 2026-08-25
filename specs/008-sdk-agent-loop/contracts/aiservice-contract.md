@@ -29,6 +29,10 @@ type AIServiceOverrides = {
   builder?: ReportBuilder;
 };
 
+`overrides` exists for tests. Production calls omit it, so every run owns a
+freshly constructed builder; injecting one shared builder carries its
+retained analyses across runs, which is exactly what such a test opts into.
+
 function createAIService(
   config: UxLintConfig,
   verdict: PreflightVerdict | undefined,

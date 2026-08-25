@@ -443,6 +443,12 @@ export class AIService {
 
 			let result;
 			try {
+				// The helper hands its own signal to the run callback; it stays
+				// unused here ON PURPOSE. Cancellation reaches the engine through
+				// the outer controller below -- the one generate already holds --
+				// because aborting a second, unwired controller would reach
+				// nothing. The race alone guarantees this await settles at the
+				// bound whether or not the callee honours either signal.
 				result = await withDeadline(boundMs, async () => generation, {
 					timeoutError() {
 						controller.abort();
@@ -453,7 +459,10 @@ export class AIService {
 				if (error instanceof PageBoundExceeded) {
 					// The page's evidence is whatever landed before expiry:
 					// drain observations, advance the stage, close out partial
-					// with the expiry named, and let the run move on.
+					// with the expiry named, and let the run move on. Abort is
+					// not instantaneous: callbacks still in flight may land
+					// while this drain runs, and they count; whatever arrives
+					// after the close-out is dropped by the scoping guards.
 					for (const observation of drainObservations()) {
 						stage = advanceStage(stage, observation);
 					}
