@@ -396,6 +396,8 @@ Required fields are marked as required. All text fields accept natural language.
   - `output` (string, required): File path where the report will be written (e.g., `./ux-report.md`).
 - `thresholds` (object, optional): CI gate limits. See [Failing CI on UX regressions](#failing-ci-on-ux-regressions).
 - `browser` (object, optional): Browser settings. See [Browser requirements](#browser-requirements).
+- `analysis` (object, optional): Analysis settings. See [Analysis settings](#analysis-settings).
+  - `pageTimeLimitMs` (number, optional): Per-page wall-clock limit in milliseconds (default `600000`).
 
 **Note**: AI configuration has been moved to environment variables for security. See [Environment Variables](#environment-variables) section below.
 

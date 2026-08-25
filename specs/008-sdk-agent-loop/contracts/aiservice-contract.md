@@ -23,8 +23,17 @@ type AnalysisRun = {
   reportBuilder: ReportBuilder; // per-run accumulator, same class as today
 };
 
-function createAIService(config: UxLintConfig, verdict: PreflightVerdict):
-  Promise<AnalysisRun>;
+type AIServiceOverrides = {
+  model?: LanguageModelV4;
+  client?: MCPClient;
+  builder?: ReportBuilder;
+};
+
+function createAIService(
+  config: UxLintConfig,
+  verdict: PreflightVerdict | undefined,
+  overrides?: AIServiceOverrides,
+): Promise<AnalysisRun>;
 ```
 
 - Caller order of operations (unchanged semantics): `setProvenance` on

@@ -57,7 +57,7 @@ npm test tests/test.spec.tsx
 **Run tests in watch mode:**
 
 ```bash
-npm run test --watch
+npm run test -- --watch
 ```
 
 ### Required After Code Changes (Constitution I: Code Quality Gates)

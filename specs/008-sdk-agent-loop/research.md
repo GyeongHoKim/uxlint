@@ -191,6 +191,11 @@ events exist (startup, report writing) — matches spec assumption.
   holds a connection, not analysis state; keeping it warm preserves
   interactive re-run latency. (Its reset hook moves from "service close" to
   explicit teardown if tests require.)
+  *(Amended in review, 2026-08-26: `close()` now releases the memoised
+  transport, identity-checked through `resetMCPClient(client)`. Leaving the
+  closed handle in the process-wide memo handed a second run a connection
+  nobody could use; the "keep it warm" trade-off survives only for clients a
+  run injected and still holds.)*
 - The B4-era cache-eviction patch becomes dead code and is removed with its
   cache.
 
