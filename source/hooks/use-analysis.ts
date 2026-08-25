@@ -271,9 +271,15 @@ export function useAnalysis(
 
 			// Shut the transport down before publishing the terminal state.
 			// Doing it after lets the UI reach its exit path first and leave the
-			// MCP subprocess behind.
-			await aiService.close();
-			run = undefined;
+			// MCP subprocess behind. Cleared even when close() throws, so the
+			// cleanup finally cannot hand the torn-down service a second close
+			// whose rejection would escape runAnalysis -- the same contract
+			// ci-runner.ts holds on its own happy path.
+			try {
+				await aiService.close();
+			} finally {
+				run = undefined;
+			}
 
 			// Update state to complete with final report
 			updateAnalysisState(previous => ({
@@ -301,9 +307,20 @@ export function useAnalysis(
 				finalReport: undefined,
 			}));
 		} finally {
-			// Only reached when the happy path did not already close it.
+			// Only reached when the happy path did not already close it. The
+			// analysis failure above is already published; a failing teardown
+			// must log and settle, not reject out of this block on top of it.
 			if (run) {
-				await run.aiService.close();
+				try {
+					await run.aiService.close();
+				} catch (closeError) {
+					logger.error('Failed to close AI service', {
+						error:
+							closeError instanceof Error
+								? closeError.message
+								: String(closeError),
+					});
+				}
 			}
 		}
 	}, [config, updateAnalysisState, createRun, runPreflight]);

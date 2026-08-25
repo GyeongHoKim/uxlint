@@ -4,6 +4,7 @@
  */
 
 import {promises as fsPromises} from 'node:fs';
+import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {act, renderHook, type RenderHookResult} from '@testing-library/react';
 import {MockLanguageModelV4} from 'ai/test';
 import test from 'ava';
@@ -374,6 +375,106 @@ test.serial(
 			result.current.analysisState.gateResult?.evaluated,
 			[],
 			'an unconfigured gate must render nothing',
+		);
+
+		sandbox.restore();
+	},
+);
+
+test.serial(
+	'a failing close is attempted once and settles as the published error state',
+	async t => {
+		// The CI runner guards its happy-path close so a rejected teardown can
+		// never reach the fallback cleanup a second time. Interactive mode
+		// must hold to the same contract: when close() rejects, the finally
+		// below must not close the torn-down instance again and let whatever
+		// that throws escape runAnalysis -- which its caller invokes as void.
+		const sandbox = sinon.createSandbox();
+
+		const mockModel = new MockLanguageModelV4({
+			async doGenerate() {
+				return {
+					content: [
+						{
+							type: 'tool-call' as const,
+							toolCallId: 'call-complete',
+							toolName: 'completePageAnalysis',
+							input: '{}',
+						},
+					],
+					finishReason: {unified: 'tool-calls' as const, raw: undefined},
+					usage: {
+						inputTokens: {
+							total: 10,
+							noCache: 10,
+							cacheRead: undefined,
+							cacheWrite: undefined,
+						},
+						outputTokens: {total: 20, text: 20, reasoning: undefined},
+					},
+					warnings: [],
+				};
+			},
+		});
+
+		const workingClient = createMockMCPClient();
+		let closeAttempts = 0;
+		const failingCloseClient = {
+			async tools() {
+				return workingClient.tools();
+			},
+			async close() {
+				closeAttempts++;
+				throw new Error('transport teardown exploded');
+			},
+		} as unknown as MCPClient;
+
+		const reportBuilder = new ReportBuilder({
+			...fsPromises,
+			writeFile: sandbox.stub().resolves(),
+		});
+		const aiService = new AIService(
+			mockModel,
+			failingCloseClient,
+			reportBuilder,
+		);
+
+		const config: UxLintConfig = {
+			mainPageUrl: 'https://example.com',
+			subPageUrls: [],
+			pages: [{url: 'https://example.com', features: 'Test page features'}],
+			persona: 'Test persona',
+			report: {output: './test-report.md'},
+		};
+
+		const {result}: RenderHookResult<UseAnalysisResult, unknown> = renderHook(
+			() =>
+				useAnalysis(
+					config,
+					async () => ({aiService, reportBuilder}),
+					stubPreflight,
+				),
+		);
+
+		await act(async () => {
+			await t.notThrowsAsync(
+				result.current.runAnalysis(),
+				'a failing close must settle runAnalysis rather than reject out of cleanup',
+			);
+		});
+
+		t.is(
+			closeAttempts,
+			1,
+			'the torn-down service must not be closed a second time',
+		);
+
+		const {currentStage, error} = result.current.analysisState;
+		t.is(currentStage, 'error');
+		t.regex(
+			error?.message ?? '',
+			/transport teardown exploded/,
+			'the close failure itself is what reaches the UI state',
 		);
 
 		sandbox.restore();
