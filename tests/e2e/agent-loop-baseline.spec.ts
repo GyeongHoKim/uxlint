@@ -298,12 +298,19 @@ const recordMidRunFailure = async (): Promise<CaseRecording> => {
 	// page's work intact.
 	server.resetHandlers();
 	server.use(
-		http.post(providerEndpoint, () =>
-			HttpResponse.json(
+		http.post(providerEndpoint, async ({request}) => {
+			// Cloned before reading: a body can only be consumed once. The
+			// recorder must see the outage page's requests too -- without this,
+			// the recording covers only the healthy page and request or retry
+			// drift on the failed one passes unnoticed.
+			const body: unknown = await request.clone().json();
+			recorder.record(body);
+
+			return HttpResponse.json(
 				{error: {message: 'baseline-injected provider outage'}},
 				{status: 500},
-			),
-		),
+			);
+		}),
 	);
 	const secondPage: Page = {
 		url: 'https://example.com/pricing',

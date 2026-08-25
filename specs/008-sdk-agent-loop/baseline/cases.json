@@ -3,24 +3,24 @@
 		"status": "complete",
 		"requests": 4,
 		"totalBytes": 160911,
-		"wallClockMs": 130
+		"wallClockMs": 165
 	},
 	"budget-exhaustion": {
 		"status": "partial",
 		"requests": 20,
 		"totalBytes": 1463756,
-		"wallClockMs": 218
+		"wallClockMs": 149
 	},
 	"failed-navigation": {
 		"status": "partial",
 		"requests": 2,
 		"totalBytes": 6372,
-		"wallClockMs": 8
+		"wallClockMs": 12
 	},
 	"mid-run-failure": {
 		"status": "failed",
-		"requests": 4,
-		"totalBytes": 160911,
-		"wallClockMs": 6075
+		"requests": 7,
+		"totalBytes": 170043,
+		"wallClockMs": 6107
 	}
 }

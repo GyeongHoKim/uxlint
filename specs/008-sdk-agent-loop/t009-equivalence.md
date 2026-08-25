@@ -20,6 +20,17 @@ All four cases are byte-identical after the documented normalisation and show
 zero request-byte drift, well inside the ±1% allowance. No diff existed, so no
 diff justification is required.
 
+## Amendment 2026-08-26: recording scope widened on mid-run-failure
+
+Review found that the injected outage handler in the harness recorded
+nothing, so the mid-run-failure row above counted only the healthy page's
+requests -- the compare gate could not have seen request or retry drift on
+the failed page. The handler records now, and `cases.json` / `baseline.md`
+were re-captured: mid-run-failure measures 7 requests / 170043 bytes (the
+three retrying outage calls included). All four rendered markdown files
+reproduced byte-for-byte against the frozen pre-swap artefacts, so SC-001
+stands unchanged; only the measured scope of the failed page moved.
+
 ## FR-010: behavioural pins on both frontends
 
 `tests/ci-runner.spec.ts` and `tests/hooks/use-analysis.spec.tsx` pass as-is
@@ -45,8 +56,10 @@ compile against the new seam and pin the same observable flow.
 - `npm run compile` -- zero errors
 - `npm run format` -- no changes needed
 - `npm run lint` (xo) -- zero violations
-- `npm test` -- 650 passed, 1 skipped (the live-browser preflight integration
-  case, intentionally skipped without credentials/Chrome)
+- `npm test` -- 650 passed, 1 skipped at this task's run (the live-browser
+  preflight integration case, intentionally skipped without
+  credentials/Chrome). The final branch state, after the late-event scoping
+  fix adjusted two suites, is 653 passed with the same single skip.
 - `npm run test:coverage:gate` -- exit 0 (analysis-path aggregate 96.4%
   statements / 87.42% branches / 94.66% functions / 96.4% lines, above the
   80% thresholds on every metric)

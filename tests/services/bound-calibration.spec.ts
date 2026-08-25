@@ -31,9 +31,30 @@ const cases = JSON.parse(rawCases) as Record<
 >;
 
 test('the shipped default bound leaves >=10x headroom over observed healthy pages', t => {
-	const healthy = ['happy-path', 'budget-exhaustion', 'failed-navigation'].map(
-		name => cases[name]?.wallClockMs ?? 0,
-	);
+	// A missing or non-positive baseline must fail the calibration loudly.
+	// Defaulting an absent case to zero would shrink the observed maximum and
+	// let the headroom claim pass over a scenario that was never measured --
+	// exactly the silent stranding this file exists to prevent.
+	const healthyNames = [
+		'happy-path',
+		'budget-exhaustion',
+		'failed-navigation',
+	] as const;
+	const healthy = healthyNames.map(name => {
+		const wallClockMs = cases[name]?.wallClockMs;
+
+		if (
+			wallClockMs === undefined ||
+			!Number.isFinite(wallClockMs) ||
+			wallClockMs <= 0
+		) {
+			return t.fail(
+				`${name} has no measured positive wallClockMs in baseline/cases.json`,
+			);
+		}
+
+		return wallClockMs;
+	});
 	const observedMax = Math.max(...healthy);
 
 	t.true(

@@ -139,6 +139,71 @@ const modelThatNeverAnswers = (): MockLanguageModelV4 =>
 			}),
 	});
 
+/**
+ * One model for a two-page run, scripted per call.
+ *
+ * Its first reply hangs forever (page one expires against the bound); every
+ * later reply replays navigate → capture+complete (page two analyses
+ * normally). Sharing one instance is the point: the service sees a single
+ * model across pages, exactly as production does.
+ */
+const modelThatHangsThenCaptures = (): MockLanguageModelV4 => {
+	let call = 0;
+
+	return new MockLanguageModelV4({
+		async doGenerate() {
+			call++;
+
+			if (call === 1) {
+				return new Promise<never>(() => {
+					// Page one: never settles, never observes any signal.
+				});
+			}
+
+			const pageTwoCall = call - 1;
+			const content =
+				pageTwoCall === 1
+					? [
+							{
+								type: 'tool-call' as const,
+								toolCallId: 'call-nav-2',
+								toolName: 'navigate_page',
+								input: '{"url":"https://example.com/fine"}',
+							},
+						]
+					: [
+							{
+								type: 'tool-call' as const,
+								toolCallId: 'call-snap-2',
+								toolName: 'take_snapshot',
+								input: '{}',
+							},
+							{
+								type: 'tool-call' as const,
+								toolCallId: 'call-done-2',
+								toolName: 'completePageAnalysis',
+								input: '{}',
+							},
+						];
+
+			return {
+				finishReason: {unified: 'tool-calls' as const, raw: undefined},
+				usage: {
+					inputTokens: {
+						total: 1,
+						noCache: 1,
+						cacheRead: undefined,
+						cacheWrite: undefined,
+					},
+					outputTokens: {total: 1, text: 1, reasoning: undefined},
+				},
+				content,
+				warnings: [],
+			};
+		},
+	});
+};
+
 const makeService = (
 	model: MockLanguageModelV4,
 	browser: MCPClient,
@@ -279,7 +344,7 @@ test.serial(
 test.serial(
 	'after an expiry the next page on the same service analyses normally',
 	async t => {
-		const service = makeService(modelThatNeverAnswers(), browserFor({}));
+		const service = makeService(modelThatHangsThenCaptures(), browserFor({}));
 		const cfg = configWithBound(BOUND_MS, [
 			'https://example.com/stuck',
 			'https://example.com/fine',
@@ -291,12 +356,11 @@ test.serial(
 		t.is(stuck.status, 'partial');
 		t.regex(stuck.error ?? '', /time bound/);
 
-		// The second page gets a fresh model too -- the point is only that the
-		// stuck page did not wedge the service or its report state.
-		t.true(
-			fine.analysisTimestamp >= stuck.analysisTimestamp,
-			'the run proceeded to the remaining pages',
-		);
+		// One shared model, scripted per call: its first reply hangs past the
+		// bound, and every later reply drives a normal analysis. The second
+		// page finishing `complete` is what shows an expiry wedged nothing --
+		// neither the engine nor the report state the next page writes into.
+		t.is(fine.status, 'complete');
 		await service.close();
 	},
 );
