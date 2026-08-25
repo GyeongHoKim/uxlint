@@ -16,7 +16,9 @@ import test from 'ava';
 import sinon from 'sinon';
 import {z} from 'zod/v4';
 import type {UxLintConfig} from '../../source/models/config.js';
+import {notTaken, taken} from '../../source/models/measurement.js';
 import {AIService} from '../../source/services/ai-service.js';
+import type {MeasurementService} from '../../source/services/measurement.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
 import {mcpResult} from '../fixtures/mcp-result.js';
 
@@ -150,6 +152,110 @@ const makeService = (
 	return new AIService(model, browser, builder);
 };
 
+const usage = {
+	inputTokens: {
+		total: 1,
+		noCache: 1,
+		cacheRead: undefined,
+		cacheWrite: undefined,
+	},
+	outputTokens: {total: 1, text: 1, reasoning: undefined},
+};
+
+/** One model turn: the tools it calls, and how long it thinks first. */
+type ScriptedTurn = {
+	readonly delayMs?: number;
+	readonly calls: ReadonlyArray<{readonly id: string; readonly name: string}>;
+};
+
+/** A model that replays the given turns, repeating the last one forever. */
+const modelForTurns = (turns: readonly ScriptedTurn[]): MockLanguageModelV4 => {
+	let call = 0;
+
+	return new MockLanguageModelV4({
+		async doGenerate() {
+			const turn = turns[Math.min(call, turns.length - 1)]!;
+			call++;
+
+			if (turn.delayMs) {
+				await new Promise(resolve => {
+					setTimeout(resolve, turn.delayMs);
+				});
+			}
+
+			return {
+				finishReason: {unified: 'tool-calls', raw: undefined},
+				usage,
+				content: turn.calls.map(({id, name}) => ({
+					type: 'tool-call' as const,
+					toolCallId: id,
+					toolName: name,
+					input:
+						name === 'navigate_page' ? '{"url":"https://example.com"}' : '{}',
+				})),
+				warnings: [],
+			};
+		},
+	});
+};
+
+/**
+ * A page that captures, then holds its page open before completing.
+ *
+ * The hold is the point: a stale write from an already-expired page can only
+ * be observed landing somewhere if some other page is open when it arrives.
+ */
+const modelThatLingers = (lingerMs: number): MockLanguageModelV4 =>
+	modelForTurns([
+		{calls: [{id: 'call-nav', name: 'navigate_page'}]},
+		{calls: [{id: 'call-snap', name: 'take_snapshot'}]},
+		{
+			delayMs: lingerMs,
+			calls: [{id: 'call-done', name: 'completePageAnalysis'}],
+		},
+	]);
+
+/** A page that reaches `analysable` and then never completes on its own. */
+const modelThatCapturesAndWaits = (): MockLanguageModelV4 =>
+	modelForTurns([
+		{calls: [{id: 'call-nav', name: 'navigate_page'}]},
+		{calls: [{id: 'call-snap', name: 'take_snapshot'}]},
+		{delayMs: 10_000, calls: [{id: 'call-idle', name: 'take_snapshot'}]},
+	]);
+
+/** A measurement that takes `delayMs` and is identifiable in a report. */
+const measurementTaking = (
+	delayMs: number,
+	engineVersion: string,
+	ruleId: string,
+): MeasurementService =>
+	({
+		async measure() {
+			if (delayMs > 0) {
+				await new Promise(resolve => {
+					setTimeout(resolve, delayMs);
+				});
+			}
+
+			return {
+				audit: taken({
+					scores: {accessibility: 50},
+					violations: [
+						{
+							ruleId,
+							title: `Violation from ${engineVersion}`,
+							impact: 'serious' as const,
+							affectedElements: 1,
+						},
+					],
+					engineVersion,
+					snapshotMode: true,
+				}),
+				trace: notTaken('tool-failed'),
+			};
+		},
+	}) as unknown as MeasurementService;
+
 test.serial(
 	'a never-answering page closes partial at its bound and names the expiry',
 	async t => {
@@ -227,7 +333,7 @@ test.serial(
 );
 
 test.serial(
-	'a late capture from an expired page never lands in another page',
+	'a late capture from an expired page never lands in the page open after it',
 	async t => {
 		const sandbox = sinon.createSandbox();
 		// ONE builder shared by both pages -- exactly the shape a run has.
@@ -238,40 +344,121 @@ test.serial(
 
 		const serviceA = new AIService(
 			modelThatCaptures(),
-			browserFor({snapshotDelayMs: 3000, marker: 'A'}),
+			browserFor({snapshotDelayMs: 400, marker: 'A'}),
 			builder,
 		);
+		// B holds its page open past the moment A's abandoned capture resolves,
+		// which is the only window in which the stale write could land anywhere.
 		const serviceB = new AIService(
-			modelThatCaptures(),
+			modelThatLingers(600),
 			browserFor({marker: 'B'}),
 			builder,
 		);
 
-		const cfg = configWithBound(BOUND_MS, [
-			'https://example.com/a',
-			'https://example.com/b',
-		]);
+		const boundA = configWithBound(BOUND_MS, ['https://example.com/a']);
+		// B is deliberately unbounded on this timescale: a page that expired
+		// too would close before the stale write could reach it, and the test
+		// would pass without exercising anything.
+		const openB = configWithBound(60_000, ['https://example.com/b']);
 
-		const pageA = await serviceA.analyzePage(cfg, cfg.pages[0]!);
+		const pageA = await serviceA.analyzePage(boundA, boundA.pages[0]!);
 		t.is(pageA.status, 'partial');
 		t.regex(pageA.error ?? '', /time bound/);
-		t.is(pageA.snapshot, '', 'the late capture belongs to no open page');
 
-		const pageB = await serviceB.analyzePage(cfg, cfg.pages[1]!);
+		const pageB = await serviceB.analyzePage(openB, openB.pages[0]!);
+
 		t.is(pageB.status, 'complete');
-
-		await new Promise(resolve => {
-			setTimeout(resolve, 3500);
-		});
-
-		t.is(pageB.snapshot, 'snapshot of B', 'page B kept its own capture');
-		t.false(
-			pageB.snapshot.includes('of A'),
+		t.is(
+			pageB.snapshot,
+			'snapshot of B',
 			"page A's abandoned engine call must not write into page B's record",
 		);
 
 		await serviceA.close();
 		await serviceB.close();
 		sandbox.restore();
+	},
+);
+
+test.serial(
+	'a measurement outliving its page never lands in the page open after it',
+	async t => {
+		const sandbox = sinon.createSandbox();
+		const builder = new ReportBuilder({
+			...fsPromises,
+			writeFile: sandbox.stub().resolves(),
+		});
+
+		// A reaches `analysable`, starts measuring, and expires mid-measurement.
+		const serviceA = new AIService(
+			modelThatCapturesAndWaits(),
+			browserFor({marker: 'A'}),
+			builder,
+			{measurement: measurementTaking(400, 'engine-A', 'stale-rule')},
+		);
+		const serviceB = new AIService(
+			modelThatLingers(600),
+			browserFor({marker: 'B'}),
+			builder,
+			{measurement: measurementTaking(0, 'engine-B', 'own-rule')},
+		);
+
+		const boundA = configWithBound(BOUND_MS, ['https://example.com/a']);
+		const openB = configWithBound(60_000, ['https://example.com/b']);
+
+		const pageA = await serviceA.analyzePage(boundA, boundA.pages[0]!);
+		t.is(pageA.status, 'partial');
+
+		const pageB = await serviceB.analyzePage(openB, openB.pages[0]!);
+
+		const audit = pageB.measurement?.audit;
+		t.is(
+			audit?.state === 'taken' ? audit.value.engineVersion : undefined,
+			'engine-B',
+			"page A's straggling measurement must not overwrite page B's",
+		);
+		t.false(
+			pageB.findings.some(finding => finding.ruleId === 'stale-rule'),
+			"page A's measured violations must not be filed against page B",
+		);
+
+		await serviceA.close();
+		await serviceB.close();
+		sandbox.restore();
+	},
+);
+
+test.serial(
+	'an expired page reports no further progress once it is closed out',
+	async t => {
+		const service = makeService(
+			modelThatCaptures(),
+			browserFor({snapshotDelayMs: 400, marker: 'late'}),
+		);
+		const cfg = configWithBound(BOUND_MS);
+
+		let settled = false;
+		const afterSettle: string[] = [];
+
+		const analysis = await service.analyzePage(cfg, cfg.pages[0]!, stage => {
+			if (settled) {
+				afterSettle.push(stage);
+			}
+		});
+		settled = true;
+
+		// Long enough for the abandoned engine call to finish its in-flight step.
+		await new Promise(resolve => {
+			setTimeout(resolve, 600);
+		});
+
+		t.is(analysis.status, 'partial');
+		t.deepEqual(
+			afterSettle,
+			[],
+			'an abandoned engine call must not narrate over the page that follows it',
+		);
+
+		await service.close();
 	},
 );
