@@ -80,7 +80,8 @@ source/
 │   │                          # measureOnceReadable moves into prepareStep; page bound added
 │   ├── report-builder.ts      # Class unchanged; exported singleton removed (R6)
 │   ├── measurement.ts         # withDeadline pattern extracted/reused for page bound
-│   └── mcp-client.ts          # Unchanged (transport memoisation out of scope)
+│   └── mcp-client.ts          # Amended in review: close() releases the
+│                              # memoised transport (identity-checked reset)
 ├── ci-runner.ts               # Owns a per-run builder via run assembly (R6)
 └── hooks/use-analysis.ts      # Same ownership change
 

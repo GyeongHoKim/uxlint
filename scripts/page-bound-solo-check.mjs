@@ -11,9 +11,11 @@
  * been observed to silently never fire: the process just exits. The owned
  * timer is ref'd, so the deadline MUST fire and the rejection MUST surface.
  *
- * Exit code IS the assertion: 0 only when the bound fired, 1 when it did not
- * (or when anything else went wrong), so the script can be run as a CI step
- * as it stands.
+ * Exit code IS the assertion: 0 only when the bound fired. Any other exit
+ * means failure -- including Node's 13 ("unfinished top-level await"), which
+ * is what a regression back to an unref'd timer produces: the await never
+ * settles, the catch never runs, and the process exits 13 on its own. A CI
+ * step only has to check for non-zero.
  *
  * Expected output on success ends with exactly one line:
  *     BOUND FIRED as the sole pending handle: PageBoundExceeded
