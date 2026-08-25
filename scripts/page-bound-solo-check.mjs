@@ -9,10 +9,13 @@
  * nothing else keeps the event loop alive. This is the exact configuration
  * where an `AbortSignal.timeout` -- whose internal timer is unref'd -- has
  * been observed to silently never fire: the process just exits. The owned
- * timer is ref'd, so the deadline MUST fire, the rejection MUST surface, and
- * the script MUST exit non-zero with the proof printed.
+ * timer is ref'd, so the deadline MUST fire and the rejection MUST surface.
  *
- * Expected output ends with exactly one line:
+ * Exit code IS the assertion: 0 only when the bound fired, 1 when it did not
+ * (or when anything else went wrong), so the script can be run as a CI step
+ * as it stands.
+ *
+ * Expected output on success ends with exactly one line:
  *     BOUND FIRED as the sole pending handle: PageBoundExceeded
  */
 
