@@ -1,3 +1,18 @@
+# [4.5.0](https://github.com/GyeongHoKim/uxlint/compare/v4.4.0...v4.5.0) (2026-08-25)
+
+
+### Bug Fixes
+
+* carry a partial page's reason into the report and gate verdict (008) ([a095908](https://github.com/GyeongHoKim/uxlint/commit/a095908e1ec22ddfea65bbeb180cd7179b55233c))
+* guard the interactive close against a second teardown (008) ([3462473](https://github.com/GyeongHoKim/uxlint/commit/3462473057aaa2c4440bf4fca7f6afc9e0c1bbf2))
+* scope late engine events and release the closed transport (008) ([43ae7e2](https://github.com/GyeongHoKim/uxlint/commit/43ae7e262c701f5fac4fc9334729be7da8c8e48c))
+
+
+### Features
+
+* add an owned-deadline helper and the analysis config block (008) ([b4e8b72](https://github.com/GyeongHoKim/uxlint/commit/b4e8b7255128241117f658807b04ff9e025e7c18))
+* drive the page analysis with a native agent loop (008) ([4c8f472](https://github.com/GyeongHoKim/uxlint/commit/4c8f472813d1e768a076195930ee8d0ec103af8b))
+
 # [4.4.0](https://github.com/GyeongHoKim/uxlint/compare/v4.3.0...v4.4.0) (2026-08-21)
 
 
