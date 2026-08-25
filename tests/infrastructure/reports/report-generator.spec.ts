@@ -85,6 +85,26 @@ test('a partial page is flagged instead of passing as analysed', t => {
 	t.regex(markdown, /Pages Analyzed\*\*: 0 successful/);
 });
 
+test('a partial page renders the reason it stopped short', t => {
+	// The analysis records why a page ended partial -- a bound expiry names
+	// itself. A report that flattens that to a generic note makes a time-bound
+	// expiry indistinguishable from a budget exhaustion.
+	const markdown = generateMarkdownReport(
+		buildReport([
+			buildPage({
+				pageUrl: 'https://example.com/stuck',
+				status: 'partial',
+				error: 'Page analysis exceeded its 600000 ms time bound',
+			}),
+		]),
+	);
+
+	t.regex(
+		markdown,
+		/Partial — Page analysis exceeded its 600000 ms time bound/,
+	);
+});
+
 test('a failed page still shows what it managed to find', t => {
 	const markdown = generateMarkdownReport(
 		buildReport([
