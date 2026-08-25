@@ -248,6 +248,27 @@ function formatTimestamp(timestamp: number): string {
 	});
 }
 
+/** Generic per-status note for the page section header. */
+const statusNote: Partial<Record<PageAnalysis['status'], string>> = {
+	partial:
+		'**Status**: Partial — the analysis was cut short, so this page is not fully covered.\n',
+	failed:
+		'**Status**: Failed — findings below are only what was collected before the failure.\n',
+};
+
+/**
+ * The status note for one page.
+ *
+ * A partial page that knows why it stopped short says so — a bound expiry
+ * names itself, the way a failure names its cause. The generic note stays
+ * for pages nobody named a reason for, such as one that ran out of steps.
+ */
+function statusNoteFor(page: PageAnalysis): string | undefined {
+	return page.status === 'partial' && page.error
+		? `**Status**: Partial — ${page.error}; findings below cover only what completed.\n`
+		: statusNote[page.status];
+}
+
 /**
  * Count findings by severity
  */
@@ -337,19 +358,12 @@ export function generateMarkdownReport(report: UxReport): string {
 	// Every page that produced findings is rendered, whatever ended it. The
 	// status note says how far the analysis got; omitting cut-short and failed
 	// pages hid findings that had already been paid for.
-	const statusNote: Partial<Record<PageAnalysis['status'], string>> = {
-		partial:
-			'**Status**: Partial — the analysis was cut short, so this page is not fully covered.\n',
-		failed:
-			'**Status**: Failed — findings below are only what was collected before the failure.\n',
-	};
-
 	for (const page of pages) {
 		if (!['complete', 'partial', 'failed'].includes(page.status)) {
 			continue;
 		}
 
-		const note = statusNote[page.status];
+		const note = statusNoteFor(page);
 
 		sections.push(
 			`### ${note ? '⚠️ ' : ''}${page.pageUrl}\n`,

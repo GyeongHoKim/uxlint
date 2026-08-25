@@ -51,6 +51,9 @@ const buildReport = (pages: PageSpec[]): UxReport => {
 		} else {
 			builder.completePageAnalysis(
 				page.status === 'partial' ? 'partial' : 'complete',
+				// A partial page may carry the reason it stopped short, exactly
+				// as production records a bound expiry on it.
+				page.status === 'partial' ? page.error : undefined,
 			);
 		}
 	}
@@ -285,7 +288,35 @@ test('a partial page breaches when failOnPartialPage is set', t => {
 
 	t.false(result.passed);
 	t.deepEqual(result.breaches, [{kind: 'partial-pages'}]);
-	t.deepEqual(result.partialPages, [{pageUrl: 'https://example.com/cut'}]);
+	t.deepEqual(result.partialPages, [
+		{pageUrl: 'https://example.com/cut', error: undefined},
+	]);
+});
+
+test('a partial-page breach carries the recorded reason', t => {
+	// Same contract as failed pages: a page cut short by its time bound must
+	// name that in the gate verdict. A bare URL makes budget exhaustion and
+	// an expiry indistinguishable to the operator reading the CI log.
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{
+			url: 'https://example.com/slow',
+			status: 'partial',
+			error: 'Page analysis exceeded its 600000 ms time bound',
+		},
+	]);
+
+	const result = evaluateGate(report, {failOnPartialPage: true});
+
+	t.deepEqual(result.partialPages, [
+		{
+			pageUrl: 'https://example.com/slow',
+			error: 'Page analysis exceeded its 600000 ms time bound',
+		},
+	]);
+
+	const rendered = renderGateVerdict(result);
+	t.regex(rendered, /slow — Page analysis exceeded its 600000 ms time bound/);
 });
 
 test('a failed page breaches when failOnFailedPage is set', t => {

@@ -22,7 +22,7 @@ export type AffectedPage = {
 	/** URL of the page */
 	pageUrl: string;
 
-	/** Recorded failure reason; absent for pages that were merely cut short */
+	/** Recorded reason the page ended early; absent when nothing named one */
 	error?: string;
 };
 
@@ -168,12 +168,14 @@ export function evaluateGate(
 		};
 	}
 
-	const partialPages: AffectedPage[] = metadata.partialPages.map(pageUrl => ({
-		pageUrl,
-	}));
 	// Read the errors off the analyses themselves rather than looking each URL
 	// up in `report.pages`. A config may list the same URL twice, and a lookup
-	// by URL hands every entry the first match's reason.
+	// by URL hands every entry the first match's reason. Partial pages ride the
+	// same channel as failures: a page whose time bound expired must name that
+	// in the verdict, not surface as a bare URL.
+	const partialPages: AffectedPage[] = report.pages
+		.filter(page => page.status === 'partial')
+		.map(page => ({pageUrl: page.pageUrl, error: page.error}));
 	const failedPages: AffectedPage[] = report.pages
 		.filter(page => page.status === 'failed')
 		.map(page => ({pageUrl: page.pageUrl, error: page.error}));
@@ -324,7 +326,10 @@ export function renderGateVerdict(result: GateResult): string {
 			`  ${'partial'.padEnd(labelWidth)}${pluralPages(
 				result.partialPages.length,
 			)} not fully analysed${qualify('partial-pages')}`,
-			...result.partialPages.map(page => `${pageIndent}${page.pageUrl}`),
+			...result.partialPages.map(
+				page =>
+					`${pageIndent}${page.pageUrl}${page.error ? ` — ${page.error}` : ''}`,
+			),
 		);
 	}
 
