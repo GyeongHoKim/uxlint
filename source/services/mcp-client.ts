@@ -306,18 +306,24 @@ async function createBrowserMCPClient(
  * interactive UI would break it, and should key the cache on the verdict
  * rather than assume. The per-config service cache this comment once warned
  * about is gone: 008 replaced it with explicit per-run instances
- * (`createAIService`), leaving only this transport memoised.
+ * (`createAIService`), leaving only this transport memoised -- and a run that
+ * closes its client releases the memo with it (`resetMCPClient`), so the
+ * cache can hold a live connection but never a closed one.
  */
 export async function getMCPClient(
 	verdict: PreflightVerdict,
 	settings: BrowserSettings | undefined,
+	createClient: (
+		verdict: PreflightVerdict,
+		settings: BrowserLaunchSettings,
+	) => Promise<MCPClient> = createBrowserMCPClient,
 ): Promise<MCPClient> {
 	logger.debug('Getting MCP client instance', {
 		exists: mcpClientInstance !== undefined,
 	});
 
 	if (!mcpClientInstance) {
-		mcpClientInstance = await createBrowserMCPClient(
+		mcpClientInstance = await createClient(
 			verdict,
 			resolveBrowserSettings(settings),
 		);
@@ -369,9 +375,23 @@ export function narrowBrowserTools<T extends Record<string, unknown>>(
 }
 
 /**
- * Reset MCP client instance (useful for testing)
+ * Drop the memoised transport.
+ *
+ * Called by a run that has just closed its client: the memo is process-wide,
+ * so a closed handle left in it is handed straight to the next run, which
+ * then fails on a transport it never opened. Passing the client makes the
+ * release identity-checked -- a run holding an injected transport of its own
+ * must not evict the one the process is caching for everyone else. Called
+ * without an argument it clears unconditionally, which is what test teardown
+ * wants.
+ *
+ * @param client - The client being released; omit to clear whatever is cached
  */
-export function resetMCPClient(): void {
+export function resetMCPClient(client?: MCPClient): void {
+	if (client && mcpClientInstance !== client) {
+		return;
+	}
+
 	mcpClientInstance = undefined;
 	logger.debug('MCP client instance reset');
 }

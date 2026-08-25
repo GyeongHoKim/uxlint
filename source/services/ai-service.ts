@@ -45,7 +45,11 @@ import {
 } from '../models/measurement.js';
 import {withDeadline} from './deadline.js';
 import {getLanguageModel} from './llm-provider.js';
-import {getMCPClient, narrowBrowserTools} from './mcp-client.js';
+import {
+	getMCPClient,
+	narrowBrowserTools,
+	resetMCPClient,
+} from './mcp-client.js';
 import {MeasurementService, describeMeasurement} from './measurement.js';
 import {ReportBuilder} from './report-builder.js';
 
@@ -103,16 +107,6 @@ type ToolExecutionEndEvent = {
 	toolCall: {toolName: string};
 	toolOutput: {type: string; output?: unknown};
 };
-
-/**
- * The shape `generateText` actually returns.
- *
- * Imported from the SDK rather than hand-written: the helpers below used to
- * declare their own all-optional structural type, which is why reading the
- * pre-v5 `toolCalls[].args` kept compiling and shipped empty tool-call
- * arguments to the UI for a whole major version. Anchoring to the SDK turns
- * the next rename into a compile error.
- */
 
 /**
  * Analysis progress callback type
@@ -188,10 +182,14 @@ export class AIService {
 	/**
 	 * Close the MCP client connection.
 	 *
-	 * Nothing else: report state belongs to the run that owns this service,
-	 * not to the process, so teardown here would reach into someone else's
-	 * run. A closed instance answers further analyzePage calls with a failed
-	 * page naming the cause, which is all the guard a per-run object needs.
+	 * The transport is released with it. Report state belongs to the run that
+	 * owns this service and is never touched here, but the transport is
+	 * process-wide and memoised: leaving a closed handle in that memo hands
+	 * the next run a connection nobody can use. The release is identity-checked
+	 * so a service holding its own injected client evicts nothing.
+	 *
+	 * A closed instance answers further analyzePage calls with a failed page
+	 * naming the cause, which is all the guard a per-run object needs.
 	 */
 	async close(): Promise<void> {
 		try {
@@ -199,6 +197,7 @@ export class AIService {
 				await this.mcpClient.close();
 			}
 		} finally {
+			resetMCPClient(this.mcpClient);
 			this.isClosed = true;
 		}
 	}
@@ -217,10 +216,10 @@ export class AIService {
 
 		if (this.isClosed) {
 			// Name the real cause instead of letting the closed transport raise
-			// whatever it raises. Reported straight to the caller and not through
-			// the builder: close() reset that builder, and it is the process-wide
-			// singleton the *next* run will use, so writing here would plant a
-			// phantom failed page in a report for a run that never saw this page.
+			// whatever it raises. Reported straight to the caller and not
+			// through the builder: this service is closed, so the page never
+			// belonged to the report the builder is still holding, and writing
+			// it there would plant a phantom failed page in a finished run.
 			return {
 				pageUrl: page.url,
 				features: page.features,
@@ -307,7 +306,14 @@ export class AIService {
 				}
 
 				measured = true;
-				const digest = await this.measurePage(page, onProgress);
+				const digest = await this.measurePage(
+					page,
+					// Checked AFTER the await inside, not before it: a
+					// measurement can outlive the bound that closed its page,
+					// and its writes are report state like any other.
+					() => !pageSettled && epoch === this.pageEpoch,
+					onProgress,
+				);
 
 				if (digest) {
 					pendingDigest = {role: 'user', content: digest};
@@ -391,7 +397,14 @@ export class AIService {
 			const generation = agent.generate({
 				messages: [{role: 'user', content: userPrompt}],
 				abortSignal: controller.signal,
-				onStepStart(event) {
+				onStepStart: event => {
+					// Same scoping rule as every other lifecycle callback: an
+					// abandoned engine call must not narrate over the page
+					// that replaced it.
+					if (pageSettled || epoch !== this.pageEpoch) {
+						return;
+					}
+
 					logger.info('AI Request', {
 						context: `Page Analysis - ${page.url} - Step ${event.stepNumber}`,
 					});
@@ -402,6 +415,10 @@ export class AIService {
 					onProgress?.('analyzing', 'Analyzing with the model…');
 				},
 				onStepEnd: event => {
+					if (pageSettled || epoch !== this.pageEpoch) {
+						return;
+					}
+
 					logger.info('AI Response', {
 						context: `Page Analysis - ${page.url} - Step ${event.stepNumber}`,
 						response: {
@@ -567,16 +584,29 @@ export class AIService {
 	 * invent competing ones. Measuring later would mean judging first.
 	 *
 	 * @param page - The page under analysis
+	 * @param stillOurs - Whether the page measured is still the page open, asked after the measurement returns
 	 * @param onProgress - Progress reporter for the interactive display
-	 * @returns The digest to put in front of the model, empty when nothing was measured
+	 * @returns The digest to put in front of the model, empty when nothing was measured or it outlived its page
 	 */
 	private async measurePage(
 		page: Page,
+		stillOurs: () => boolean,
 		onProgress?: AnalysisProgressCallback,
 	): Promise<string> {
 		onProgress?.('measuring', `Measuring ${page.url}`);
 
 		const measurement = await this.measurement.measure('analysable');
+
+		if (!stillOurs()) {
+			// The page this was measured for closed while the measurement was
+			// in flight -- almost always its time bound expiring mid-audit.
+			// Whatever page is open now is a different page, and these numbers
+			// and violations are not its own.
+			logger.warn('Discarding a measurement that outlived its page', {
+				pageUrl: page.url,
+			});
+			return '';
+		}
 
 		this.reportBuilder.setPageMeasurement(measurement);
 		this.registerMeasuredFindings(measurement, page.url);

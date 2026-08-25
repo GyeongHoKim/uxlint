@@ -23,6 +23,11 @@ import {
 	createAIService,
 	type AnalysisRun,
 } from '../../source/services/ai-service.js';
+import type {PreflightVerdict} from '../../source/models/browser-preflight.js';
+import {
+	getMCPClient,
+	resetMCPClient,
+} from '../../source/services/mcp-client.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
 import {mcpResult} from '../fixtures/mcp-result.js';
 
@@ -205,5 +210,57 @@ test.serial(
 			'the failure must name the real cause',
 		);
 		sandbox.restore();
+	},
+);
+
+test.serial(
+	'closing a run releases the transport instead of memoising a closed one',
+	async t => {
+		// The transport is process-wide; the run that closes it must not leave
+		// it cached for the next run to pick up dead.
+		resetMCPClient();
+
+		const verdict: PreflightVerdict = {
+			kind: 'ready',
+			browser: {
+				executablePath: '/nowhere/chrome',
+				version: 'Google Chrome 151.0.0.0',
+				majorVersion: 151,
+			},
+		};
+
+		const made: MCPClient[] = [];
+		const createClient = async (): Promise<MCPClient> => {
+			const client = {
+				async tools() {
+					return {};
+				},
+				async close() {
+					// Nothing to tear down in a double.
+				},
+			} as unknown as MCPClient;
+			made.push(client);
+			return client;
+		};
+
+		const first = await getMCPClient(verdict, undefined, createClient);
+		const service = new AIService(
+			modelThatCaptures(),
+			first,
+			new ReportBuilder(fsPromises),
+		);
+
+		await service.close();
+
+		const second = await getMCPClient(verdict, undefined, createClient);
+
+		t.not(
+			second,
+			first,
+			'the next run must not be handed the transport the last run closed',
+		);
+		t.is(made.length, 2, 'a released transport is built again, not reused');
+
+		resetMCPClient();
 	},
 );
