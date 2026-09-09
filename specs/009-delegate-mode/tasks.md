@@ -119,16 +119,16 @@ included (quickstart Scenario 3).
 
 ### Tests (write first, must fail)
 
-- [ ] T026 [P] [US2] Red test in `tests/delegate/repo-untouched.spec.ts`: a completed delegated run adds, modifies and removes nothing under the repository root, including untracked files (FR-013, SC-003)
-- [ ] T027 [P] [US2] Red tests in `tests/delegate/session-disposal.spec.ts`: the session directory is removed on the success path, on an adapter failure, on time-bound expiry and on an orchestrator exception (FR-019)
-- [ ] T028 [P] [US2] Red test in `tests/delegate/host/read-only.spec.ts`: a shared invariant check over every registered adapter — each built command carries its host's read-only mechanism and none carries a write-enabling flag (FR-012)
-- [ ] T029 [P] [US2] Red test in `tests/delegate/concurrent-runs.spec.ts`: two delegated runs started against the same repository at the same time each produce a report containing only their own findings, and neither session reads the other's submissions (FR-017, SC-007)
+- [X] T026 [P] [US2] Red test in `tests/delegate/repo-untouched.spec.ts`: a completed delegated run adds, modifies and removes nothing under the repository root, including untracked files (FR-013, SC-003)
+- [X] T027 [P] [US2] Red tests in `tests/delegate/session-disposal.spec.ts`: the session directory is removed on the success path, on an adapter failure, on time-bound expiry and on an orchestrator exception (FR-019)
+- [X] T028 [P] [US2] Red test in `tests/delegate/host/read-only.spec.ts`: a shared invariant check over every registered adapter — each built command carries its host's read-only mechanism and none carries a write-enabling flag (FR-012)
+- [X] T029 [P] [US2] Red test in `tests/delegate/concurrent-runs.spec.ts`: two delegated runs started against the same repository at the same time each produce a report containing only their own findings, and neither session reads the other's submissions (FR-017, SC-007)
 
 ### Implementation
 
-- [ ] T030 [US2] Make session disposal unconditional in `source/delegate/runner.ts` and `source/delegate/session.ts`, on every exit path including the failure and expiry paths (FR-019)
-- [ ] T031 [US2] Add the session time bound in `source/delegate/runner.ts` as a timer the run owns, raced against the adapter, following the pattern `source/services/deadline.ts` already establishes rather than trusting the child to honour a signal (FR-018)
-- [ ] T032 [US2] Add the adapter read-only invariant to `source/delegate/host/types.ts` as a checked property of a built launch, so a future adapter cannot omit it silently (FR-012)
+- [X] T030 [US2] Make session disposal unconditional in `source/delegate/runner.ts` and `source/delegate/session.ts`, on every exit path including the failure and expiry paths (FR-019)
+- [X] T031 [US2] Add the session time bound in `source/delegate/runner.ts` as a timer the run owns, raced against the adapter, following the pattern `source/services/deadline.ts` already establishes rather than trusting the child to honour a signal (FR-018)
+- [X] T032 [US2] Add the adapter read-only invariant to `source/delegate/host/types.ts` as a checked property of a built launch, so a future adapter cannot omit it silently (FR-012)
 
 **Checkpoint**: US2 complete. The read-only guarantee holds for every adapter, present and future.
 

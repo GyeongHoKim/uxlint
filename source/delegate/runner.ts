@@ -35,6 +35,7 @@ import {evaluateGate, renderGateVerdict} from '../models/gate-result.js';
 import type {PageMeasurement} from '../models/measurement.js';
 import {readToolOutcome} from '../models/tool-output.js';
 import {createDelegatedRun} from '../services/ai-service.js';
+import {withDeadline} from '../services/deadline.js';
 import {runPreflight as defaultRunPreflight} from '../services/browser-preflight.js';
 import {
 	browserServerIdentity,
@@ -45,7 +46,22 @@ import type {ReportBuilder} from '../services/report-builder.js';
 import {buildEvidence} from './evidence.js';
 import {collect} from './ingest.js';
 import {DelegationSession} from './session.js';
-import type {HostAgentAdapter} from './host/types.js';
+import {
+	assertReadOnly,
+	type HostAgentAdapter,
+	type HostLaunch,
+	type HostOutcome,
+} from './host/types.js';
+
+/**
+ * How long a host agent session may take before the run abandons it.
+ *
+ * **Provisional.** No baseline for a delegated run exists yet, so this is a
+ * hang net rather than a budget: high enough that a healthy run on a slow
+ * machine cannot trip it, and low enough that a stuck agent does not hold a
+ * terminal overnight. It is scheduled to be replaced with a measured figure.
+ */
+export const defaultSessionTimeLimitMs = 1_800_000;
 
 /**
  * What one page yielded before any judgement was made on it.
@@ -266,6 +282,58 @@ async function captureAllPages(
 }
 
 /**
+ * Raised when a host agent session outlives the run's bound.
+ */
+class SessionBoundExceeded extends Error {
+	constructor(boundMs: number) {
+		super(`The host agent session exceeded its ${boundMs} ms bound`);
+		this.name = 'SessionBoundExceeded';
+	}
+}
+
+/**
+ * Run the host agent under a bound the run owns.
+ *
+ * The bound is a timer raced against the work rather than a signal handed to
+ * it. An adapter that spawns a process can kill it; an adapter that does not
+ * honour the timeout at all still cannot hold the run open, because the race
+ * settles either way. Expiry is not a failure: whatever the agent submitted
+ * before it expired is real, and the report is assembled from that.
+ *
+ * @param adapter - The host agent
+ * @param launch - What it should run
+ * @param boundMs - How long it may take
+ * @returns How the session ended
+ */
+async function boundedRun(
+	adapter: HostAgentAdapter,
+	launch: HostLaunch,
+	boundMs: number,
+): Promise<HostOutcome> {
+	try {
+		return await withDeadline(
+			boundMs,
+			async () => adapter.run(launch, {timeoutMs: boundMs}),
+			{timeoutError: () => new SessionBoundExceeded(boundMs)},
+		);
+	} catch (error) {
+		if (error instanceof SessionBoundExceeded) {
+			logger.warn('Host agent session exceeded its bound', {
+				hostAgent: adapter.id,
+				boundMs,
+			});
+			return {terminated: 'timed-out'};
+		}
+
+		// Anything else is the adapter failing, not the bound expiring. Reported
+		// as a failed run rather than folded into a timeout, because the two
+		// have different causes and a developer chasing one should not be shown
+		// the other.
+		throw error;
+	}
+}
+
+/**
  * A verdict that permits the run to continue.
  */
 type UsableBrowser = Exclude<PreflightVerdict, {kind: 'unmet'}>;
@@ -416,10 +484,13 @@ export async function runDelegatedAnalysis(
 			server: judgementServerCommand(),
 		});
 
-		const outcome = await adapter.run(
-			launch,
-			sessionTimeLimitMs === undefined ? {} : {timeoutMs: sessionTimeLimitMs},
-		);
+		// Checked here rather than trusted from the adapter. An adapter edited
+		// to drop its read-only flag would otherwise hand a developer's whole
+		// repository to a model with nothing to notice it.
+		assertReadOnly(adapter.id, launch);
+
+		const boundMs = sessionTimeLimitMs ?? defaultSessionTimeLimitMs;
+		const outcome = await boundedRun(adapter, launch, boundMs);
 
 		logger.info('Host agent session finished', {
 			hostAgent: adapter.id,

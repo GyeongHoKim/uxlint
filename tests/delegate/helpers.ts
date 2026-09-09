@@ -186,7 +186,11 @@ export function scriptedHost(
 		buildLaunch(context) {
 			return {
 				command: 'scripted-host',
-				args: [],
+				// The double claims to be claude-code, so it has to build the
+				// launch claude-code would: the orchestrator refuses one that is
+				// not read-only, and a double exempt from that would hide the
+				// day an adapter stopped satisfying it.
+				args: ['--restricted'],
 				env: {[sessionEnvironmentVariable]: context.sessionDirectory},
 				stdin: context.prompt,
 			};
