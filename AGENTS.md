@@ -139,8 +139,8 @@ needs more than an edit to one adapter:
 - Page status is decided by what arrived at the judgement server, never by the
   host agent's exit code or its own account of itself.
 
-The adapters are also exercised against fake `claude`, `codex` and
-`cursor-agent` executables (`tests/fixtures/fake-hosts/`) that parse the
+The adapters are also exercised against fake `claude`, `codex` and `agent`
+executables (`tests/fixtures/fake-hosts/`) that parse the
 command line the way each CLI's documentation says it does, start the real
 `uxlint mcp-serve` as their own child over stdio, and call the judgement tools.
 `tests/delegate/host/fake-binaries.spec.ts` keeps the process boundary that

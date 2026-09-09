@@ -4,7 +4,7 @@
  *
  * Every other delegate test removes the process boundary. These keep it: the
  * real adapter builds the real command line, `spawn` finds a `claude`, `codex`
- * or `cursor-agent` on PATH, and that executable starts the real judgement
+ * or `agent` on PATH, and that executable starts the real judgement
  * server as its own child over stdio, exactly as the host agents do. What the
  * fakes prove is that the command line uxlint builds is one the documented
  * CLI would accept and act on; what they cannot prove is that the

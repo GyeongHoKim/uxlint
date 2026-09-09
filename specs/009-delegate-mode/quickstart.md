@@ -21,7 +21,7 @@ criteria it closes. Contract details live in
 | 5 — session that ends early | Covered automatically | `tests/delegate/runner-partial.spec.ts` and `session-disposal.spec.ts`, including bound expiry |
 | 6 — concurrent runs stay separate | Covered automatically | `tests/delegate/concurrent-runs.spec.ts` |
 | 7 — missing and unprepared hosts | **Partly observed live** | The live run first stopped with "several coding agents are available (claude-code, codex). Choose one with --host-agent", which is the intended behaviour and revealed that Codex was being counted as ready while unauthenticated. Codex now probes `codex login status`, and the next run selected `claude-code` and said so |
-| 8 — Cursor Agent, first run | **Blocked** | `cursor-agent` is not installed on the development machine. Every Cursor claim remains documentation-derived |
+| 8 — Cursor Agent, first run | **Blocked** | Cursor's `agent` is not installed on the development machine. Every Cursor claim remains documentation-derived |
 | 9 — Codex, first run | **Blocked** | `codex login status` reports "Not logged in". Injection and the read-only sandbox flag are asserted from the command line; no live session was possible |
 
 Two measurements came out of the live run and replaced provisional figures in
