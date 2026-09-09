@@ -7,6 +7,7 @@ import {Buffer} from 'node:buffer';
 import fs, {promises as fsPromises} from 'node:fs';
 import os from 'node:os';
 import pathModule from 'node:path';
+import process from 'node:process';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {tool} from 'ai';
 import {MockLanguageModelV4} from 'ai/test';
@@ -14,10 +15,14 @@ import test from 'ava';
 import sinon from 'sinon';
 import {z} from 'zod/v4';
 import type {UxFinding} from '../../source/models/analysis.js';
+import {envIO} from '../../source/infrastructure/config/env-io.js';
+import type {PreflightVerdict} from '../../source/models/browser-preflight.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import type {LLMResponseData} from '../../source/models/llm-response.js';
 import {
 	AIService,
+	createAIService,
+	createDelegatedRun,
 	type AnalysisProgressCallback,
 } from '../../source/services/ai-service.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
@@ -1620,5 +1625,115 @@ test.serial(
 			'tool',
 			'the user-turn digest sits directly after the tool results, never inside the exchange',
 		);
+	},
+);
+
+// --- Delegate mode: assembling a run without a model (009 T005) ---
+
+const readyVerdict: PreflightVerdict = {
+	kind: 'ready',
+	browser: {
+		executablePath: '/opt/google/chrome/chrome',
+		version: 'Google Chrome 151.0.7922.137',
+		majorVersion: 151,
+	},
+};
+
+/**
+ * The smallest configuration a run will accept.
+ *
+ * @returns A validated-shape configuration for one page
+ */
+function createTestConfig(): UxLintConfig {
+	return {
+		mainPageUrl: 'https://example.com',
+		subPageUrls: [],
+		pages: [{url: 'https://example.com', features: 'Test page features'}],
+		persona: 'Test persona',
+		report: {output: './test-report.md'},
+	};
+}
+
+/**
+ * Run `body` with `UXLINT_AI_API_KEY` set to `value`, restoring it afterwards.
+ *
+ * Serial because the environment is process-wide: a concurrent test reading
+ * the same variable would see whichever value happened to be installed.
+ *
+ * @param value - What the variable should hold, or undefined to unset it
+ * @param body - What to run while it holds that
+ */
+async function withApiKey(
+	value: string | undefined,
+	body: () => Promise<void>,
+): Promise<void> {
+	const previous = process.env['UXLINT_AI_API_KEY'];
+	if (value === undefined) {
+		delete process.env['UXLINT_AI_API_KEY'];
+	} else {
+		process.env['UXLINT_AI_API_KEY'] = value;
+	}
+
+	try {
+		await body();
+	} finally {
+		if (previous === undefined) {
+			delete process.env['UXLINT_AI_API_KEY'];
+		} else {
+			process.env['UXLINT_AI_API_KEY'] = previous;
+		}
+	}
+}
+
+test.serial(
+	'a delegated run assembles with no model credential present',
+	async t => {
+		await withApiKey(undefined, async () => {
+			const run = await createDelegatedRun(createTestConfig(), readyVerdict, {
+				client: createMockMCPClient(),
+			});
+
+			t.truthy(run.mcpClient);
+			t.true(run.reportBuilder instanceof ReportBuilder);
+		});
+	},
+);
+
+// FR-003: the credential is not merely unnecessary, it is not read. A run that
+// constructs a provider it never calls has still handed a third-party SDK the
+// developer's key.
+test.serial(
+	'a delegated run never reads the model credential, even when one is present',
+	async t => {
+		await withApiKey('sk-should-never-be-read', async () => {
+			// Spying on the reader rather than asserting the run succeeds: a run
+			// that constructs a provider it never calls has still handed a
+			// third-party SDK the developer's key, and it would pass a
+			// success-only assertion.
+			const readAiConfig = sinon.spy(envIO, 'loadAiConfig');
+
+			try {
+				await createDelegatedRun(createTestConfig(), readyVerdict, {
+					client: createMockMCPClient(),
+				});
+
+				t.true(readAiConfig.notCalled);
+			} finally {
+				readAiConfig.restore();
+			}
+		});
+	},
+);
+
+test.serial(
+	'the existing assembly still requires a model, so delegate mode changed nothing for it',
+	async t => {
+		await withApiKey(undefined, async () => {
+			await t.throwsAsync(
+				createAIService(createTestConfig(), readyVerdict, {
+					client: createMockMCPClient(),
+				}),
+			);
+		});
 	},
 );

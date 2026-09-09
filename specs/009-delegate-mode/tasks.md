@@ -38,8 +38,8 @@ Single project. Sources under `source/`, tests under `tests/`, per
 
 **Purpose**: Bring in the one new dependency and create the module skeleton
 
-- [ ] T001 Add `@modelcontextprotocol/sdk@1.30.0` to `dependencies` in `package.json`, install, and confirm it resolves under the pinned Node version (research R1)
-- [ ] T002 [P] Create the directories `source/delegate/`, `source/delegate/host/`, `tests/delegate/` and `tests/delegate/host/` (plan Structure Decision)
+- [X] T001 Add `@modelcontextprotocol/sdk@1.30.0` to `dependencies` in `package.json`, install, and confirm it resolves under the pinned Node version (research R1)
+- [X] T002 [P] Create the directories `source/delegate/`, `source/delegate/host/`, `tests/delegate/` and `tests/delegate/host/` (plan Structure Decision)
 
 ---
 
@@ -52,21 +52,21 @@ story submits findings through these.
 
 ### Tests (write first, must fail)
 
-- [ ] T003 [P] Red tests for the judgement submission contract in `tests/delegate/ingest.spec.ts`: each field rejected when it violates the contract, the rejection naming the offending field; a submission carrying `origin`, `ruleId` or `affectedElements` refused; a valid submission stored with `origin: 'judgement'` assigned by uxlint (FR-008, FR-009, SC-004)
-- [ ] T004 [P] Red tests for the session in `tests/delegate/session.spec.ts`: the directory is created outside the repository, two sessions never share an identity, page judgement state transitions `not-started → open → finished`, a submission naming a `finished` or `abandoned` page is refused as late (FR-013, FR-017, FR-022)
-- [ ] T005 [P] Red tests for model-free assembly in `tests/services/ai-service.spec.ts`: a run assembles with no `UXLINT_AI_API_KEY` present, and no provider is constructed when one *is* present (FR-002, FR-003)
-- [ ] T006 [P] Red tests for stdout discipline in `tests/delegate/stdout-discipline.spec.ts`: nothing reachable from `source/delegate/mcp-server.ts` imports `source/infrastructure/console-output.ts` (research R10)
-- [ ] T007 [P] Red tests for the five judgement tools in `tests/delegate/mcp-server.spec.ts`, driven over a transport: `listPages`, `getPageEvidence`, `addFinding`, `noteOnMeasuredIssues`, `completePageAnalysis`, each with its rejection cases from `contracts/judgement-tools.md` (FR-005, FR-007, FR-022)
+- [X] T003 [P] Red tests for the judgement submission contract in `tests/delegate/ingest.spec.ts`: each field rejected when it violates the contract, the rejection naming the offending field; a submission carrying `origin`, `ruleId` or `affectedElements` refused; a valid submission stored with `origin: 'judgement'` assigned by uxlint (FR-008, FR-009, SC-004)
+- [X] T004 [P] Red tests for the session in `tests/delegate/session.spec.ts`: the directory is created outside the repository, two sessions never share an identity, page judgement state transitions `not-started → open → finished`, a submission naming a `finished` or `abandoned` page is refused as late (FR-013, FR-017, FR-022)
+- [X] T005 [P] Red tests for model-free assembly in `tests/services/ai-service.spec.ts`: a run assembles with no `UXLINT_AI_API_KEY` present, and no provider is constructed when one *is* present (FR-002, FR-003)
+- [X] T006 [P] Red tests for stdout discipline in `tests/delegate/stdout-discipline.spec.ts`: nothing reachable from `source/delegate/mcp-server.ts` imports `source/infrastructure/console-output.ts` (research R10)
+- [X] T007 [P] Red tests for the five judgement tools in `tests/delegate/mcp-server.spec.ts`, driven over a transport: `listPages`, `getPageEvidence`, `addFinding`, `noteOnMeasuredIssues`, `completePageAnalysis`, each with its rejection cases from `contracts/judgement-tools.md` (FR-005, FR-007, FR-022)
 
 ### Implementation
 
-- [ ] T008 [P] Define the judgement submission contract, session, evidence and page-judgement-state types in `source/models/delegate.ts`, reusing `UxFinding`, `AnalysisStatus` and `FindingOrigin` from `source/models/analysis.ts` rather than restating them (FR-008, FR-009)
-- [ ] T009 [P] Implement the session lifecycle and page judgement state machine in `source/delegate/session.ts` (directory creation outside the repository, identity, unconditional disposal, state transitions) (FR-013, FR-017, FR-019, FR-022)
-- [ ] T010 Implement judgement intake in `source/delegate/ingest.ts`: validate against the contract, assign `origin`, refuse late and unknown-page submissions, return rejections that say what to fix (depends on T008, T009) (FR-008, FR-009, SC-004)
-- [ ] T011 Split model resolution out of `createAIService` in `source/services/ai-service.ts` so a run can be assembled with the browser client and report builder alone; leave the existing signature and behaviour unchanged (research R7) (FR-001, FR-002, FR-003)
-- [ ] T012 [P] Build per-page evidence in `source/delegate/evidence.ts`: persona, features, snapshot, measurement digest, and a capture-failure reason when the page was never read (FR-005)
-- [ ] T013 Implement the judgement MCP server in `source/delegate/mcp-server.ts` on the SDK's stdio transport, exposing exactly the five tools and nothing else (depends on T007, T010, T012) (FR-005, FR-006, FR-007)
-- [ ] T014 Add the `mcp-serve` entry point in `source/cli.tsx`: reads `UXLINT_DELEGATE_SESSION`, fails loudly when it is absent or names no directory, renders no Ink, and never reaches `source/infrastructure/console-output.ts` (FR-014, research R5, R10)
+- [X] T008 [P] Define the judgement submission contract, session, evidence and page-judgement-state types in `source/models/delegate.ts`, reusing `UxFinding`, `AnalysisStatus` and `FindingOrigin` from `source/models/analysis.ts` rather than restating them (FR-008, FR-009)
+- [X] T009 [P] Implement the session lifecycle and page judgement state machine in `source/delegate/session.ts` (directory creation outside the repository, identity, unconditional disposal, state transitions) (FR-013, FR-017, FR-019, FR-022)
+- [X] T010 Implement judgement intake in `source/delegate/ingest.ts`: validate against the contract, assign `origin`, refuse late and unknown-page submissions, return rejections that say what to fix (depends on T008, T009) (FR-008, FR-009, SC-004)
+- [X] T011 Split model resolution out of `createAIService` in `source/services/ai-service.ts` so a run can be assembled with the browser client and report builder alone; leave the existing signature and behaviour unchanged (research R7) (FR-001, FR-002, FR-003)
+- [X] T012 [P] Build per-page evidence in `source/delegate/evidence.ts`: persona, features, snapshot, measurement digest, and a capture-failure reason when the page was never read (FR-005)
+- [X] T013 Implement the judgement MCP server in `source/delegate/mcp-server.ts` on the SDK's stdio transport, exposing exactly the five tools and nothing else (depends on T007, T010, T012) (FR-005, FR-006, FR-007)
+- [X] T014 Add the `mcp-serve` entry point in `source/cli.tsx`: reads `UXLINT_DELEGATE_SESSION`, fails loudly when it is absent or names no directory, renders no Ink, and never reaches `source/infrastructure/console-output.ts` (FR-014, research R5, R10)
 
 **Checkpoint**: A host agent can connect to the judgement server, pull evidence and submit findings. Nothing launches it yet.
 
