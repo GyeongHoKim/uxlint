@@ -11,7 +11,10 @@ import {uxlintClient} from './infrastructure/auth/uxlint-client-base.js';
 import {writeTerminalMessage} from './infrastructure/console-output.js';
 import {configIO} from './infrastructure/config/config-io.js';
 import {serveJudgement} from './delegate/mcp-server.js';
+import {runDelegatedAnalysis} from './delegate/runner.js';
+import {claudeCode} from './delegate/host/claude-code.js';
 import {logger} from './infrastructure/logger.js';
+import type {UxLintConfig} from './models/config.js';
 import {getConfigFormat} from './utils/get-config-format.js';
 
 const cli = meow(
@@ -31,12 +34,16 @@ const cli = meow(
 
 	Options
 	  --interactive, -i  Use interactive mode to create configuration
+	  --delegate         Hand the UX judgement to a coding agent CLI you
+	                     already run, so uxlint needs no model API key
+	  --host-agent       Which agent judges a delegated run (claude-code)
 	  --version, -v      Show version
 	  --help, -h         Show help
 
 	Examples
 	  $ uxlint --interactive
 	  $ uxlint
+	  $ uxlint --delegate
 	  $ uxlint auth login
 	  $ uxlint auth status
 	  $ uxlint auth logout
@@ -48,6 +55,17 @@ const cli = meow(
 				type: 'boolean',
 				shortFlag: 'i',
 				default: false,
+			},
+			// Deliberately a flag rather than a configuration key. `.uxlintrc.yml`
+			// is committed and read by continuous integration, so putting delegate
+			// mode there would make one developer's local choice everybody's
+			// pipeline behaviour.
+			delegate: {
+				type: 'boolean',
+				default: false,
+			},
+			hostAgent: {
+				type: 'string',
 			},
 		},
 	},
@@ -88,6 +106,32 @@ process.on('unhandledRejection', (reason: unknown) => {
 	process.exit(1);
 });
 
+/**
+ * Run a review whose judgement a host agent performs.
+ *
+ * Only Claude Code is wired up so far; the other adapters and the selection
+ * between them arrive with their own tests.
+ *
+ * @param config - Validated configuration for this run
+ * @param requested - The agent named on the command line, if any
+ * @returns The exit code for the run
+ */
+async function delegate(
+	config: UxLintConfig,
+	requested: string | undefined,
+): Promise<number> {
+	const hostAgent = requested ?? claudeCode.id;
+
+	if (hostAgent !== claudeCode.id) {
+		writeTerminalMessage(
+			`uxlint: ${hostAgent} is not a supported host agent. Supported: ${claudeCode.id}.`,
+		);
+		return 1;
+	}
+
+	return runDelegatedAnalysis(config, {adapter: claudeCode});
+}
+
 // Auth Commands
 const authCommand = cli.input[0];
 if (authCommand === 'mcp-serve') {
@@ -123,7 +167,7 @@ if (authCommand === 'mcp-serve') {
 			<AuthFlow command={subcommand} onAuthError={handleAuthInterrupt} />
 		</UXLintClientProvider>,
 	);
-} else if (cli.flags.interactive) {
+} else if (cli.flags.interactive && !cli.flags.delegate) {
 	logger.info('Interactive mode selected');
 	render(
 		<UXLintMachineProvider>
@@ -173,7 +217,9 @@ if (authCommand === 'mcp-serve') {
 				hasThresholds: parsed.thresholds !== undefined,
 			});
 
-			process.exitCode = await runCIAnalysis(parsed);
+			process.exitCode = cli.flags.delegate
+				? await delegate(parsed, cli.flags.hostAgent)
+				: await runCIAnalysis(parsed);
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : 'Unknown error';
