@@ -7,6 +7,7 @@
 
 import type {GateResult} from './gate-result.js';
 import type {LLMResponseData} from './llm-response.js';
+import type {DelegateHostId} from './delegate.js';
 import type {PageMeasurement} from './measurement.js';
 
 /**
@@ -228,6 +229,15 @@ export type RunProvenance = {
 
 	/** Version banner of the browser that actually ran */
 	browserVersion: string;
+
+	/**
+	 * Which coding agent judged the run, when the judgement was delegated.
+	 *
+	 * Absent on a built-in run. Present, it is what lets a reader attribute a
+	 * difference between two reports to a different judge rather than to the
+	 * site.
+	 */
+	hostAgent?: DelegateHostId;
 
 	/**
 	 * Version of the audit engine that produced the measurements.

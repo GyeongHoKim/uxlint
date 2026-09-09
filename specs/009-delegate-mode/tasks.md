@@ -88,20 +88,20 @@ execution during research. Codex and Cursor arrive in US3.
 
 ### Tests (write first, must fail)
 
-- [ ] T015 [P] [US1] Red tests for the Claude Code launch specification in `tests/delegate/host/claude-code.spec.ts`: the built command carries `-p`, `--output-format json`, `--mcp-config` naming the session, `--strict-mcp-config`, `--allowedTools` listing exactly the five tools, and `--restricted`; and the prompt is supplied on stdin, never as a trailing argument (research R2) (FR-011, FR-012)
-- [ ] T016 [P] [US1] Red tests for the orchestrator in `tests/delegate/runner.spec.ts`: a report is written with no credential present; every page is captured and measured before the host agent is launched; findings are attributed to the page they were submitted against; the report records which host agent judged the run; and a failing browser preflight stops the run with the same message the existing modes produce, without launching a host agent (FR-002, FR-004, FR-020, FR-022, SC-001)
-- [ ] T017 [P] [US1] Red test for one spawn per run in `tests/delegate/runner-spawns.spec.ts`: a four-page configuration launches the host agent exactly once (FR-021, SC-008)
-- [ ] T018 [P] [US1] Red tests for the early-ending session in `tests/delegate/runner-partial.spec.ts`: pages the session finished are `complete` and keep their findings; pages it never reached are `partial`, keep their measured findings, and carry a reason; a page judged clean is distinguishable from a page never reached (FR-010, FR-023, SC-005, SC-009)
-- [ ] T019 [P] [US1] Red test for measured parity in `tests/delegate/measured-parity.spec.ts`: for one fixture page, the measured portion of a delegated report — violations, rule identifiers, affected element counts, provenance — is identical to that of a built-in report, and only judgement findings differ (SC-002)
+- [X] T015 [P] [US1] Red tests for the Claude Code launch specification in `tests/delegate/host/claude-code.spec.ts`: the built command carries `-p`, `--output-format json`, `--mcp-config` naming the session, `--strict-mcp-config`, `--allowedTools` listing exactly the five tools, and `--restricted`; and the prompt is supplied on stdin, never as a trailing argument (research R2) (FR-011, FR-012)
+- [X] T016 [P] [US1] Red tests for the orchestrator in `tests/delegate/runner.spec.ts`: a report is written with no credential present; every page is captured and measured before the host agent is launched; findings are attributed to the page they were submitted against; the report records which host agent judged the run; and a failing browser preflight stops the run with the same message the existing modes produce, without launching a host agent (FR-002, FR-004, FR-020, FR-022, SC-001)
+- [X] T017 [P] [US1] Red test for one spawn per run in `tests/delegate/runner-spawns.spec.ts`: a four-page configuration launches the host agent exactly once (FR-021, SC-008)
+- [X] T018 [P] [US1] Red tests for the early-ending session in `tests/delegate/runner-partial.spec.ts`: pages the session finished are `complete` and keep their findings; pages it never reached are `partial`, keep their measured findings, and carry a reason; a page judged clean is distinguishable from a page never reached (FR-010, FR-023, SC-005, SC-009)
+- [X] T019 [P] [US1] Red test for measured parity in `tests/delegate/measured-parity.spec.ts`: for one fixture page, the measured portion of a delegated report — violations, rule identifiers, affected element counts, provenance — is identical to that of a built-in report, and only judgement findings differ (SC-002)
 
 ### Implementation
 
-- [ ] T020 [US1] Define the host adapter contract in `source/delegate/host/types.ts`: `id`, `detect()`, `buildLaunch(session)` kept pure so a command line is assertable without spawning, and `run(launch)` (FR-011)
-- [ ] T021 [US1] Implement the Claude Code adapter in `source/delegate/host/claude-code.ts` (depends on T020) (FR-011, FR-012)
-- [ ] T022 [US1] Implement the orchestrator in `source/delegate/runner.ts`: preflight, capture and measure every page, start one session, launch the adapter once, collect submissions, assemble the report through the existing `ReportBuilder`, evaluate the gate through the existing `evaluateGate` (depends on T009, T012, T021) (FR-004, FR-021)
-- [ ] T023 [US1] Map page judgement state to page status in `source/delegate/runner.ts`, reusing `complete` and `partial` rather than introducing a status (data-model) (FR-010, FR-023)
-- [ ] T024 [US1] Record the host agent that produced the judgement on the report's provenance, beside the browser server identity already recorded, in `source/delegate/runner.ts` (FR-020)
-- [ ] T025 [US1] Add the `--delegate` and `--host-agent` flags in `source/cli.tsx` and route them to the orchestrator; the flags do not exist in `.uxlintrc.yml` and must not be read from it (`contracts/cli-surface.md`) (FR-001, FR-015)
+- [X] T020 [US1] Define the host adapter contract in `source/delegate/host/types.ts`: `id`, `detect()`, `buildLaunch(session)` kept pure so a command line is assertable without spawning, and `run(launch)` (FR-011)
+- [X] T021 [US1] Implement the Claude Code adapter in `source/delegate/host/claude-code.ts` (depends on T020) (FR-011, FR-012)
+- [X] T022 [US1] Implement the orchestrator in `source/delegate/runner.ts`: preflight, capture and measure every page, start one session, launch the adapter once, collect submissions, assemble the report through the existing `ReportBuilder`, evaluate the gate through the existing `evaluateGate` (depends on T009, T012, T021) (FR-004, FR-021)
+- [X] T023 [US1] Map page judgement state to page status in `source/delegate/runner.ts`, reusing `complete` and `partial` rather than introducing a status (data-model) (FR-010, FR-023)
+- [X] T024 [US1] Record the host agent that produced the judgement on the report's provenance, beside the browser server identity already recorded, in `source/delegate/runner.ts` (FR-020)
+- [X] T025 [US1] Add the `--delegate` and `--host-agent` flags in `source/cli.tsx` and route them to the orchestrator; the flags do not exist in `.uxlintrc.yml` and must not be read from it (`contracts/cli-surface.md`) (FR-001, FR-015)
 
 **Checkpoint**: US1 complete. A credential-free review works end to end with Claude Code.
 

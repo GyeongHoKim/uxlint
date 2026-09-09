@@ -26,8 +26,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {logger} from '../infrastructure/logger.js';
+import type {UxFinding} from '../models/analysis.js';
 import type {PageStage} from '../models/analysis-stage.js';
 import {
+	impactToSeverity,
 	isAxeImpact,
 	noMeasurement,
 	notTaken,
@@ -75,6 +77,50 @@ export type MeasurementClient = {
 		options?: {signal?: AbortSignal};
 	}): Promise<unknown>;
 };
+
+/**
+ * Turn measured violations into findings.
+ *
+ * Registered by code, never by a model: the violations arrive with a rule id,
+ * an impact rating and an element count, and every one of those would be
+ * degraded by asking a model to restate them. The description is the audit's
+ * own title, unaltered, so nothing the report marks as measured carries a
+ * sentence this project or a model wrote.
+ *
+ * One finding per rule, whatever the element count. A single CSS rule failing
+ * on forty buttons is one problem, and forty findings would drown the report
+ * this distinction exists to make trustworthy.
+ *
+ * Shared by both execution paths. Two copies of this rule would be two answers
+ * to the question of what counts as measured.
+ *
+ * @param measurement - What was measured for the page
+ * @param pageUrl - The page they were measured on
+ * @returns One finding per violated rule, empty when nothing was measured
+ */
+export function measuredFindings(
+	measurement: PageMeasurement,
+	pageUrl: string,
+): UxFinding[] {
+	if (measurement.audit.state !== 'taken') {
+		return [];
+	}
+
+	return measurement.audit.value.violations.map(violation => ({
+		severity: impactToSeverity[violation.impact],
+		category: 'Accessibility',
+		description: violation.title,
+		// Left empty on purpose. Who this affects is a judgement, and this
+		// finding is not one; the note about the measurements is where that
+		// belongs.
+		personaRelevance: [],
+		recommendation: '',
+		pageUrl,
+		origin: 'audit' as const,
+		ruleId: violation.ruleId,
+		affectedElements: violation.affectedElements,
+	}));
+}
 
 /** Where the audit wrote its reports, alongside the scores it summarised. */
 export type ParsedAuditReply = {

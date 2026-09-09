@@ -38,11 +38,7 @@ import {
 	type UxLintConfig,
 } from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
-import {
-	impactToSeverity,
-	noMeasurement,
-	type PageMeasurement,
-} from '../models/measurement.js';
+import {noMeasurement, type PageMeasurement} from '../models/measurement.js';
 import {withDeadline} from './deadline.js';
 import {getLanguageModel} from './llm-provider.js';
 import {
@@ -50,7 +46,11 @@ import {
 	narrowBrowserTools,
 	resetMCPClient,
 } from './mcp-client.js';
-import {MeasurementService, describeMeasurement} from './measurement.js';
+import {
+	MeasurementService,
+	describeMeasurement,
+	measuredFindings,
+} from './measurement.js';
 import {ReportBuilder} from './report-builder.js';
 
 /**
@@ -659,25 +659,8 @@ export class AIService {
 		measurement: PageMeasurement,
 		pageUrl: string,
 	): void {
-		if (measurement.audit.state !== 'taken') {
-			return;
-		}
-
-		for (const violation of measurement.audit.value.violations) {
-			this.reportBuilder.addFinding({
-				severity: impactToSeverity[violation.impact],
-				category: 'Accessibility',
-				description: violation.title,
-				// Left empty on purpose. Who this affects is a judgement, and
-				// this finding is not one; the model's page note is where that
-				// belongs.
-				personaRelevance: [],
-				recommendation: '',
-				pageUrl,
-				origin: 'audit',
-				ruleId: violation.ruleId,
-				affectedElements: violation.affectedElements,
-			});
+		for (const finding of measuredFindings(measurement, pageUrl)) {
+			this.reportBuilder.addFinding(finding);
 		}
 	}
 
