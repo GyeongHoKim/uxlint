@@ -54,14 +54,40 @@ import {
 } from './host/types.js';
 
 /**
+ * The floor under a session's bound, whatever the page count.
+ *
+ * A measured single-page delegated run spent 108 seconds inside the host agent
+ * session, so ten minutes leaves roughly five times that even for the smallest
+ * configuration.
+ */
+const minimumSessionTimeLimitMs = 600_000;
+
+/**
+ * How much of the bound each page adds.
+ *
+ * Measured at 108 seconds for the first page, which is the expensive one: it
+ * carries the agent's own startup and the prompt. Five minutes a page is a
+ * hang net over that, not a budget -- a run that regularly approaches it
+ * should be read as something being wrong.
+ */
+const sessionTimeLimitPerPageMs = 300_000;
+
+/**
  * How long a host agent session may take before the run abandons it.
  *
- * **Provisional.** No baseline for a delegated run exists yet, so this is a
- * hang net rather than a budget: high enough that a healthy run on a slow
- * machine cannot trip it, and low enough that a stuck agent does not hold a
- * terminal overnight. It is scheduled to be replaced with a measured figure.
+ * Scales with the page count because one session covers the whole run: a fixed
+ * ceiling that suits one page starves ten, and one that suits ten lets a
+ * single stuck page hold a terminal for half an hour.
+ *
+ * @param pageCount - How many pages the session covers
+ * @returns The bound in milliseconds
  */
-export const defaultSessionTimeLimitMs = 1_800_000;
+export function defaultSessionTimeLimitMs(pageCount: number): number {
+	return Math.max(
+		minimumSessionTimeLimitMs,
+		pageCount * sessionTimeLimitPerPageMs,
+	);
+}
 
 /**
  * What one page yielded before any judgement was made on it.
@@ -489,7 +515,8 @@ export async function runDelegatedAnalysis(
 		// repository to a model with nothing to notice it.
 		assertReadOnly(adapter.id, launch);
 
-		const boundMs = sessionTimeLimitMs ?? defaultSessionTimeLimitMs;
+		const boundMs =
+			sessionTimeLimitMs ?? defaultSessionTimeLimitMs(evidence.length);
 		const outcome = await boundedRun(adapter, launch, boundMs);
 
 		logger.info('Host agent session finished', {

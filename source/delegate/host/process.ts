@@ -53,6 +53,22 @@ export function detectBinary(
 }
 
 /**
+ * Whether a sign-in probe reports the agent as authenticated.
+ *
+ * Only some agents offer one. Where an agent does, using it is the difference
+ * between "delegate mode produced nothing" and "you are not signed in", which
+ * is the whole of FR-016.
+ *
+ * @param binary - Executable to ask
+ * @param args - The subcommand that reports sign-in state
+ * @returns Whether the probe reported success
+ */
+export function probeAuthenticated(binary: string, args: string[]): boolean {
+	const probe = spawnSync(binary, args, {stdio: 'ignore', timeout: 15_000});
+	return !probe.error && probe.status === 0;
+}
+
+/**
  * Start a host agent and wait for it.
  *
  * The prompt goes on stdin when the adapter asked for that, because at least

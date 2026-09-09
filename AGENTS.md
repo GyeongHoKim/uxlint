@@ -114,6 +114,31 @@ stateDiagram-v2
 - `source/app.tsx` - Main React component rendered by Ink for terminal UI
 - `tests/*.spec.tsx` - Ava tests using ink-testing-library for component testing
 
+### Delegate Mode
+
+`uxlint --delegate` runs a review without a model provider credential: uxlint
+keeps every deterministic step and hands only the UX judgement to a coding agent
+CLI the developer already runs (Claude Code, Codex, Cursor Agent).
+
+**This adds a second process role.** `uxlint mcp-serve` runs uxlint as an MCP
+server that the host agent spawns as its own child. In that process **stdout
+carries JSON-RPC**, which is the first place in this project where uxlint's own
+stdout is a protocol stream rather than a stream merely reserved against a
+child's transport. The `console-output.ts` exception for terminating messages
+does not apply there at all, and a test
+(`tests/delegate/stdout-discipline.spec.ts`) enforces that the module stays
+unreachable from `source/delegate/mcp-server.ts`.
+
+Three properties are structural rather than conventional, and changing them
+needs more than an edit to one adapter:
+
+- Every finding's `origin` is assigned by uxlint on receipt. The submission
+  contract refuses `origin`, `ruleId` and `affectedElements` outright.
+- Each adapter's launch is checked against `readOnlyPosture` before anything is
+  spawned, so a delegated agent can never write to the developer's repository.
+- Page status is decided by what arrived at the judgement server, never by the
+  host agent's exit code or its own account of itself.
+
 ### Build Output
 
 - Compiled files go to `dist/` (TypeScript compiled to JS with type declarations)

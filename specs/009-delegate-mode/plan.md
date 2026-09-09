@@ -42,8 +42,8 @@ machine — see [research.md](./research.md) and the open items it carries.
 
 - Exactly one host agent process is spawned per delegated run, regardless of page count (spec SC-008). Asserted structurally, not timed
 - uxlint issues zero model provider requests in delegate mode, with or without a credential present (spec FR-003)
-- Judgement scaffolding — session setup, server startup, adapter launch — stays a small fraction of a run's wall clock, which is dominated by capture and measurement. Provisional target ≤2 s; baseline captured during implementation and the figure replaced with a measured one, as 008 did for the page bound
-- Session time bound: no default is asserted here. Measured during implementation and set with headroom over an observed healthy run (research open items)
+- Judgement scaffolding — session directory creation, manifest write and server construction — **measured at 1.6–2.0 ms steady state** (23 ms on a cold first call), against a run whose capture and measurement pass took 8 s for one page. The scaffolding is not a meaningful share of a run's wall clock
+- Session time bound: **measured**. A single-page delegated run spent 108 s inside the host agent session, so the bound is `max(10 min, 5 min × pages)` — roughly five times the observation for the smallest configuration, and scaling with page count because one session covers the whole run
 
 **Constraints**: The judgement server process's stdout carries JSON-RPC and nothing else (R10) — `console-output.ts` must be unreachable from it. The developer's repository is read-only to the delegated agent and uxlint writes nothing into it (FR-012, FR-013). The finding contract, and uxlint's ownership of each finding's origin, are identical to the built-in mode (FR-008, FR-009)
 
@@ -58,7 +58,7 @@ machine — see [research.md](./research.md) and the open items it carries.
 | I. Code Quality Gates | ✅ Pass | compile → format → lint after every task, then full `npm test` before push |
 | II. Test-First Development | ✅ Pass | Red tests first for: the finding contract rejecting malformed submissions, origin assignment on receipt, session isolation between concurrent runs, each adapter's command line, and the partial-report path when a session ends early. No language model is constructed on this path, so the mock-model requirement does not apply; the substitute is scripted host-agent process outcomes |
 | III. Persona-First Design | ✅ Pass | Spec names two personas (the subscriber with no API key, the developer under a credential policy) and US1/US2 serve them directly. No new Ink surface is introduced — delegate mode reports like the existing non-UI runner — so the Ink ecosystem library discovery obligation does not engage. That scope decision is recorded below rather than left implicit |
-| IV. Performance Accountability | ✅ Pass | Goals above are measurable; the two that lack a baseline are marked provisional and scheduled for measurement rather than guessed. The one figure this feature already owns — 22,255 cache-creation tokens per host agent launch (R8) — is what decided FR-021 |
+| IV. Performance Accountability | ✅ Pass | Every goal above now carries a measured figure rather than a guess: 22,255 cache-creation tokens per host agent launch (R8), which decided FR-021; 1.6–2.0 ms of scaffolding; 108 s of host agent session for one page, which set the bound |
 | V. Simplicity & Minimalism | ⚠️ Justified | One new dependency and one new process role. Both justified in Complexity Tracking below |
 
 **Post-design re-check**: see [Constitution re-check after Phase 1](#constitution-re-check-after-phase-1).
@@ -102,6 +102,8 @@ source/
 │   └── host/
 │       ├── index.ts               # Availability detection and selection (FR-015, FR-016)
 │       ├── types.ts               # The adapter contract
+│       ├── process.ts             # Spawning and binary/sign-in probes, shared
+│       │                          # by all three adapters
 │       ├── claude-code.ts         # -p, --mcp-config, --strict-mcp-config,
 │       │                          # --restricted; prompt on stdin (R2 trap)
 │       ├── codex.ts               # exec, -c mcp_servers.…, -s read-only
@@ -116,6 +118,8 @@ source/
 
 tests/
 ├── delegate/
+│   ├── helpers.ts                 # Test doubles: a browser, and a scripted host
+│   │                              # that drives the real judgement server
 │   ├── ingest.spec.ts             # Contract rejection, origin assignment
 │   ├── session.spec.ts            # Identity, page state, late submissions
 │   ├── session-disposal.spec.ts   # Removal on success, failure and expiry

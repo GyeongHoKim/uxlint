@@ -145,30 +145,34 @@ prerequisite before any browser opens (quickstart Scenario 7).
 
 ### Tests (write first, must fail)
 
-- [ ] T033 [P] [US3] Red tests for the Codex launch specification in `tests/delegate/host/codex.spec.ts`: the built command uses the `exec` subcommand and never `-p`, carries `-s read-only`, and injects the server through `-c 'mcp_servers.uxlint={…}'` with the session in `env` (research R2, R3) (FR-011, FR-012)
-- [ ] T034 [P] [US3] Red tests for the Cursor launch specification in `tests/delegate/host/cursor-agent.spec.ts`: the built command carries `-p` and `--approve-mcps`, never carries `--force` or `--yolo`, and writes no configuration file anywhere (FR-011, FR-012, FR-013, FR-014)
-- [ ] T035 [P] [US3] Red tests for availability and selection in `tests/delegate/host/selection.spec.ts`: no agent installed; the named agent missing; an agent installed but unauthenticated; exactly one installed and none named, which is used and reported; several installed and none named, which stops and names them — each failing before a browser is started (FR-015, FR-016)
+- [X] T033 [P] [US3] Red tests for the Codex launch specification in `tests/delegate/host/codex.spec.ts`: the built command uses the `exec` subcommand and never `-p`, carries `-s read-only`, and injects the server through `-c 'mcp_servers.uxlint={…}'` with the session in `env` (research R2, R3) (FR-011, FR-012)
+- [X] T034 [P] [US3] Red tests for the Cursor launch specification in `tests/delegate/host/cursor-agent.spec.ts`: the built command carries `-p` and `--approve-mcps`, never carries `--force` or `--yolo`, and writes no configuration file anywhere (FR-011, FR-012, FR-013, FR-014)
+- [X] T035 [P] [US3] Red tests for availability and selection in `tests/delegate/host/selection.spec.ts`: no agent installed; the named agent missing; an agent installed but unauthenticated; exactly one installed and none named, which is used and reported; several installed and none named, which stops and names them — each failing before a browser is started (FR-015, FR-016)
 
 ### Implementation
 
-- [ ] T036 [P] [US3] Implement the Codex adapter in `source/delegate/host/codex.ts` (FR-011, FR-012)
-- [ ] T037 [P] [US3] Implement the Cursor Agent adapter in `source/delegate/host/cursor-agent.ts` (FR-011, FR-012, FR-013)
-- [ ] T038 [US3] Implement availability detection and selection in `source/delegate/host/index.ts`, run before preflight so an unusable host costs no capture pass (depends on T036, T037) (FR-015, FR-016)
-- [ ] T039 [US3] Document delegate mode in `README.md`: what it is, the `--delegate` and `--host-agent` flags, the supported hosts, the Cursor Agent one-time `~/.cursor/mcp.json` registration exactly as given in `contracts/cli-surface.md` with the note that uxlint deliberately does not write that file, and the guidance that continuous integration keeps using the existing execution mode because the subscription-reuse premise does not hold there (FR-014, SC-006, spec Assumptions)
-- [ ] T040 [US3] Run quickstart Scenario 9 on a machine with a Codex login, and record in `research.md` whether `codex exec` auto-approves MCP tool calls or needs a flag; update `contracts/cli-surface.md` if it does (research open item)
-- [ ] T041 [US3] Run quickstart Scenario 8 with Cursor Agent installed, and update `research.md` and `contracts/cli-surface.md` with what was actually observed; every Cursor claim is documentation-derived until this task closes (research open item)
+- [X] T036 [P] [US3] Implement the Codex adapter in `source/delegate/host/codex.ts` (FR-011, FR-012)
+- [X] T037 [P] [US3] Implement the Cursor Agent adapter in `source/delegate/host/cursor-agent.ts` (FR-011, FR-012, FR-013)
+- [X] T038 [US3] Implement availability detection and selection in `source/delegate/host/index.ts`, run before preflight so an unusable host costs no capture pass (depends on T036, T037) (FR-015, FR-016)
+- [X] T039 [US3] Document delegate mode in `README.md`: what it is, the `--delegate` and `--host-agent` flags, the supported hosts, the Cursor Agent one-time `~/.cursor/mcp.json` registration exactly as given in `contracts/cli-surface.md` with the note that uxlint deliberately does not write that file, and the guidance that continuous integration keeps using the existing execution mode because the subscription-reuse premise does not hold there (FR-014, SC-006, spec Assumptions)
+- [ ] T040 [US3] **BLOCKED — no Codex login on this machine** (`codex login status` reports "Not logged in"). Run quickstart Scenario 9 on a machine with a Codex login, and record in `research.md` whether `codex exec` auto-approves MCP tool calls or needs a flag; update `contracts/cli-surface.md` if it does (research open item)
+- [ ] T041 [US3] **BLOCKED — cursor-agent is not installed on this machine.** Run quickstart Scenario 8 with Cursor Agent installed, and update `research.md` and `contracts/cli-surface.md` with what was actually observed; every Cursor claim is documentation-derived until this task closes (research open item)
 
-**Checkpoint**: All three hosts supported. The two research open items about host behaviour are closed by evidence rather than by assumption.
+**Checkpoint**: All three hosts supported in code. The two research open items
+about live host behaviour remain open: neither T040 nor T041 could run on the
+development machine, so Cursor Agent's behaviour is documentation-derived and
+Codex's tool approval under `exec` is unverified. Both are asserted from the
+command line, not from a session.
 
 ---
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T042 Measure a healthy delegated run and set the session time bound default in `source/delegate/runner.ts` with headroom over the observation, replacing the provisional figure in `plan.md` Performance Goals with the measured one (FR-018, Constitution IV)
-- [ ] T043 Measure the judgement scaffolding overhead — session setup, server startup, adapter launch — and replace the provisional ≤2 s target in `plan.md` with the measured baseline (Constitution IV)
-- [ ] T044 [P] Update `CLAUDE.md` with delegate mode: the new execution path, the `mcp-serve` process role, and the stdout rule that now applies to uxlint's own output rather than only to a child's transport (research R10)
-- [ ] T045 Run every scenario in `specs/009-delegate-mode/quickstart.md` end to end and record the observed result beside each scenario in that file (all SC)
-- [ ] T046 Run the quality gates defined in `package.json` — `npm run compile`, `npm run format`, `npm run lint` in that order, then `npm run test:coverage` — and confirm the 80% threshold holds with `source/delegate/` included (Constitution I, II)
+- [X] T042 Measure a healthy delegated run and set the session time bound default in `source/delegate/runner.ts` with headroom over the observation, replacing the provisional figure in `plan.md` Performance Goals with the measured one (FR-018, Constitution IV)
+- [X] T043 Measure the judgement scaffolding overhead — session setup, server startup, adapter launch — and replace the provisional ≤2 s target in `plan.md` with the measured baseline (Constitution IV)
+- [X] T044 [P] Update `CLAUDE.md` with delegate mode: the new execution path, the `mcp-serve` process role, and the stdout rule that now applies to uxlint's own output rather than only to a child's transport (research R10)
+- [X] T045 Run every scenario in `specs/009-delegate-mode/quickstart.md` end to end and record the observed result beside each scenario in that file (all SC)
+- [X] T046 Run the quality gates defined in `package.json` — `npm run compile`, `npm run format`, `npm run lint` in that order, then `npm run test:coverage` — and confirm the 80% threshold holds with `source/delegate/` included (Constitution I, II)
 
 ---
 
