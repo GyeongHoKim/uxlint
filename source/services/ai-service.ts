@@ -926,15 +926,86 @@ export async function createAIService(
 ): Promise<AnalysisRun> {
 	const {model, client, builder} = overrides;
 
+	// Model resolution is the only step delegate mode does not want, so it
+	// happens here rather than inside the shared assembly below. Reaching for a
+	// provider is what makes a credential mandatory, and a delegated run never
+	// calls one.
 	const resolvedModel = model ?? (await getLanguageModel(config));
-	const resolvedClient =
-		client ?? (await getMCPClient(requireVerdict(verdict), config.browser));
-	const resolvedBuilder = builder ?? new ReportBuilder(fsPromises);
+	const {mcpClient, reportBuilder} = await assembleBrowserRun(config, verdict, {
+		client,
+		builder,
+	});
 
 	return {
-		aiService: new AIService(resolvedModel, resolvedClient, resolvedBuilder),
-		reportBuilder: resolvedBuilder,
+		aiService: new AIService(resolvedModel, mcpClient, reportBuilder),
+		reportBuilder,
 	};
+}
+
+/**
+ * One delegated run: the browser connection and the report accumulator, with
+ * no language model between them.
+ */
+export type DelegatedRun = {
+	mcpClient: MCPClient;
+	reportBuilder: ReportBuilder;
+};
+
+/**
+ * Collaborators for tests, as `AIServiceOverrides` but without a model: there
+ * is none to override.
+ */
+export type DelegatedRunOverrides = {
+	client?: MCPClient;
+	builder?: ReportBuilder;
+};
+
+/**
+ * Assemble the model-free half of a run.
+ *
+ * Shared by both assemblies so that the browser client and the report builder
+ * a delegated run gets are the same ones the built-in run gets, rather than a
+ * second construction that could drift from it.
+ *
+ * @param config - Validated configuration for this run
+ * @param verdict - The preflight verdict proving a browser is usable
+ * @param overrides - Test collaborators replacing real construction
+ * @returns The browser connection and the report accumulator
+ */
+async function assembleBrowserRun(
+	config: UxLintConfig,
+	verdict: PreflightVerdict | undefined,
+	overrides: DelegatedRunOverrides,
+): Promise<DelegatedRun> {
+	const {client, builder} = overrides;
+
+	return {
+		mcpClient:
+			client ?? (await getMCPClient(requireVerdict(verdict), config.browser)),
+		reportBuilder: builder ?? new ReportBuilder(fsPromises),
+	};
+}
+
+/**
+ * Assemble a run whose judgement a host agent will perform.
+ *
+ * Deliberately does not resolve a language model, and therefore never reads a
+ * provider credential. That is not a convenience: delegate mode exists so a
+ * developer who already pays for a coding agent does not need a second
+ * credential, and a run that constructs a provider it never calls has still
+ * handed a third-party SDK the developer's key.
+ *
+ * @param config - Validated configuration for this run
+ * @param verdict - The preflight verdict proving a browser is usable
+ * @param overrides - Test collaborators replacing real construction
+ * @returns The browser connection and the report accumulator
+ */
+export async function createDelegatedRun(
+	config: UxLintConfig,
+	verdict: PreflightVerdict | undefined,
+	overrides: DelegatedRunOverrides = {},
+): Promise<DelegatedRun> {
+	return assembleBrowserRun(config, verdict, overrides);
 }
 
 /**

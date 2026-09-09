@@ -10,6 +10,7 @@ import {UXLintMachineProvider} from './components/providers/uxlint-machine-provi
 import {uxlintClient} from './infrastructure/auth/uxlint-client-base.js';
 import {writeTerminalMessage} from './infrastructure/console-output.js';
 import {configIO} from './infrastructure/config/config-io.js';
+import {serveJudgement} from './delegate/mcp-server.js';
 import {logger} from './infrastructure/logger.js';
 import {getConfigFormat} from './utils/get-config-format.js';
 
@@ -23,6 +24,10 @@ const cli = meow(
 	  login              Authenticate with UXLint Cloud
 	  logout             Log out from UXLint Cloud
 	  status             Show current authentication status
+
+	Internal Commands
+	  mcp-serve          Serve judgement tools to a host agent during a
+	                     delegated run. Started by uxlint, not by hand.
 
 	Options
 	  --interactive, -i  Use interactive mode to create configuration
@@ -85,7 +90,22 @@ process.on('unhandledRejection', (reason: unknown) => {
 
 // Auth Commands
 const authCommand = cli.input[0];
-if (authCommand === 'auth') {
+if (authCommand === 'mcp-serve') {
+	// The judgement server behind delegate mode. A host agent spawns this; it
+	// is not meant to be typed at a prompt. Two rules hold for the whole
+	// branch: it renders no Ink, and its stdout carries JSON-RPC and nothing
+	// else -- so no failure here may reach console-output.ts, however tempting
+	// it is to tell somebody what went wrong.
+	try {
+		await serveJudgement(process.env);
+	} catch (error) {
+		logger.error('Judgement server could not start', {
+			error: error instanceof Error ? error.message : String(error),
+			stack: error instanceof Error ? error.stack : undefined,
+		});
+		process.exitCode = 1;
+	}
+} else if (authCommand === 'auth') {
 	const subcommand = cli.input[1];
 	logger.info('Auth command invoked', {subcommand});
 

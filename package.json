@@ -59,6 +59,7 @@
 		"@ai-sdk/provider": "^4.0.7",
 		"@ai-sdk/xai": "^4.0.34",
 		"@inkjs/ui": "^2.0.0",
+		"@modelcontextprotocol/sdk": "^1.30.0",
 		"@xstate/react": "^6.1.0",
 		"ai": "^7.0.60",
 		"chrome-devtools-mcp": "1.7.0",
