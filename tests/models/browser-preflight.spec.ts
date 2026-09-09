@@ -100,6 +100,21 @@ test('the disclosed cause is the sandbox error, not the warning that precedes it
 	t.false(outcome.cause.includes('CHROME_VERSION_EXTRA'));
 });
 
+test('a host with user namespaces disabled is a sandbox failure, not an unstartable browser', t => {
+	// Verbatim from Chrome 152 on Ubuntu with unprivileged user namespaces
+	// restricted by AppArmor. It is the same condition as the two phrasings
+	// above -- the sandbox cannot start -- but the sentence is different, and
+	// classifying it as unstartable stops a run that could have proceeded with
+	// the relaxation disclosed.
+	const stderr =
+		'[1033913:1033913:0909/185141.440808:FATAL:content/browser/zygote_host/zygote_host_impl_linux.cc:129] No usable sandbox! If you are running on Ubuntu 23.10+ or another Linux distro that has disabled unprivileged user namespaces with AppArmor, see https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md.';
+
+	const outcome = classifyLaunchFailure(stderr);
+
+	t.is(outcome.kind, 'sandbox-unavailable');
+	t.true(outcome.cause.includes('No usable sandbox'));
+});
+
 test('an unstartable browser prefers its error line over a leading warning', t => {
 	const stderr = [
 		'[0815/072854.290380:WARNING:chrome/app/chrome_main_linux.cc:84] Read channel stable',

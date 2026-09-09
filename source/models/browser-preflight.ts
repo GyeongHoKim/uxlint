@@ -108,7 +108,13 @@ export function classifyLaunchFailure(stderr: string): LaunchFailureClass {
 		stderr,
 		line =>
 			line.includes('Running as root without --no-sandbox') ||
-			line.includes('Failed to move to new namespace'),
+			line.includes('Failed to move to new namespace') ||
+			// Chrome 152 on a host with unprivileged user namespaces disabled
+			// (Ubuntu 23.10+ under AppArmor) says this instead. Without it the
+			// one failure `ready-without-sandbox` exists for is reported as an
+			// unstartable browser, and the run stops where it should have
+			// continued with the relaxation disclosed.
+			line.includes('No usable sandbox!'),
 	);
 
 	if (sandboxLine) {

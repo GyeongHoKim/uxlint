@@ -10,6 +10,32 @@ criteria it closes. Contract details live in
 
 ---
 
+## Results, as of the implementation run (2026-09-09)
+
+| Scenario | Status | Evidence |
+| --- | --- | --- |
+| 1 — review with no credential | **Passed, run for real** | Chrome for Testing 152 and Claude Code 2.1.266, `UXLINT_AI_API_KEY` unset. Exit 0 in 117 s. 13 findings: 3 `origin: audit` carrying rule ids, 10 `origin: judgement`, plus the measurement note |
+| 2 — credential present and unused | Covered automatically | `tests/services/ai-service.spec.ts` spies on the credential reader and asserts it is never called |
+| 3 — repository untouched | Covered automatically, Claude Code only | `tests/delegate/repo-untouched.spec.ts` compares `git status --porcelain` before and after, untracked included. Not yet run against a live Codex or Cursor session |
+| 4 — one session, many pages | Covered automatically | `tests/delegate/runner-spawns.spec.ts`. The live run covered one page, so the multi-page case is asserted rather than observed |
+| 5 — session that ends early | Covered automatically | `tests/delegate/runner-partial.spec.ts` and `session-disposal.spec.ts`, including bound expiry |
+| 6 — concurrent runs stay separate | Covered automatically | `tests/delegate/concurrent-runs.spec.ts` |
+| 7 — missing and unprepared hosts | **Partly observed live** | The live run first stopped with "several coding agents are available (claude-code, codex). Choose one with --host-agent", which is the intended behaviour and revealed that Codex was being counted as ready while unauthenticated. Codex now probes `codex login status`, and the next run selected `claude-code` and said so |
+| 8 — Cursor Agent, first run | **Blocked** | `cursor-agent` is not installed on the development machine. Every Cursor claim remains documentation-derived |
+| 9 — Codex, first run | **Blocked** | `codex login status` reports "Not logged in". Injection and the read-only sandbox flag are asserted from the command line; no live session was possible |
+
+Two measurements came out of the live run and replaced provisional figures in
+`plan.md`: capture and measurement took 8 s for one page, the host agent session
+took 108 s, and the judgement scaffolding itself takes 1.6–2.0 ms.
+
+The live run also surfaced a defect outside this feature:
+`classifyLaunchFailure` did not recognise Chrome 152's `No usable sandbox!`, so
+a machine with unprivileged user namespaces disabled was reported as having an
+unstartable browser instead of taking the sandbox-relaxation path that exists
+for exactly that case. Fixed with a test, because it blocked this validation.
+
+---
+
 ## Prerequisites
 
 ```bash

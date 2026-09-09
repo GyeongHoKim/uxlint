@@ -197,6 +197,89 @@ uxlint
 | `uxlint --interactive` | ✅ Yes              | Skips wizard, runs analysis with UI |
 | `uxlint`               | ✅ Yes              | Runs analysis in CI mode (headless) |
 | `uxlint`               | ❌ No               | Shows error and exits               |
+| `uxlint --delegate`    | ✅ Yes              | Runs analysis without a model key   |
+
+## Delegate mode
+
+Running uxlint normally costs a second model bill: it needs its own provider
+credential in `UXLINT_AI_API_KEY`. If you already pay for a coding agent —
+Claude Code, Codex or Cursor Agent — you are already paying for the model
+access uxlint would go out and buy again.
+
+Delegate mode splits the work along the line that already exists in the tool.
+uxlint keeps everything deterministic and hands over only the judgement:
+
+| Step                                                                                | Who does it       |
+| ----------------------------------------------------------------------------------- | ----------------- |
+| Reading your configuration, checking a browser can run                              | uxlint            |
+| Opening each page, capturing its structure, measuring accessibility and performance | uxlint            |
+| Reading a captured page as your persona and saying what is wrong with it            | your coding agent |
+| Assembling the report, deciding the CI gate verdict                                 | uxlint            |
+
+The report is the same report. Measured violations still come from the audit,
+and uxlint still decides which findings count as measured — your agent cannot
+declare its own output verified.
+
+```bash
+uxlint --delegate
+```
+
+**No provider credential is needed, and none is read even if one is set.**
+
+### Choosing an agent
+
+```bash
+uxlint --delegate --host-agent codex
+```
+
+With exactly one supported agent installed, uxlint uses it and says so. With
+several installed and none named, it stops and asks you to choose: which agent
+judges a review changes the review, so it is not a decision uxlint makes for
+you.
+
+### Cursor Agent needs a one-time setup
+
+Claude Code and Codex are handed the judgement tools on the command line, so
+they need no setup. Cursor discovers MCP servers only from its own
+configuration file, so add this once to `~/.cursor/mcp.json`:
+
+```json
+{
+	"mcpServers": {
+		"uxlint": {
+			"command": "uxlint",
+			"args": ["mcp-serve"]
+		}
+	}
+}
+```
+
+uxlint deliberately does not write that file for you. It runs at your
+repository root, so writing it there would modify your working tree, and
+writing the home-level one at run time could damage a configuration you own if
+a run were interrupted.
+
+### Your repository is read-only
+
+The delegated agent runs at your repository root, which is what lets its
+recommendations name real files. It cannot write there. uxlint applies each
+agent's read-only mechanism at launch, refuses to start one whose command line
+is not read-only, and never passes a flag that would grant write access. A
+delegated run leaves your working tree exactly as it found it, untracked files
+included.
+
+### Continuous integration keeps the existing mode
+
+Delegate mode is for your own machine. In CI the premise does not hold: coding
+agent CLIs are not installed in build images, and once you provision
+credentials for one you are paying for model access anyway — with an extra
+process in the middle. Keep using `uxlint` with `UXLINT_AI_API_KEY` there.
+
+### `uxlint mcp-serve`
+
+The judgement server your agent connects to. It is started by a delegated run,
+not by you; it is documented only because the Cursor registration above names
+it.
 
 ## Authentication
 

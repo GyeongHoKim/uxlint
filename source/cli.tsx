@@ -12,7 +12,7 @@ import {writeTerminalMessage} from './infrastructure/console-output.js';
 import {configIO} from './infrastructure/config/config-io.js';
 import {serveJudgement} from './delegate/mcp-server.js';
 import {runDelegatedAnalysis} from './delegate/runner.js';
-import {claudeCode} from './delegate/host/claude-code.js';
+import {selectHostAgent} from './delegate/host/index.js';
 import {logger} from './infrastructure/logger.js';
 import type {UxLintConfig} from './models/config.js';
 import {getConfigFormat} from './utils/get-config-format.js';
@@ -36,7 +36,8 @@ const cli = meow(
 	  --interactive, -i  Use interactive mode to create configuration
 	  --delegate         Hand the UX judgement to a coding agent CLI you
 	                     already run, so uxlint needs no model API key
-	  --host-agent       Which agent judges a delegated run (claude-code)
+	  --host-agent       Which agent judges a delegated run
+	                     (claude-code, codex, cursor-agent)
 	  --version, -v      Show version
 	  --help, -h         Show help
 
@@ -109,8 +110,9 @@ process.on('unhandledRejection', (reason: unknown) => {
 /**
  * Run a review whose judgement a host agent performs.
  *
- * Only Claude Code is wired up so far; the other adapters and the selection
- * between them arrive with their own tests.
+ * Selection happens before anything else, so a missing or unprepared agent
+ * costs no capture pass. Both messages below are written before any MCP
+ * transport exists -- see console-output.ts.
  *
  * @param config - Validated configuration for this run
  * @param requested - The agent named on the command line, if any
@@ -120,16 +122,16 @@ async function delegate(
 	config: UxLintConfig,
 	requested: string | undefined,
 ): Promise<number> {
-	const hostAgent = requested ?? claudeCode.id;
+	const selection = await selectHostAgent(requested);
 
-	if (hostAgent !== claudeCode.id) {
-		writeTerminalMessage(
-			`uxlint: ${hostAgent} is not a supported host agent. Supported: ${claudeCode.id}.`,
-		);
+	if (selection.kind === 'unavailable') {
+		writeTerminalMessage(selection.message);
 		return 1;
 	}
 
-	return runDelegatedAnalysis(config, {adapter: claudeCode});
+	writeTerminalMessage(selection.message);
+
+	return runDelegatedAnalysis(config, {adapter: selection.adapter});
 }
 
 // Auth Commands

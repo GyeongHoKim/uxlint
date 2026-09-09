@@ -41,7 +41,7 @@
 		"compile": "tsc --noEmit",
 		"test": "npm run build && prettier --check . && xo && ava",
 		"test:coverage": "npm run build && prettier --check . && xo && c8 --reporter=html --reporter=text ava",
-		"test:coverage:gate": "npm run build && c8 --check-coverage --reporter=text --include=dist/source/services/ai-service.js --include=dist/source/services/deadline.js --include=dist/source/services/report-builder.js --include=dist/source/services/measurement.js --include=dist/source/models/config.js --include=dist/source/models/config-builder.js --include=dist/source/models/analysis-stage.js --include=dist/source/models/tool-output.js ava",
+		"test:coverage:gate": "npm run build && c8 --check-coverage --reporter=text --include=dist/source/delegate/**/*.js --include=dist/source/models/delegate.js --include=dist/source/services/ai-service.js --include=dist/source/services/deadline.js --include=dist/source/services/report-builder.js --include=dist/source/services/measurement.js --include=dist/source/models/config.js --include=dist/source/models/config-builder.js --include=dist/source/models/analysis-stage.js --include=dist/source/models/tool-output.js ava",
 		"lint": "xo",
 		"format": "prettier --write .",
 		"prepare": "husky",
