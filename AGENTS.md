@@ -139,6 +139,16 @@ needs more than an edit to one adapter:
 - Page status is decided by what arrived at the judgement server, never by the
   host agent's exit code or its own account of itself.
 
+The adapters are also exercised against fake `claude`, `codex` and
+`cursor-agent` executables (`tests/fixtures/fake-hosts/`) that parse the
+command line the way each CLI's documentation says it does, start the real
+`uxlint mcp-serve` as their own child over stdio, and call the judgement tools.
+`tests/delegate/host/fake-binaries.spec.ts` keeps the process boundary that
+every other delegate test removes. Each parsing rule in `argv.ts` cites the
+documentation page it came from, and a rule marked "assumed" is one a real run
+still has to confirm: the fakes prove the command line is one the documented
+CLI would accept, not that the documentation still matches the binaries.
+
 ### Build Output
 
 - Compiled files go to `dist/` (TypeScript compiled to JS with type declarations)
