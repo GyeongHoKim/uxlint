@@ -18,7 +18,7 @@ const launch = () =>
 test('the command runs Cursor Agent in print mode', t => {
 	const built = launch();
 
-	t.is(built.command, 'cursor-agent');
+	t.is(built.command, 'agent');
 	t.true(built.args.includes('-p'));
 	t.is(built.args[built.args.indexOf('--output-format') + 1], 'json');
 });

@@ -52,7 +52,7 @@ command form to abstract over.
 | --- | --- | --- |
 | Claude Code | `claude -p` (`--print`) | `--output-format json` |
 | Codex | `codex exec` | `--json` (JSONL events), `-o <file>` (last message) |
-| Cursor Agent | `cursor-agent -p` (`--print`) | `--output-format json` |
+| Cursor Agent | `agent -p` (`--print`) | `--output-format json` |
 
 **Two traps found by execution, both load-bearing for the adapters:**
 
@@ -168,7 +168,7 @@ orchestrator:
 
 ```text
 uxlint (orchestrator)        creates session dir, captures and measures
-  └─ claude / codex / cursor-agent
+  └─ claude / codex / agent
        └─ uxlint mcp-serve   receives addFinding, must reach the right run
 ```
 

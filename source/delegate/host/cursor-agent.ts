@@ -21,22 +21,27 @@ import {detectBinary, runLaunch} from './process.js';
 
 /**
  * The Cursor Agent adapter.
+ *
+ * The executable is `agent`: that is the only name the Cursor CLI
+ * documentation uses, and what its install script verifies with
+ * `agent --version`. The host id stays `cursor-agent`, which is what the
+ * developer types after `--host-agent` and what the report records.
  */
 export const cursorAgent: HostAgentAdapter = {
 	id: 'cursor-agent',
-	binary: 'cursor-agent',
+	binary: 'agent',
 
 	async detect() {
-		return detectBinary('cursor-agent', {
+		return detectBinary('agent', {
 			installHint:
 				'Install the Cursor CLI from https://cursor.com/docs/cli, or choose another agent with --host-agent.',
-			authHint: 'Run `cursor-agent login`, then try again.',
+			authHint: 'Run `agent login`, then try again.',
 		});
 	},
 
 	buildLaunch(context: HostLaunchContext): HostLaunch {
 		return {
-			command: 'cursor-agent',
+			command: 'agent',
 			args: [
 				'-p',
 				'--output-format',

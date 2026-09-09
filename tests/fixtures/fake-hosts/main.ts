@@ -1,7 +1,7 @@
 /**
  * A host agent CLI, as its documentation describes it.
  *
- * One executable standing in for `claude`, `codex` and `cursor-agent`. It
+ * One executable standing in for `claude`, `codex` and Cursor's `agent`. It
  * parses the argument vector the way the documented CLI does, finds the
  * judgement server the way the documented CLI finds it, starts that server as
  * its own child over stdio, and calls the tools a script tells it to. There

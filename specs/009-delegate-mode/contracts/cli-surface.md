@@ -109,7 +109,7 @@ approval flag. Closed by the quickstart's Codex scenario on a logged-in machine.
 ### Cursor Agent (unverified)
 
 ```text
-cursor-agent -p
+agent -p
   --output-format json
   --approve-mcps
   "<prompt>"
