@@ -122,6 +122,91 @@ export type HostAgentAdapter = {
 };
 
 /**
+ * What a read-only launch looks like for each host agent.
+ *
+ * Declared as data so that a new adapter has to appear here to be launchable
+ * at all, rather than inheriting the obligation by convention and quietly
+ * skipping it.
+ *
+ * `cursor-agent` has nothing required because its read-only posture is the
+ * absence of a flag: without `--force` it proposes changes and applies none.
+ * That is exactly why the forbidden list matters more there than anywhere else.
+ */
+export const readOnlyPosture: Record<
+	DelegateHostId,
+	{
+		/** Argv tokens that must all be present */
+		required: string[];
+
+		/** Flags that must be followed by a specific value */
+		requiredValues: Array<[string, string]>;
+
+		/** Argv tokens that must never be present */
+		forbidden: string[];
+	}
+> = {
+	'claude-code': {
+		required: ['--restricted'],
+		requiredValues: [],
+		forbidden: ['--dangerously-skip-permissions', '--permission-mode'],
+	},
+	codex: {
+		required: [],
+		requiredValues: [['-s', 'read-only']],
+		forbidden: [
+			'--dangerously-bypass-approvals-and-sandbox',
+			'--approve-for-me',
+			'--dangerously-bypass-hook-trust',
+		],
+	},
+	'cursor-agent': {
+		required: [],
+		requiredValues: [],
+		forbidden: ['--force', '--yolo', '-f'],
+	},
+};
+
+/**
+ * Refuse a launch that would let a host agent write.
+ *
+ * Called by the orchestrator on every built launch, not only by tests. FR-012
+ * says the posture must survive the developer's own configuration; this is
+ * what makes it survive a future edit to an adapter as well.
+ *
+ * @param id - Which agent the launch is for
+ * @param launch - What the adapter built
+ * @throws Error when the launch is not read-only
+ */
+export function assertReadOnly(id: DelegateHostId, launch: HostLaunch): void {
+	const posture = readOnlyPosture[id];
+
+	const missing = posture.required.filter(flag => !launch.args.includes(flag));
+	if (missing.length > 0) {
+		throw new Error(
+			`The ${id} launch is missing ${missing.join(', ')}, which is what keeps a delegated run from modifying the repository.`,
+		);
+	}
+
+	for (const [flag, value] of posture.requiredValues) {
+		const index = launch.args.indexOf(flag);
+		if (index === -1 || launch.args[index + 1] !== value) {
+			throw new Error(
+				`The ${id} launch must pass ${flag} ${value}, which is what keeps a delegated run from modifying the repository.`,
+			);
+		}
+	}
+
+	const permitted = posture.forbidden.filter(flag =>
+		launch.args.includes(flag),
+	);
+	if (permitted.length > 0) {
+		throw new Error(
+			`The ${id} launch carries ${permitted.join(', ')}, which would let the agent write to the repository.`,
+		);
+	}
+}
+
+/**
  * The full pre-approval list one adapter passes to its agent.
  *
  * @param prefix - How that agent namespaces a server's tools
