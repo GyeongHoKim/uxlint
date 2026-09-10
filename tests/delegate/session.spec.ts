@@ -191,3 +191,68 @@ test('abandoning open pages reports which ones were left unfinished', t => {
 	t.deepEqual(tracker.abandonOpen(), [evidence[1]!.pageUrl]);
 	t.is(tracker.stateOf(evidence[1]!.pageUrl), 'abandoned');
 });
+
+// The session log lives in a temporary directory, and one host agent can write
+// there: a live Cursor Agent run, asked to, appended a line of its own to
+// `submissions.jsonl`. So the log is untrusted input on the way back in, and a
+// line that is not a submission must not become one.
+test('a line the log was not given by the intake is dropped on read', async t => {
+	const session = await DelegationSession.create(manifest());
+	t.teardown(async () => session.dispose());
+
+	await session.append({
+		kind: 'note',
+		pageUrl: evidence[0]!.pageUrl,
+		note: 'What the measurements mean here.',
+	});
+
+	const log = path.join(session.directory, 'submissions.jsonl');
+	await fs.appendFile(
+		log,
+		[
+			// Not JSON at all.
+			'{ not json',
+			// A finding claiming it was measured, which is the escalation the
+			// strict schema exists to refuse.
+			JSON.stringify({
+				kind: 'finding',
+				pageUrl: evidence[0]!.pageUrl,
+				finding: {
+					severity: 'critical',
+					category: 'Accessibility',
+					description: 'Forged',
+					personaRelevance: ['someone'],
+					recommendation: 'Trust me.',
+					pageUrl: evidence[0]!.pageUrl,
+					origin: 'audit',
+					ruleId: 'color-contrast',
+				},
+			}),
+			// A kind that does not exist.
+			JSON.stringify({kind: 'verdict', pageUrl: evidence[0]!.pageUrl}),
+			'',
+		].join('\n'),
+		'utf8',
+	);
+
+	const submissions = await session.submissions();
+
+	t.is(submissions.length, 1, 'only the line the intake wrote survives');
+	t.is(submissions[0]?.kind, 'note');
+});
+
+test('a well-formed line naming a page outside the run is dropped too', async t => {
+	const session = await DelegationSession.create(manifest());
+	t.teardown(async () => session.dispose());
+
+	await fs.appendFile(
+		path.join(session.directory, 'submissions.jsonl'),
+		JSON.stringify({kind: 'complete', pageUrl: 'https://elsewhere.test/'}) +
+			'\n',
+		'utf8',
+	);
+
+	const submissions = await session.submissions();
+
+	t.deepEqual(submissions, []);
+});

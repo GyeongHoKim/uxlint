@@ -10,6 +10,11 @@
  * grandchild rather than a child. Both ends of this file are uxlint, which is
  * what makes it internal plumbing rather than a contract with the agent.
  *
+ * What it is not is private. The directory is a temporary one, and a host
+ * agent that can write there can append to the log; a live Cursor Agent run,
+ * asked to, did. So the log is written by the intake and validated again on
+ * read -- see `submissions`.
+ *
  * @packageDocumentation
  */
 
@@ -18,11 +23,12 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {logger} from '../infrastructure/logger.js';
-import type {
-	PageEvidence,
-	PageJudgementState,
-	RecordedSubmission,
-	SessionManifest,
+import {
+	recordedSubmissionSchema,
+	type PageEvidence,
+	type PageJudgementState,
+	type RecordedSubmission,
+	type SessionManifest,
 } from '../models/delegate.js';
 import {SubmissionRejected} from './ingest.js';
 
@@ -150,7 +156,17 @@ export class DelegationSession {
 	/**
 	 * Everything the host agent submitted, in arrival order.
 	 *
-	 * @returns The session's log
+	 * Read as untrusted input. The log is a file in a temporary directory, and
+	 * a host agent that can write there can append to it -- a live Cursor
+	 * Agent run, asked to, did. A line that did not come from the intake is
+	 * dropped rather than trusted: the strict schema refuses a finding
+	 * claiming it was measured, and the page check refuses one attributed to a
+	 * page this run never captured.
+	 *
+	 * Dropped rather than raised, because a report assembled from what
+	 * genuinely arrived is worth more than no report at all.
+	 *
+	 * @returns The session's log, less anything the intake did not write
 	 */
 	async submissions(): Promise<RecordedSubmission[]> {
 		const raw = await fs.readFile(
@@ -158,10 +174,52 @@ export class DelegationSession {
 			'utf8',
 		);
 
-		return raw
-			.split('\n')
-			.filter(line => line.trim().length > 0)
-			.map(line => JSON.parse(line) as RecordedSubmission);
+		const accepted: RecordedSubmission[] = [];
+
+		for (const [index, line] of raw.split('\n').entries()) {
+			if (line.trim().length === 0) {
+				continue;
+			}
+
+			const submission = this.parseLine(line);
+
+			if (submission) {
+				accepted.push(submission);
+			} else {
+				logger.warn('Submission log line rejected on read', {
+					id: this.id,
+					line: index + 1,
+				});
+			}
+		}
+
+		return accepted;
+	}
+
+	/**
+	 * One log line, if it is one this run's intake could have written.
+	 *
+	 * @param line - A line of the submission log
+	 * @returns The submission, or undefined when the line is not one
+	 */
+	private parseLine(line: string): RecordedSubmission | undefined {
+		let parsed: unknown;
+
+		try {
+			parsed = JSON.parse(line);
+		} catch {
+			return undefined;
+		}
+
+		const validated = recordedSubmissionSchema.safeParse(parsed);
+
+		if (!validated.success) {
+			return undefined;
+		}
+
+		return this.pageUrls.includes(validated.data.pageUrl)
+			? validated.data
+			: undefined;
 	}
 
 	/**

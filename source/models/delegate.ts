@@ -126,10 +126,33 @@ export type SessionManifest = {
  * One thing a host agent submitted, as the server recorded it.
  *
  * The server validates on arrival so the agent can correct itself; the
- * orchestrator replays this log afterwards. Both ends are uxlint, which is why
- * a file here is internal plumbing rather than a contract with the agent.
+ * orchestrator replays this log afterwards.
+ *
+ * Both ends are uxlint, but the file between them is not private to uxlint: it
+ * sits in a temporary directory, and a host agent able to write there can
+ * append to it. A live Cursor Agent run, asked to, did. So the log is
+ * validated on the way back in as well, by this schema -- which is strict, and
+ * so refuses the escalation that matters most: a line claiming its finding was
+ * measured.
  */
-export type RecordedSubmission =
-	| {kind: 'finding'; pageUrl: string; finding: JudgementSubmission}
-	| {kind: 'note'; pageUrl: string; note: string}
-	| {kind: 'complete'; pageUrl: string};
+export const recordedSubmissionSchema = z.discriminatedUnion('kind', [
+	z.strictObject({
+		kind: z.literal('finding'),
+		pageUrl: z.string().min(1),
+		finding: judgementFindingSchema,
+	}),
+	z.strictObject({
+		kind: z.literal('note'),
+		pageUrl: z.string().min(1),
+		note: z.string().min(1),
+	}),
+	z.strictObject({
+		kind: z.literal('complete'),
+		pageUrl: z.string().min(1),
+	}),
+]);
+
+/**
+ * One thing a host agent submitted, as the server recorded it.
+ */
+export type RecordedSubmission = z.infer<typeof recordedSubmissionSchema>;
