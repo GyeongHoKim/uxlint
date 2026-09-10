@@ -86,27 +86,35 @@ claude -p
 | `--restricted` | Read-only posture that ignores user, project and local settings (FR-012) |
 | prompt on **stdin** | `--allowedTools` is variadic and swallows a trailing positional prompt (R2). This is not a preference |
 
-### Codex (0.153.4, injection verified; end-to-end unverified)
+### Codex (0.153.4, verified end-to-end)
 
 ```text
 codex exec
   -s read-only
   --json
   -c 'mcp_servers.uxlint={command="uxlint", args=["mcp-serve"],
-      env={UXLINT_DELEGATE_SESSION="<session dir>"}}'
+      env={UXLINT_DELEGATE_SESSION="<session dir>"},
+      default_tools_approval_mode="approve"}'
   "<prompt>"
 ```
 
 `-c` parses its value as TOML, so the inline table needs no configuration file.
-Verified with `codex mcp list -c …` against an isolated `CODEX_HOME`: the server
-listed as `enabled` with its environment entry present.
+
+`default_tools_approval_mode` is load-bearing, not decoration. `codex exec` runs
+with `approval_policy = never`, under which Codex auto-approves an MCP call only
+for a sandbox with full disk write access — the one thing `-s read-only` refuses.
+Without it a run registers the server, lists its tools, calls none of them, and
+exits 0 having judged nothing. The approval is scoped to `mcp_servers.uxlint`
+and changes nothing about the sandbox.
 
 **Do not pass `-p`.** On Codex, `-p` is `--profile`, not print mode (R2).
 
-**Open**: whether `codex exec` auto-approves MCP tool calls, or needs an
-approval flag. Closed by the quickstart's Codex scenario on a logged-in machine.
+Verified 2026-09-10 by a two-page delegated run against a live ChatGPT login:
+every judgement tool called in order, 12 judgement findings recorded, and
+`-s read-only` overriding a developer `config.toml` that set
+`sandbox_mode = "danger-full-access"`.
 
-### Cursor Agent (unverified)
+### Cursor Agent (2026.09.02-c22c1a3 — this command line does not work)
 
 ```text
 agent -p
@@ -115,10 +123,23 @@ agent -p
   "<prompt>"
 ```
 
-`--force` / `--yolo` MUST NEVER be passed. Without it Cursor proposes changes
-rather than applying them, which is the whole of its read-only posture (R4).
+`--force` / `--yolo` MUST NEVER be passed. That much stands. The rest of what
+this launch assumed does not, as of the live run on 2026-09-10:
+
+- It never starts. `agent -p` demands workspace trust and exits 1 with
+  "Pass --trust, --yolo, or -f if you trust this directory".
+- Even trusted, the session cannot reach the server. Cursor does not give an
+  MCP child its own environment, so `UXLINT_DELEGATE_SESSION` has to be in the
+  registration's `env` — a static file naming a directory that is new every run.
+- Absence of `--force` is not confinement. `-p` "has access to all tools,
+  including write and shell" and, once trusted, the agent wrote a file during a
+  judgement run. `--sandbox enabled` did not stop it. `--mode plan` did, and
+  also stopped every judgement submission.
+
 MCP servers come from the developer's one-time registration; there is no
-injection flag.
+injection flag. What the protocol side proved is that once trust and the session
+are in place, every judgement tool is called and findings arrive — so this is a
+launch and confinement problem, not a contract problem.
 
 ---
 
