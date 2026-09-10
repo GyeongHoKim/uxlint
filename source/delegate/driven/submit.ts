@@ -127,8 +127,9 @@ function attributeToPage(candidate: unknown, pageUrl: string): unknown {
 async function record(
 	session: DelegationSession,
 	document: JudgementDocument,
-): Promise<string[]> {
+): Promise<{accepted: number; refusals: string[]}> {
 	const refusals: string[] = [];
+	let accepted = 0;
 
 	for (const page of document.pages) {
 		// eslint-disable-next-line no-await-in-loop -- the tracker must see each page's submissions in order
@@ -155,6 +156,7 @@ async function record(
 					pageUrl: finding.pageUrl,
 					finding,
 				});
+				accepted++;
 			} catch (error) {
 				refusals.push(
 					error instanceof SubmissionRejected ? error.message : String(error),
@@ -177,7 +179,7 @@ async function record(
 		}
 	}
 
-	return refusals;
+	return {accepted, refusals};
 }
 
 /**
@@ -257,11 +259,20 @@ export async function submitJudgement(
 		return 1;
 	}
 
-	const refusals = await record(session, validated.data);
+	const {accepted, refusals} = await record(session, validated.data);
 
 	for (const refusal of refusals) {
 		emitMessage(`uxlint: ${refusal}`);
 	}
+
+	// Said out loud even when nothing was refused. An agent that gets silence
+	// back cannot tell a successful submission from a command that did nothing,
+	// and this is the only signal it has -- the report is a file it may not read.
+	emitMessage(
+		`uxlint: recorded ${accepted} ${accepted === 1 ? 'finding' : 'findings'}${
+			refusals.length > 0 ? `, ${refusals.length} refused` : ''
+		}. Report written to ${config.report.output}.`,
+	);
 
 	return writeReport(config, session, emitMessage);
 }

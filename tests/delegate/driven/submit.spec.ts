@@ -452,3 +452,68 @@ test('a page marked finished with nothing submitted is judged-and-empty, not cle
 	t.regex(report, /_measured_/);
 	t.notRegex(report, /_AI judgement_/);
 });
+
+// Reported by Claude Code while following the skill: `submit` printed nothing at
+// all on success. The contract promises a summary of what was accepted and
+// refused, and an agent that gets silence cannot tell success from a no-op.
+test('a successful submission says what it accepted and where the report went', async t => {
+	const {run, parent, config} = await capturedRun(t.teardown, 1);
+	const url = 'https://example.com/page-1';
+	const messages: string[] = [];
+
+	const exitCode = await submitJudgement(config, {
+		run,
+		parentDirectory: parent,
+		document: {
+			run,
+			pages: [
+				{
+					pageUrl: url,
+					findings: [finding(url, 'One.'), finding(url, 'Two.')],
+					measurementNote: 'A note.',
+					finished: true,
+				},
+			],
+		},
+		emitMessage(message: string) {
+			messages.push(message);
+		},
+	});
+
+	t.is(exitCode, 0);
+
+	const said = messages.join('\n');
+	t.regex(said, /2 findings/, 'it says how many findings were accepted');
+	t.regex(said, /report\.md/, 'it says where the report went');
+});
+
+test('the summary reports refusals alongside what was accepted', async t => {
+	const {run, parent, config} = await capturedRun(t.teardown, 1);
+	const url = 'https://example.com/page-1';
+	const messages: string[] = [];
+
+	await submitJudgement(config, {
+		run,
+		parentDirectory: parent,
+		document: {
+			run,
+			pages: [
+				{
+					pageUrl: url,
+					findings: [
+						finding(url, 'Accepted.'),
+						{...finding(url, 'Refused.'), origin: 'audit'},
+					],
+					finished: true,
+				},
+			],
+		},
+		emitMessage(message: string) {
+			messages.push(message);
+		},
+	});
+
+	const said = messages.join('\n');
+	t.regex(said, /1 finding\b/, 'one was accepted');
+	t.regex(said, /1 refused/, 'and one was not');
+});
