@@ -164,22 +164,22 @@ capture and measurement pass for nothing.
 
 ---
 
-## Scenario 8 — Cursor Agent, first run (SC-006)
+## Scenario 8 — Cursor Agent (superseded by 010)
 
-Cursor is the only host requiring setup, and this scenario is what closes the
-research open item for it.
+The launcher this scenario originally exercised was withdrawn after its live run
+failed (see the status table above and [research.md](./research.md)). Cursor
+Agent is supported through the agent-driven route instead, where it calls uxlint
+and uxlint launches nothing:
 
-1. Add the registration from
-   [contracts/cli-surface.md](./contracts/cli-surface.md) to
-   `~/.cursor/mcp.json`.
-2. Run `--delegate --host-agent cursor-agent`.
-3. Confirm the judgement tools were reachable and findings arrived.
-4. Re-run Scenario 3 for this host specifically.
+1. Install the uxlint review skill at `~/.cursor/skills/uxlint-review/`.
+2. In Cursor Agent, ask it to review the application.
+3. Confirm the report was written and that no judgement finding carries a rule
+   identifier.
 
-**Unverified until this scenario passes**: that Cursor resolves the registered
-server, that `--approve-mcps` is sufficient without `--force`, and that a
-read-only Cursor session can still call MCP tools. All three are documentation
-claims today.
+The full scenario and its live result are
+[010 quickstart, Scenario 8](../010-inverted-delegation/quickstart.md#scenario-8--cursor-agent-driving-sc-002).
+`--delegate --host-agent cursor-agent` now stops before a browser starts and
+names that route.
 
 ---
 

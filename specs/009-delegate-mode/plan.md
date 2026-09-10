@@ -17,12 +17,17 @@ uxlint's side.
 
 The orchestrator captures and measures every page first, then launches one host
 agent session for the whole run (spec FR-021), then assembles the report from
-what arrived. Three adapters — Claude Code, Codex, Cursor Agent — absorb the
-fact that the three CLIs share no common invocation shape.
+what arrived. Two adapters — Claude Code and Codex — absorb the fact that the
+two CLIs share no common invocation shape.
+
+A Cursor Agent adapter was planned here and withdrawn after a live run showed
+that no launch of it is both read-only and able to submit findings. Cursor
+Agent is supported by
+[010-inverted-delegation](../010-inverted-delegation/spec.md) instead, where it
+calls uxlint rather than being launched by it.
 
 Every host agent behaviour this plan depends on was verified by running the
-installed binary, except Cursor Agent, which is not installed on the development
-machine — see [research.md](./research.md) and the open items it carries.
+installed binary — see [research.md](./research.md).
 
 ## Technical Context
 
@@ -103,11 +108,11 @@ source/
 │       ├── index.ts               # Availability detection and selection (FR-015, FR-016)
 │       ├── types.ts               # The adapter contract
 │       ├── process.ts             # Spawning and binary/sign-in probes, shared
-│       │                          # by all three adapters
+│       │                          # by both adapters
 │       ├── claude-code.ts         # -p, --mcp-config, --strict-mcp-config,
 │       │                          # --restricted; prompt on stdin (R2 trap)
-│       ├── codex.ts               # exec, -c mcp_servers.…, -s read-only
-│       └── cursor-agent.ts        # -p, --approve-mcps, no --force ever
+│       └── codex.ts               # exec, -c mcp_servers.…, -s read-only,
+│                                  # --skip-git-repo-check
 ├── models/
 │   └── delegate.ts                # Finding contract shared by both modes,
 │                                  # session and evidence types
@@ -135,7 +140,6 @@ tests/
 │   └── host/
 │       ├── claude-code.spec.ts    # Launch specification, prompt on stdin
 │       ├── codex.spec.ts          # exec subcommand, inline MCP config
-│       ├── cursor-agent.spec.ts   # No --force, no config file written
 │       ├── read-only.spec.ts      # Invariant over every registered adapter
 │       └── selection.spec.ts      # Availability, selection, failure messages
 └── services/ai-service.spec.ts    # Extended: assembly without a model, and

@@ -146,23 +146,23 @@ prerequisite before any browser opens (quickstart Scenario 7).
 ### Tests (write first, must fail)
 
 - [X] T033 [P] [US3] Red tests for the Codex launch specification in `tests/delegate/host/codex.spec.ts`: the built command uses the `exec` subcommand and never `-p`, carries `-s read-only`, and injects the server through `-c 'mcp_servers.uxlint={…}'` with the session in `env` (research R2, R3) (FR-011, FR-012)
-- [X] T034 [P] [US3] Red tests for the Cursor launch specification in `tests/delegate/host/cursor-agent.spec.ts`: the built command carries `-p` and `--approve-mcps`, never carries `--force` or `--yolo`, and writes no configuration file anywhere (FR-011, FR-012, FR-013, FR-014)
+- [X] ~~T034 [P] [US3] Red tests for the Cursor launch specification in `tests/delegate/host/cursor-agent.spec.ts`~~ — withdrawn with the adapter in [010-inverted-delegation](../010-inverted-delegation/tasks.md); the spec file no longer exists (see T041)
 - [X] T035 [P] [US3] Red tests for availability and selection in `tests/delegate/host/selection.spec.ts`: no agent installed; the named agent missing; an agent installed but unauthenticated; exactly one installed and none named, which is used and reported; several installed and none named, which stops and names them — each failing before a browser is started (FR-015, FR-016)
 
 ### Implementation
 
 - [X] T036 [P] [US3] Implement the Codex adapter in `source/delegate/host/codex.ts` (FR-011, FR-012)
-- [X] T037 [P] [US3] Implement the Cursor Agent adapter in `source/delegate/host/cursor-agent.ts` (FR-011, FR-012, FR-013)
+- [X] ~~T037 [P] [US3] Implement the Cursor Agent adapter in `source/delegate/host/cursor-agent.ts`~~ — withdrawn in [010-inverted-delegation](../010-inverted-delegation/tasks.md), which supports Cursor Agent through the agent-driven route (see T041)
 - [X] T038 [US3] Implement availability detection and selection in `source/delegate/host/index.ts`, run before preflight so an unusable host costs no capture pass (depends on T036, T037) (FR-015, FR-016)
 - [X] T039 [US3] Document delegate mode in `README.md`: what it is, the `--delegate` and `--host-agent` flags, the supported hosts, the Cursor Agent one-time `~/.cursor/mcp.json` registration exactly as given in `contracts/cli-surface.md` with the note that uxlint deliberately does not write that file, and the guidance that continuous integration keeps using the existing execution mode because the subscription-reuse premise does not hold there (FR-014, SC-006, spec Assumptions)
 - [X] T040 [US3] Ran quickstart Scenario 9 live on 2026-09-10 against a signed-in Codex (codex-cli 0.153.4). `codex exec` does **not** auto-approve MCP tool calls: `approval_policy = never` auto-approves only a sandbox with full disk write access, so the read-only launch judged nothing and exited 0. Fixed with per-server `default_tools_approval_mode = "approve"`; recorded in `research.md` and `contracts/cli-surface.md`, and pinned by `tests/delegate/host/codex.spec.ts` plus a fake-binaries test that reproduces the deadlock
 - [X] T041 [US3] Ran quickstart Scenario 8 live on 2026-09-10 with Cursor Agent 2026.09.02 installed and signed in, and it did not pass: `agent -p` refuses to start without workspace trust, Cursor gives an MCP server child none of its own environment, and no flag combination both submits findings and refuses writes — `--workspace` confines nothing either. `research.md` and `contracts/cli-surface.md` record all of it. The adapter was withdrawn in [010-inverted-delegation](../010-inverted-delegation/spec.md), which supports Cursor by having it call uxlint instead
 
-**Checkpoint**: All three hosts supported in code. The two research open items
-about live host behaviour remain open: neither T040 nor T041 could run on the
-development machine, so Cursor Agent's behaviour is documentation-derived and
-Codex's tool approval under `exec` is unverified. Both are asserted from the
-command line, not from a session.
+**Checkpoint**: Claude Code and Codex are supported as launched hosts, and
+both were verified by live runs (T040 for Codex). The Cursor Agent launcher
+(T034, T037) did not survive its live run (T041) and was withdrawn; Cursor Agent
+is supported through the agent-driven route in
+[010-inverted-delegation](../010-inverted-delegation/tasks.md).
 
 ---
 

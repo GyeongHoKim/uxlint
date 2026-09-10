@@ -241,16 +241,24 @@ missing prerequisite when it cannot proceed.
 
 **Host agents**
 
-- **FR-011**: Delegate mode MUST support Claude Code, Codex and Cursor Agent.
+- **FR-011**: Delegate mode MUST support Claude Code and Codex as hosts uxlint
+  launches. *Superseded in part by
+  [010-inverted-delegation](../010-inverted-delegation/spec.md):* Cursor Agent
+  was listed here originally, but no launch of it is both read-only and able to
+  submit findings (tasks.md T041). It is supported through the agent-driven
+  route instead, where Cursor Agent follows the uxlint review skill and calls
+  uxlint itself.
 - **FR-012**: uxlint MUST enforce a read-only posture on the host agent it
   launches, and that posture MUST NOT be weakened by the developer's own agent
   settings.
 - **FR-013**: uxlint MUST NOT create, modify or delete any file in the
   developer's repository as part of running a delegated review.
-- **FR-014**: For host agents that cannot accept judgement operations at launch
-  time, uxlint MUST document a one-time registration the developer performs
-  once, and MUST NOT perform that registration on the developer's behalf at run
-  time.
+- **FR-014**: *Superseded by
+  [010-inverted-delegation](../010-inverted-delegation/spec.md).* This required
+  a documented one-time registration for host agents that cannot accept
+  judgement operations at launch time, and Cursor Agent was the only one. With
+  its launcher withdrawn no launched host needs a registration; Cursor Agent
+  setup is the skill install that 010's contract describes.
 - **FR-015**: uxlint MUST allow the developer to choose which installed host
   agent performs the judgement, and MUST use the single available agent as the
   default when exactly one is installed. When several are installed and none is
