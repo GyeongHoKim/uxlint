@@ -18,7 +18,6 @@ import {fileURLToPath} from 'node:url';
 import test, {type ExecutionContext} from 'ava';
 import {claudeCode} from '../../../source/delegate/host/claude-code.js';
 import {codex} from '../../../source/delegate/host/codex.js';
-import {cursorAgent} from '../../../source/delegate/host/cursor-agent.js';
 import {selectHostAgent} from '../../../source/delegate/host/index.js';
 import {DelegationSession} from '../../../source/delegate/session.js';
 import {
@@ -281,72 +280,6 @@ test.serial(
 );
 
 test.serial(
-	'Cursor Agent: the registration documented in the README is enough for a run',
-	async t => {
-		const hosts = installFakeHosts(t, {
-			installed: ['cursor-agent'],
-			cursorRegistration: {
-				command: process.execPath,
-				args: [cliEntryPoint, 'mcp-serve'],
-			},
-		});
-		const output = path.join(temporaryDirectory(t.teardown), 'report.md');
-
-		const exitCode = await runDelegatedAnalysis(configFor(2, output), {
-			...silent,
-			client: fakeBrowser(),
-			builder: new ReportBuilder(fsPromises),
-			adapter: cursorAgent,
-		});
-
-		t.is(exitCode, 0);
-		t.regex(
-			await fsPromises.readFile(output, 'utf8'),
-			/Judgement 1 on https:\/\/example\.com\/page-2/,
-		);
-
-		const trace = hosts.trace();
-		t.is(trace.server?.source, 'home .cursor/mcp.json');
-		// The registration carries no env. The session reaches the server only
-		// because the launch put it in the agent's own environment.
-		t.deepEqual(trace.server?.env, {});
-		t.is(trace.calls.filter(call => call.name === 'addFinding').length, 2);
-		t.false(trace.wroteCanary);
-		t.deepEqual(trace.protocolErrors, []);
-	},
-);
-
-// Cursor cannot be handed a server at launch. Without the one-time
-// registration the run still completes, and every page says why it is
-// unjudged; the report, not the exit code, is where that shows.
-test.serial(
-	'Cursor Agent: with no registration the agent judges nothing, and the report says so',
-	async t => {
-		const hosts = installFakeHosts(t, {installed: ['cursor-agent']});
-		const output = path.join(temporaryDirectory(t.teardown), 'report.md');
-		const builder = new ReportBuilder(fsPromises);
-
-		await runDelegatedAnalysis(configFor(2, output), {
-			...silent,
-			client: fakeBrowser(),
-			builder,
-			adapter: cursorAgent,
-		});
-
-		const trace = hosts.trace();
-		t.is(trace.server, undefined);
-		t.regex(trace.skipped!, /\.cursor\/mcp\.json/);
-		t.deepEqual(trace.calls, []);
-
-		const report = builder.generateFinalReport();
-		t.is(report.pages.length, 2);
-		for (const page of report.pages) {
-			t.regex(page.error ?? '', /judgement|session/i);
-		}
-	},
-);
-
-test.serial(
 	'selection: the one agent actually on PATH is the one chosen',
 	async t => {
 		installFakeHosts(t, {installed: ['codex']});
@@ -361,9 +294,9 @@ test.serial(
 );
 
 test.serial(
-	'selection: three agents on PATH and none named stops the run',
+	'selection: both launchable agents on PATH and none named stops the run',
 	async t => {
-		installFakeHosts(t, {installed: ['claude-code', 'codex', 'cursor-agent']});
+		installFakeHosts(t, {installed: ['claude-code', 'codex']});
 
 		const selection = await selectHostAgent(undefined);
 

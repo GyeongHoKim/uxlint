@@ -115,16 +115,16 @@ Cursor driving. Quickstart Scenarios 8 and 9 step 3.
 
 ### Tests first
 
-- [ ] T029 [P] [US2] Red test in `tests/delegate/host/selection.spec.ts`: requesting `cursor-agent` stops before a browser is started and names the skill route, and the identifier is still accepted rather than reported as unsupported (FR-019)
-- [ ] T030 [P] [US2] Red test in `tests/delegate/host/selection.spec.ts`: `claude-code` and `codex` selection is unchanged, including Codex's signed-out probe (FR-018)
+- [X] T029 [P] [US2] Red test in `tests/delegate/host/selection.spec.ts`: requesting `cursor-agent` stops before a browser is started and names the skill route, and the identifier is still accepted rather than reported as unsupported (FR-019)
+- [X] T030 [P] [US2] Red test in `tests/delegate/host/selection.spec.ts`: `claude-code` and `codex` selection is unchanged, including Codex's signed-out probe (FR-018)
 
 ### Implementation
 
-- [ ] T031 [US2] Remove `source/delegate/host/cursor-agent.ts` and drop it from the registry in `source/delegate/host/index.ts`, replacing it with the signpost branch
-- [ ] T032 [US2] Remove the `cursor-agent` entry from `readOnlyPosture` in `source/delegate/host/types.ts`, since it asserted a guarantee the live run disproved
-- [ ] T033 [P] [US2] Remove the Cursor launcher specs `tests/delegate/host/cursor-agent.spec.ts` and the Cursor cases in `tests/delegate/host/fake-binaries.spec.ts`, which encode documentation that has since been falsified
-- [ ] T034 [P] [US2] Remove the fake `agent` argument parsing from `tests/fixtures/fake-hosts/argv.ts` and its host id from the fake host harness
-- [ ] T035 [US2] Update `README.md`: state which route applies to each agent and why, replace the Cursor `~/.cursor/mcp.json` registration section with the skill install step, and give the install path for all three agents from research R1 (FR-017, FR-020)
+- [X] T031 [US2] Remove `source/delegate/host/cursor-agent.ts` and drop it from the registry in `source/delegate/host/index.ts`, replacing it with the signpost branch
+- [X] T032 [US2] Remove the `cursor-agent` entry from `readOnlyPosture` in `source/delegate/host/types.ts`, since it asserted a guarantee the live run disproved
+- [X] T033 [P] [US2] Remove the Cursor launcher specs `tests/delegate/host/cursor-agent.spec.ts` and the Cursor cases in `tests/delegate/host/fake-binaries.spec.ts`, which encode documentation that has since been falsified
+- [X] T034 [P] [US2] Remove the fake `agent` argument parsing from `tests/fixtures/fake-hosts/argv.ts` and its host id from the fake host harness
+- [X] T035 [US2] Update `README.md`: state which route applies to each agent and why, replace the Cursor `~/.cursor/mcp.json` registration section with the skill install step, and give the install path for all three agents from research R1 (FR-017, FR-020)
 
 **Checkpoint**: No supported combination fails silently, and no test asserts a
 posture that does not hold.

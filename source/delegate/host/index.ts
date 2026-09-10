@@ -13,16 +13,31 @@ import {delegateHostIds, isDelegateHostId} from '../../models/delegate.js';
 import type {HostAgentAdapter} from './types.js';
 import {claudeCode} from './claude-code.js';
 import {codex} from './codex.js';
-import {cursorAgent} from './cursor-agent.js';
 
 /**
  * Every supported host agent.
  */
-export const hostAdapters: readonly HostAgentAdapter[] = [
-	claudeCode,
-	codex,
-	cursorAgent,
-];
+export const hostAdapters: readonly HostAgentAdapter[] = [claudeCode, codex];
+
+/**
+ * Why Cursor Agent has no launcher adapter.
+ *
+ * Not an omission. A live run against Cursor Agent 2026.09.02 established three
+ * things, recorded in `specs/009-delegate-mode/research.md`: `agent -p` refuses
+ * to start without workspace trust, so no launched run ever completed; Cursor
+ * gives an MCP server child none of its own environment, so a per-run session
+ * cannot reach the judgement server through the static registration file uxlint
+ * declines to write; and no flag combination both submits findings and refuses
+ * writes -- `--mode plan` blocks the tool calls, while `--trust` and
+ * `--sandbox enabled` both let the agent write to an absolute path inside the
+ * developer's repository, which `--workspace` does not prevent either.
+ *
+ * Keeping an adapter would mean `readOnlyPosture` asserting a guarantee that run
+ * disproved. The identifier stays accepted so that a developer following the
+ * older documentation gets this explanation instead of a parse error.
+ */
+const cursorAgentSignpost =
+	'uxlint: cursor-agent cannot be launched as a read-only reviewer, so --delegate does not support it. Install the uxlint review skill into ~/.cursor/skills/uxlint-review/ and ask Cursor Agent to review the app instead — it then calls uxlint itself, which needs no trust and no server to hand it. See the README.';
 
 /**
  * The outcome of choosing a host agent.
@@ -51,6 +66,13 @@ export async function selectHostAgent(
 	adapters: readonly HostAgentAdapter[] = hostAdapters,
 ): Promise<HostSelection> {
 	if (requested !== undefined) {
+		// Checked before the registry, because this host is deliberately absent
+		// from it and the developer needs the route that works rather than the
+		// news that this one does not exist.
+		if (requested === 'cursor-agent') {
+			return {kind: 'unavailable', message: cursorAgentSignpost};
+		}
+
 		if (!isDelegateHostId(requested)) {
 			return {
 				kind: 'unavailable',
