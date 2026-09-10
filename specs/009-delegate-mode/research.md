@@ -82,8 +82,8 @@ Cursor Agent requires a one-time registration performed by the developer.
 | Host agent | Injection | Verified |
 | --- | --- | --- |
 | Claude Code | `--mcp-config '<inline JSON>'` plus `--strict-mcp-config` | Executed successfully |
-| Codex | `-c 'mcp_servers.uxlint={command=…, args=[…], env={…}}'` | Executed successfully |
-| Cursor Agent | `.cursor/mcp.json` or `~/.cursor/mcp.json` only | Documentation only, **unverified** |
+| Codex | `-c 'mcp_servers.uxlint={command=…, args=[…], env={…}, default_tools_approval_mode="approve"}'` | Executed end to end |
+| Cursor Agent | `.cursor/mcp.json` or `~/.cursor/mcp.json` only | Executed — and the documented registration does not work; see below |
 
 **Claude Code — executed.** A probe MCP server exposing `addFinding` and
 `completePageAnalysis` was injected with `--mcp-config` as an inline JSON
@@ -98,14 +98,61 @@ built-in mode already relies on transfers to a host agent intact.**
 args=["…"], env={UXLINT_DELEGATE_SESSION="…"}}'` against an isolated
 `CODEX_HOME` listed the server as `enabled`, including the environment entry.
 The `-c` override parses its value as TOML, so an inline table works and no
-configuration file has to be written. Auto-approval of MCP tool calls under
-`codex exec` is **unverified** — the machine has no Codex login, so no
-end-to-end run was possible.
+configuration file has to be written.
 
-**Cursor Agent — not verified.** Cursor discovers MCP servers only from
-`.cursor/mcp.json` (workspace) or `~/.cursor/mcp.json` (user). There is no
-per-invocation injection flag. `--approve-mcps` auto-approves all configured
-servers.
+**Codex auto-approval — settled by a live run (2026-09-10, codex-cli 0.153.4).**
+`codex exec` runs with `approval_policy = never`, and under that policy Codex
+auto-approves an MCP tool call only when the sandbox has full disk write access
+(`mcp_permission_prompt_is_auto_approved` in `codex-rs/codex-mcp/src/mcp/mod.rs`)
+— which `-s read-only` exists to deny. The first live delegated run therefore
+exited 0 in 26 s having judged nothing: the server was registered, its tools
+were listed, and every call failed with "MCP tool call requires approval, but
+approval policy is never". The fix is the per-server
+`default_tools_approval_mode = "approve"` in the same inline table, which
+approves this one server's tools and leaves the sandbox read-only. Confirmed by
+a full two-page run: 12 measured findings and 12 judgement findings, repository
+untouched.
+
+Two further facts came out of that run. The developer's
+`~/.codex/config.toml` on the test machine set
+`sandbox_mode = "danger-full-access"`, and `-s read-only` overrode it — FR-012
+holds for Codex as it does for Claude Code. And Codex has no
+`--strict-mcp-config` equivalent, so a delegated session also sees the servers
+the developer configured; that is a wider surface than a UX review needs, but
+not a write path.
+
+**Cursor Agent — executed 2026-09-10, and three documentation-derived claims
+turned out to be false.** Version 2026.09.02-c22c1a3. Cursor does discover MCP
+servers from `.cursor/mcp.json` (workspace) or `~/.cursor/mcp.json` (user), and
+`--approve-mcps` does approve them. Everything else the adapter relied on is
+wrong:
+
+1. **A non-interactive run needs workspace trust.** `agent -p` stops before
+   doing anything with "Workspace Trust Required ... Pass --trust, --yolo, or -f
+   if you trust this directory" and exits 1. The adapter passes none of the
+   three, so every Cursor delegated run failed in about one second and the
+   report recorded both pages as unjudged. Cursor delegate mode has never
+   worked.
+2. **Cursor does not pass its own environment to an MCP server child.** With the
+   registration exactly as the README gives it, `agent mcp list` reports
+   `uxlint: Error: Connection failed`; adding an explicit `env` block to the
+   registration changes that to `not loaded (needs approval)`. The session
+   therefore cannot reach the server by inheritance, which is the only channel
+   the adapter has — and because the session directory is new on every run
+   while the registration is a static file uxlint refuses to write, the
+   documented registration can never name the right session.
+3. **Omitting `--force` is not a read-only posture.** `-p`'s own help says it
+   "Has access to all tools, including write and shell". Asked to write a file
+   during a judgement run, the agent wrote it: `--trust` alone created the
+   canary, and so did `--trust --sandbox enabled`. `--mode plan` does prevent
+   the write, but it also prevents the judgement submissions — the agent plans
+   the tool calls and makes none, so no findings arrive. There is no flag
+   combination on this version that both submits findings and cannot write.
+
+With trust granted and the session carried in the registration's `env`, the rest
+of the path works: every judgement tool was called in order and findings arrived
+at the server. So the protocol side of the Cursor adapter is sound and its
+launch and confinement are not.
 
 **Rationale for the one-time registration**: uxlint runs at the developer's
 repository root, so writing `.cursor/mcp.json` there would modify the
@@ -310,6 +357,6 @@ and the gate verdict is emitted after the browser transport is closed.
 
 | Item | Why it is open | How it gets closed |
 | --- | --- | --- |
-| Cursor Agent end-to-end behaviour | Not installed on the development machine; all Cursor findings are documentation-derived | Install and run the quickstart's Cursor scenario before the adapter is declared done |
-| Codex auto-approval of MCP tool calls under `exec` | No Codex login available during research | Run the quickstart's Codex scenario on a logged-in machine |
+| Cursor Agent cannot be both functional and confined | Closed as an observation 2026-09-10 and reopened as a design problem: the launch needs `--trust` to run at all, the session can only reach the server through a registration uxlint will not write, and no flag both submits findings and refuses writes | Pending a decision on how Cursor is supported, if at all |
+| ~~Codex auto-approval of MCP tool calls under `exec`~~ | Closed 2026-09-10 by a live run: `exec` needs `default_tools_approval_mode = "approve"` per server, because `approval_policy = never` auto-approves only a fully writable sandbox | Closed |
 | Session time bound default | No baseline exists for a delegated run | Measure during implementation and set with headroom, as 008 did for the page bound |
