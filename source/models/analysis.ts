@@ -7,7 +7,7 @@
 
 import type {GateResult} from './gate-result.js';
 import type {LLMResponseData} from './llm-response.js';
-import type {DelegateHostId} from './delegate.js';
+import type {agentDrivenRoute, DelegateHostId} from './delegate.js';
 import type {PageMeasurement} from './measurement.js';
 
 /**
@@ -237,7 +237,7 @@ export type RunProvenance = {
 	 * difference between two reports to a different judge rather than to the
 	 * site.
 	 */
-	hostAgent?: DelegateHostId;
+	hostAgent?: DelegateHostId | typeof agentDrivenRoute;
 
 	/**
 	 * Version of the audit engine that produced the measurements.
