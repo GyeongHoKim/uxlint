@@ -20,6 +20,32 @@
  * A rule marked "assumed" is not in those pages. It is what uxlint relies on,
  * stated so that a reader knows which parts of these fakes a real run has to
  * confirm.
+ *
+ * **Audited against the installed binaries on 2026-09-10**, because the real
+ * CLIs exist on one machine and everything else depends on these fakes being
+ * right. Two rules were wrong.
+ *
+ * Codex refuses to start in a directory it does not consider trusted unless
+ * `--skip-git-repo-check` is passed. The flag used to be tolerated here with
+ * nothing requiring it, which is how an adapter missing it shipped: the fake
+ * shrugged, and the only symptom on a real machine was a session ending in a
+ * second with every page unjudged. Now reproduced.
+ *
+ * `-p`/`--profile` was modelled as failing when the profile does not exist. The
+ * binary does the opposite: a plain name that names nothing is accepted and
+ * ignored, while a value that does not look like a name is refused at parse time
+ * with exit 2. Both branches now match, and the second is the one that matters,
+ * because it is what an adapter mistaking `-p` for print mode hits.
+ *
+ * `codex login status` exiting non-zero when logged out was assumed. Confirmed
+ * against an isolated `CODEX_HOME`: "Not logged in", exit 1.
+ *
+ * What the audit could not confirm, and which therefore remains modelled on
+ * documentation: that Claude Code's `--restricted` ignores a permissive user
+ * settings file. Checking it needs either the developer's own
+ * `~/.claude/settings.json` rewritten or their credentials copied into a
+ * throwaway HOME, and neither is a thing a test run should do to somebody's
+ * machine. The canary in these fakes models it; a real run has still to prove it.
  */
 
 import fs from 'node:fs';
@@ -419,14 +445,26 @@ function parseCodex(argv: string[], context: ParseContext): ParsedLaunch {
 		}
 	};
 
-	// Per cli/reference, a profile layers `$CODEX_HOME/<name>.config.toml`.
-	// What happens when it does not exist is not documented; failing is
-	// assumed, since the alternative is silently running with no profile.
+	// Verified against codex-cli 0.153.4 rather than assumed, and the assumption
+	// this replaces was wrong in both directions.
+	//
+	// A profile name that does not exist is accepted, ignored, and the run
+	// proceeds -- `codex exec -p nosuchprofile "..."` exits 0. What is refused is
+	// a value that does not *look* like a name: passing a prompt gives
+	// `invalid --profile value ...; pass a plain name such as \`work\`` and exit
+	// 2, before anything runs.
+	//
+	// That second branch is the whole reason this handler exists. `-p` on Codex is
+	// `--profile`, not print mode (R2), so an adapter that passed the prompt to it
+	// would not merely lose the prompt -- it would fail to parse. Modelling the
+	// value shape reproduces that; the old existence check reproduced something
+	// the binary never does.
 	const requireProfile: FlagHandler = (args, flag) => {
 		const name = args.valueFor(flag);
-		const file = path.join(context.home, '.codex', `${name}.config.toml`);
-		if (!fs.existsSync(file)) {
-			throw new Error(`config profile \`${name}\` not found`);
+		if (!/^[\w\-.]+$/.test(name)) {
+			throw new Error(
+				`invalid value '${name}' for '--profile <CONFIG_PROFILE_V2>': invalid --profile value \`${name}\`; pass a plain name such as \`work\``,
+			);
 		}
 	};
 
@@ -434,12 +472,17 @@ function parseCodex(argv: string[], context: ParseContext): ParsedLaunch {
 		bypassSandbox = true;
 	};
 
+	let checkSkipped = false;
+	const skipRepoCheck: FlagHandler = () => {
+		checkSkipped = true;
+	};
+
 	const positional = walk(new Arguments(argv, 1), {
 		'-s': setSandbox,
 		'--sandbox': setSandbox,
 		'--json': ignored,
 		'--full-auto': ignored,
-		'--skip-git-repo-check': ignored,
+		'--skip-git-repo-check': skipRepoCheck,
 		'-c': applyOverride,
 		'--config': applyOverride,
 		'-p': requireProfile,
@@ -460,6 +503,21 @@ function parseCodex(argv: string[], context: ParseContext): ParsedLaunch {
 	const prompt = fromStdin ? context.readStdin() : positional.join(' ');
 	if (prompt.trim() === '') {
 		throw new Error('no prompt was provided');
+	}
+
+	// Observed live, not documented: Codex refuses to start in a directory it
+	// does not consider trusted unless the check is skipped, and it says so --
+	// "Not inside a trusted directory and --skip-git-repo-check was not
+	// specified". A git repository counts as trusted; a plain directory does not.
+	//
+	// Reproduced here rather than merely tolerated, because tolerating the flag
+	// is what let this ship: an adapter that stopped passing it would still pass
+	// a fake that shrugged, and the only symptom on a real machine is a session
+	// that ends in a second with every page unjudged.
+	if (!checkSkipped && !fs.existsSync(path.join(context.cwd, '.git'))) {
+		throw new Error(
+			'Not inside a trusted directory and --skip-git-repo-check was not specified.',
+		);
 	}
 
 	// Per sandboxing, read-only "can't edit files or run commands without

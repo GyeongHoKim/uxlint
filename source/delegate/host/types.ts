@@ -117,8 +117,12 @@ export type HostAgentAdapter = {
 	 * @param launch - What buildLaunch produced
 	 * @param options - Execution controls
 	 * @param options.timeoutMs - How long the session may take
+	 * @param options.cwd - Where to run it; the caller's directory by default
 	 */
-	run(launch: HostLaunch, options?: {timeoutMs?: number}): Promise<HostOutcome>;
+	run(
+		launch: HostLaunch,
+		options?: {timeoutMs?: number; cwd?: string},
+	): Promise<HostOutcome>;
 };
 
 /**
