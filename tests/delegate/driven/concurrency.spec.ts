@@ -168,7 +168,12 @@ test('judgement submitted against the wrong run is refused, not misfiled', async
 
 	const second = await fsPromises.readFile(two.config.report.output, 'utf8');
 	t.regex(second, /Meant for the two-page run\./);
-	t.deepEqual(messages, []);
+	// Nothing was refused, and the summary names the run it wrote for.
+	t.deepEqual(
+		messages.filter(message => !message.includes('recorded')),
+		[],
+	);
+	t.regex(messages.join('\n'), /two\.md/);
 });
 
 test('a page belonging to another run is refused, naming this run’s pages', async t => {

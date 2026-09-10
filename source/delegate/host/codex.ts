@@ -86,6 +86,18 @@ export const codex: HostAgentAdapter = {
 				'-s',
 				'read-only',
 				'--json',
+				// Codex refuses to start in a directory it does not consider
+				// trusted -- "Not inside a trusted directory and
+				// --skip-git-repo-check was not specified" -- and the refusal
+				// costs the whole run: the session ends in a second, exits 0, and
+				// every page is reported unjudged. Observed live, in a directory
+				// that simply was not a git repository.
+				//
+				// Skipping the check is safe precisely here. It exists to stop an
+				// agent editing work that is not under version control, and
+				// `-s read-only` above already denies every write. uxlint's
+				// delegated run has nothing to protect the directory from.
+				'--skip-git-repo-check',
 				'-c',
 				inlineServerConfig(context),
 				context.prompt,

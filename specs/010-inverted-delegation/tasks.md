@@ -159,14 +159,14 @@ Scenario 4.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T043 Final confirmation that the quality gates pass in order — `npm run compile`, `npm run format`, `npm run lint` — with zero errors and zero new violations. This confirms, it does not substitute: constitution principle I requires the same sequence after **every** code change, so each implementation task above runs it too (Constitution I)
+- [X] T043 Final confirmation that the quality gates pass in order — `npm run compile`, `npm run format`, `npm run lint` — with zero errors and zero new violations. This confirms, it does not substitute: constitution principle I requires the same sequence after **every** code change, so each implementation task above runs it too (Constitution I)
 - [X] T044 Confirm coverage stays at or above 80% via `npm run test:coverage` (Constitution II)
 - [X] T045 [P] Record the three open measurements in `quickstart.md`: per-page `capture` time against the launcher route's 8 s, per-verb scaffolding cost against 009's 1.6–2.0 ms, and evidence payload size per page (SC-006, Constitution IV, research open items)
 - [X] T046 [P] Update `specs/009-delegate-mode/contracts/cli-surface.md` and `research.md` to point at this feature for Cursor Agent, so the falsified claims there carry their resolution
-- [ ] T047 Run Quickstart Scenario 6 live with Claude Code driving, and record the result
-- [ ] T048 Run Quickstart Scenario 7 live with Codex driving, and record the result
-- [ ] T049 Run Quickstart Scenario 8 live with Cursor Agent driving, and record the result — this is the scenario the feature exists for and the one that has never passed (SC-002)
-- [ ] T050 Run Quickstart Scenario 9 live: both launcher hosts still complete, and the measured half of a launcher-route report is identical to an inverted-route report for the same configuration (SC-003, FR-018)
+- [X] T047 Run Quickstart Scenario 6 live with Claude Code driving, and record the result
+- [X] T048 Run Quickstart Scenario 7 live with Codex driving, and record the result
+- [X] T049 Run Quickstart Scenario 8 live with Cursor Agent driving, and record the result — this is the scenario the feature exists for and the one that has never passed (SC-002)
+- [X] T050 Run Quickstart Scenario 9 live: both launcher hosts still complete, and the measured half of a launcher-route report is identical to an inverted-route report for the same configuration (SC-003, FR-018)
 
 **⚠️ T047–T050 are not a formality.** In 009 every adapter passed every test and
 one of them had never worked in a real run. Tests built on assumptions cannot

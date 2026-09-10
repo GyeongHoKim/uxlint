@@ -65,6 +65,17 @@ test('the server pre-approves its own tools, which read-only mode otherwise bloc
 	t.is(built.args[built.args.indexOf('-s') + 1], 'read-only');
 });
 
+// Observed live: without this, Codex refuses to start in any directory it does
+// not consider trusted, the session ends in about a second having judged
+// nothing, and the run still exits 0 with every page unjudged. The check guards
+// un-versioned work against edits, and `-s read-only` already denies those.
+test('the launch skips the trusted-directory check that would otherwise stop it', t => {
+	const built = launch();
+
+	t.true(built.args.includes('--skip-git-repo-check'));
+	t.is(built.args[built.args.indexOf('-s') + 1], 'read-only');
+});
+
 test('the session directory reaches the server through the environment too', t => {
 	t.is(launch().env[sessionEnvironmentVariable], '/tmp/uxlint-delegate-abc');
 });

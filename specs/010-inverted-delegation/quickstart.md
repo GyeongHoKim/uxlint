@@ -26,10 +26,10 @@ Filled in during implementation, as 009 did.
 | 3 — provenance cannot be forged | **Passed, run for real** | A finding carrying `origin: "audit"` and `ruleId` among two good ones was refused by name; the good two reached the report and the forged one did not |
 | 4 — abandoned run | **Covered automatically** | `tests/delegate/driven/submit.spec.ts` for the partial report, `runs.spec.ts` for discovery and idempotent discard, `prune.spec.ts` for the age sweep |
 | 5 — concurrent runs | **Covered automatically** | `tests/delegate/driven/concurrency.spec.ts`: two runs captured together stay separate, and submitting to one leaves the other without a report at all |
-| 6 — Claude Code, live | Not yet run | |
-| 7 — Codex, live | Not yet run | |
-| 8 — Cursor Agent, live | Not yet run | |
-| 9 — the launcher route still works | Not yet run | |
+| 6 — Claude Code, live | **Passed, run for real** | Claude Code 2.1.267, skill at `~/.claude/skills/uxlint-review/`. 200 s, report written, judgement findings present. Two things it did well: on a first attempt where the `uxlint` command was auto-denied it **refused to write a report from memory of the site**, exactly as the skill instructs; and it reported that `submit` printed nothing on success — a real gap against the contract, since fixed |
+| 7 — Codex, live | **Passed, run for real, with a caveat** | codex-cli 0.153.4, skill at `~/.codex/skills/uxlint-review/`. 182 s, captured for itself and submitted. The caveat: under `-s workspace-write` alone Codex's sandbox blocks the browser, and on a first attempt it silently reused an *older* run it found through `delegate runs` rather than capturing. With `-c sandbox_workspace_write.network_access=true` it captured properly |
+| 8 — Cursor Agent, live | **Passed, run for real** | Cursor Agent 2026.09.02-c22c1a3, skill at `~/.cursor/skills/uxlint-review/`. 270 s, exit 0, 26 findings, report written. **This is the combination that had never completed a run.** No judgement finding carried a rule identifier, so provenance held |
+| 9 — the launcher route still works | **Passed, run for real, after a fix** | Both launcher hosts complete, and the measured halves of a launcher-route and an inverted-route report for the same configuration are identical — rule identifiers, element counts and provenance — with only the judgement findings differing. Finding that took fixing a shipped defect first: see below |
 
 Measurements to record here, because the plan states them as goals and research
 left them open:
@@ -44,7 +44,18 @@ left them open:
 - Evidence payload size per page. **Measured at ~47 KB per page** — 94,809 bytes
   for two pages of news.ycombinator.com.
 
-**One defect the live run caught that no unit test did.** The judgement document
+**A shipped defect Scenario 9 caught.** `codex exec` refuses to start in a
+directory it does not consider trusted — "Not inside a trusted directory and
+--skip-git-repo-check was not specified" — and the adapter passed no such flag.
+So `uxlint --delegate --host-agent codex` failed in any directory that was not a
+trusted git repository: the session ended in a second, the run still exited 0,
+and every page was reported unjudged. Exactly the failure shape of the T040 bug
+in 009, and invisible for the same reason — every earlier live run happened to be
+in a directory Codex already trusted. The adapter now passes
+`--skip-git-repo-check`, which is safe precisely here: the check guards
+un-versioned work against edits, and `-s read-only` already denies every write.
+
+**One defect the earlier live run caught that no unit test did.** The judgement document
 names each page once, in its page entry, and every finding was being refused for
 a missing `pageUrl` — a field the envelope had already supplied one level up. The
 unit tests passed because their helper filled it in, which made them a test of
