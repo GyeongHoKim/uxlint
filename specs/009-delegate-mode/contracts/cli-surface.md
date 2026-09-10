@@ -114,7 +114,14 @@ every judgement tool called in order, 12 judgement findings recorded, and
 `-s read-only` overriding a developer `config.toml` that set
 `sandbox_mode = "danger-full-access"`.
 
-### Cursor Agent (2026.09.02-c22c1a3 — this command line does not work)
+### Cursor Agent (2026.09.02-c22c1a3 — withdrawn, see 010)
+
+**Resolved.** This adapter was removed in
+[010-inverted-delegation](../../010-inverted-delegation/spec.md). Cursor Agent is
+supported through the route where it calls uxlint rather than the other way
+round, so there is no launch to get right and nothing for uxlint to confine.
+`--host-agent cursor-agent` now stops before any browser starts and names that
+route. What follows is the record of why.
 
 ```text
 agent -p

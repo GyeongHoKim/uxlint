@@ -397,3 +397,58 @@ test('a finding naming a different page than its envelope is refused', async t =
 	const report = await fsPromises.readFile(config.report.output, 'utf8');
 	t.notRegex(report, /Contradictory\./);
 });
+
+// US3. Page status is decided by what arrived, never by the agent's account of
+// how the review went — and on this route that matters more than on the
+// launcher one, because here there is no exit code even to be tempted by.
+test('pages nobody judged are recorded as partial with a reason', async t => {
+	const {run, parent, config} = await capturedRun(t.teardown, 2);
+	const first = 'https://example.com/page-1';
+
+	await submitJudgement(config, {
+		run,
+		parentDirectory: parent,
+		document: {
+			run,
+			pages: [
+				{
+					pageUrl: first,
+					findings: [finding(first, 'Judged, and said so.')],
+					finished: true,
+				},
+			],
+		},
+		emitMessage() {
+			// Discarded.
+		},
+	});
+
+	const report = await fsPromises.readFile(config.report.output, 'utf8');
+
+	t.regex(report, /Judged, and said so\./);
+	t.regex(report, /Partial/, 'the unjudged page is not presented as clean');
+	t.regex(report, /page-2/);
+});
+
+test('a page marked finished with nothing submitted is judged-and-empty, not clean', async t => {
+	const {run, parent, config} = await capturedRun(t.teardown, 1);
+
+	await submitJudgement(config, {
+		run,
+		parentDirectory: parent,
+		document: {
+			run,
+			pages: [{pageUrl: 'https://example.com/page-1', finished: true}],
+		},
+		emitMessage() {
+			// Discarded.
+		},
+	});
+
+	const report = await fsPromises.readFile(config.report.output, 'utf8');
+
+	// It carries its measured findings and no judgement ones. What it must not
+	// do is claim a judgement that never arrived.
+	t.regex(report, /_measured_/);
+	t.notRegex(report, /_AI judgement_/);
+});

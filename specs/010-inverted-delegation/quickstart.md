@@ -24,8 +24,8 @@ Filled in during implementation, as 009 did.
 | 1 — the two halves, no agent | **Passed, run for real** | Chrome 152, `UXLINT_AI_API_KEY` unset. `capture` → `evidence` → `submit` by hand over two pages of news.ycombinator.com: 3 judgement findings accepted, 24 measured findings kept, report written |
 | 2 — one page at a time | **Passed, run for real** | `evidence --page` served one page and started no browser. Payload measured at ~47 KB per page (94,809 bytes for two) |
 | 3 — provenance cannot be forged | **Passed, run for real** | A finding carrying `origin: "audit"` and `ruleId` among two good ones was refused by name; the good two reached the report and the forged one did not |
-| 4 — abandoned run | Not yet run | |
-| 5 — concurrent runs | Not yet run | |
+| 4 — abandoned run | **Covered automatically** | `tests/delegate/driven/submit.spec.ts` for the partial report, `runs.spec.ts` for discovery and idempotent discard, `prune.spec.ts` for the age sweep |
+| 5 — concurrent runs | **Covered automatically** | `tests/delegate/driven/concurrency.spec.ts`: two runs captured together stay separate, and submitting to one leaves the other without a report at all |
 | 6 — Claude Code, live | Not yet run | |
 | 7 — Codex, live | Not yet run | |
 | 8 — Cursor Agent, live | Not yet run | |
@@ -38,7 +38,9 @@ left them open:
   the same extracted capture pass, so the figure carries over; **still to be timed
   through this verb.**
 - Per-verb scaffolding cost for `evidence`, `submit`, `runs` and `discard`, against
-  009's measured 1.6–2.0 ms for judgement scaffolding. **Still open.**
+  009's measured 1.6–2.0 ms for judgement scaffolding. **Still open** — every verb
+  is file I/O around the same intake, and none opens a browser, but no figure has
+  been taken.
 - Evidence payload size per page. **Measured at ~47 KB per page** — 94,809 bytes
   for two pages of news.ycombinator.com.
 

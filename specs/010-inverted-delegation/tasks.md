@@ -142,14 +142,14 @@ Scenario 4.
 
 ### Tests first
 
-- [ ] T036 [P] [US3] Red test in `tests/delegate/driven/submit.spec.ts`: with judgement for three of five pages, the report records the other two as partial with a reason, and a page an agent marked finished having submitted nothing is recorded as judged-and-empty rather than clean (FR-011, SC-007)
+- [X] T036 [P] [US3] Red test in `tests/delegate/driven/submit.spec.ts`: with judgement for three of five pages, the report records the other two as partial with a reason, and a page an agent marked finished having submitted nothing is recorded as judged-and-empty rather than clean (FR-011, SC-007)
 - [X] T037 [P] [US3] Red test in `tests/delegate/driven/runs.spec.ts`: `runs` lists each run with its identity, capture time, configuration, page count and judged count, and exits 0 when there are none (FR-014)
 - [X] T038 [P] [US3] Red test in `tests/delegate/driven/runs.spec.ts`: `discard` removes a run and exits 0 on a second call for the same identity, because a cleanup command that fails on a second call is one a developer stops trusting
-- [ ] T039 [P] [US3] Red test in `tests/delegate/driven/concurrency.spec.ts`: two runs captured from different configurations stay separate, and judgement submitted against the wrong identity is refused naming that run's pages without touching the other report (FR-012)
+- [X] T039 [P] [US3] Red test in `tests/delegate/driven/concurrency.spec.ts`: two runs captured from different configurations stay separate, and judgement submitted against the wrong identity is refused naming that run's pages without touching the other report (FR-012)
 
 ### Implementation
 
-- [ ] T040 [US3] Record unjudged pages as partial with a reason in `source/delegate/driven/submit.ts`, reusing the launcher route's page status rules rather than restating them (depends on T026)
+- [X] T040 [US3] Record unjudged pages as partial with a reason in `source/delegate/driven/submit.ts`, reusing the launcher route's page status rules rather than restating them (depends on T026) — **no new code was needed**: `submit` already hands the run to the shared `assembleReport`, which applies those rules. The task closed by asserting it rather than by writing it, which is the outcome the plan wanted
 - [X] T041 [P] [US3] Implement `runs` and `discard` in `source/delegate/driven/runs.ts` (depends on T010)
 - [X] T042 [US3] Wire `runs` and `discard` into the verb group in `source/cli.tsx`
 
@@ -160,9 +160,9 @@ Scenario 4.
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 - [ ] T043 Final confirmation that the quality gates pass in order — `npm run compile`, `npm run format`, `npm run lint` — with zero errors and zero new violations. This confirms, it does not substitute: constitution principle I requires the same sequence after **every** code change, so each implementation task above runs it too (Constitution I)
-- [ ] T044 Confirm coverage stays at or above 80% via `npm run test:coverage` (Constitution II)
-- [ ] T045 [P] Record the three open measurements in `quickstart.md`: per-page `capture` time against the launcher route's 8 s, per-verb scaffolding cost against 009's 1.6–2.0 ms, and evidence payload size per page (SC-006, Constitution IV, research open items)
-- [ ] T046 [P] Update `specs/009-delegate-mode/contracts/cli-surface.md` and `research.md` to point at this feature for Cursor Agent, so the falsified claims there carry their resolution
+- [X] T044 Confirm coverage stays at or above 80% via `npm run test:coverage` (Constitution II)
+- [X] T045 [P] Record the three open measurements in `quickstart.md`: per-page `capture` time against the launcher route's 8 s, per-verb scaffolding cost against 009's 1.6–2.0 ms, and evidence payload size per page (SC-006, Constitution IV, research open items)
+- [X] T046 [P] Update `specs/009-delegate-mode/contracts/cli-surface.md` and `research.md` to point at this feature for Cursor Agent, so the falsified claims there carry their resolution
 - [ ] T047 Run Quickstart Scenario 6 live with Claude Code driving, and record the result
 - [ ] T048 Run Quickstart Scenario 7 live with Codex driving, and record the result
 - [ ] T049 Run Quickstart Scenario 8 live with Cursor Agent driving, and record the result — this is the scenario the feature exists for and the one that has never passed (SC-002)
