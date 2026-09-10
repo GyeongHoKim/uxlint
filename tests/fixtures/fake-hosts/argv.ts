@@ -388,6 +388,7 @@ function parseCodex(argv: string[], context: ParseContext): ParsedLaunch {
 	let sandbox: string | undefined;
 	let bypassSandbox = false;
 	let server: ResolvedServer | undefined;
+	let toolsPreApproved = false;
 
 	const setSandbox: FlagHandler = (args, flag) => {
 		sandbox = args.valueFor(flag);
@@ -403,9 +404,10 @@ function parseCodex(argv: string[], context: ParseContext): ParsedLaunch {
 	const applyOverride: FlagHandler = (args, flag) => {
 		const parsed = parseTomlOverride(args.valueFor(flag));
 		const servers = parsed['mcp_servers'] as
-			Record<string, StdioServerJson> | undefined;
+			Record<string, StdioServerJson & Record<string, unknown>> | undefined;
 		const entry = servers?.['uxlint'];
 		if (entry) {
+			toolsPreApproved = entry['default_tools_approval_mode'] === 'approve';
 			server = {
 				command: entry.command,
 				args: entry.args ?? [],
@@ -471,9 +473,15 @@ function parseCodex(argv: string[], context: ParseContext): ParsedLaunch {
 		server,
 		writable,
 		skipped: server ? undefined : 'no MCP server was configured',
-		// Codex has no per-tool allow list on the command line; tool naming
-		// as the model sees it is not documented.
-		permitsTool: () => true,
+		// `codex exec` runs with `approval_policy = never`, and under that
+		// policy an MCP call is auto-approved only when the sandbox has full
+		// disk write access or the server sets
+		// `default_tools_approval_mode = "approve"`. So a read-only launch that
+		// omits the approval reaches the server, lists its tools, and can call
+		// none of them. Observed live against codex-cli 0.153.4, which failed
+		// every call with "MCP tool call requires approval, but approval policy
+		// is never".
+		permitsTool: () => toolsPreApproved || writable,
 	};
 }
 

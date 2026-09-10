@@ -51,6 +51,20 @@ test('the judgement server is injected inline, so no config file is written', t 
 	);
 });
 
+// Without this the injection is present and useless. `codex exec` runs with
+// `approval_policy = never`, under which Codex auto-approves an MCP call only
+// when the sandbox has full disk write access -- the one thing `-s read-only`
+// exists to refuse. A live run exited 0 having judged nothing, every call
+// having failed with "MCP tool call requires approval, but approval policy is
+// never". The approval is scoped to this server, and the sandbox is untouched.
+test('the server pre-approves its own tools, which read-only mode otherwise blocks', t => {
+	const built = launch();
+	const override = built.args[built.args.indexOf('-c') + 1]!;
+
+	t.regex(override, /default_tools_approval_mode\s*=\s*"approve"/);
+	t.is(built.args[built.args.indexOf('-s') + 1], 'read-only');
+});
+
 test('the session directory reaches the server through the environment too', t => {
 	t.is(launch().env[sessionEnvironmentVariable], '/tmp/uxlint-delegate-abc');
 });

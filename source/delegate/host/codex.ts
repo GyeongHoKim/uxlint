@@ -20,6 +20,17 @@ import {detectBinary, probeAuthenticated, runLaunch} from './process.js';
  * and no configuration file has to be written into anything the developer
  * owns.
  *
+ * `default_tools_approval_mode` is what makes the injection useful rather than
+ * merely present. `codex exec` runs with `approval_policy = never`, and under
+ * that policy Codex auto-approves an MCP call only when the sandbox has full
+ * disk write access -- which `-s read-only` is precisely there to deny. So a
+ * read-only `codex exec` registers the server, lists its tools, and then fails
+ * every call with "MCP tool call requires approval, but approval policy is
+ * never". Observed: a delegated run exited 0 in 26 s having judged nothing,
+ * and the report recorded both pages as unjudged. Approving this one server's
+ * tools resolves the deadlock without touching the sandbox, and is scoped to
+ * `mcp_servers.uxlint` rather than to Codex as a whole.
+ *
  * @param context - The launch context
  * @returns The `-c` value
  */
@@ -28,7 +39,7 @@ function inlineServerConfig(context: HostLaunchContext): string {
 		.map(argument => JSON.stringify(argument))
 		.join(', ');
 
-	return `mcp_servers.uxlint={command=${JSON.stringify(context.server.command)}, args=[${args}], env={${sessionEnvironmentVariable}=${JSON.stringify(context.sessionDirectory)}}}`;
+	return `mcp_servers.uxlint={command=${JSON.stringify(context.server.command)}, args=[${args}], env={${sessionEnvironmentVariable}=${JSON.stringify(context.sessionDirectory)}}, default_tools_approval_mode="approve"}`;
 }
 
 /**
