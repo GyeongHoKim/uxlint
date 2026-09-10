@@ -78,26 +78,26 @@ judgement findings. Quickstart Scenario 1.
 
 ### Tests first
 
-- [ ] T012 [P] [US1] Red test in `tests/delegate/driven/capture.spec.ts`: with an injected browser client, `capture` captures and measures every configured page, creates the run, and emits the run identity and per-page result on stdout and nothing else (FR-001, FR-003)
-- [ ] T013 [P] [US1] Red test in `tests/delegate/driven/capture.spec.ts`: `capture` reads no model provider credential, asserted by spying on the credential reader the way `tests/services/ai-service.spec.ts` already does for the launcher route (FR-001, SC-001)
-- [ ] T014 [P] [US1] Red test in `tests/delegate/driven/evidence.spec.ts`: `evidence` returns every page's features, persona, captured structure and measurement description from an existing run, opens no browser, and serves a failed page with its reason rather than withholding it (FR-002, FR-004)
-- [ ] T015 [P] [US1] Red test in `tests/delegate/driven/evidence.spec.ts`: `evidence --page` serves one page without re-capturing, and a page outside the run is refused with the run's pages named (FR-005, FR-008)
-- [ ] T016 [P] [US1] Red test in `tests/delegate/driven/submission-document.spec.ts`: the judgement document schema accepts the shape in `contracts/submission.md`, and refuses `origin`, `ruleId` and `affectedElements` by name, a second measurement note for a page, and a malformed document (FR-007, FR-010, SC-004)
-- [ ] T017 [P] [US1] Red test in `tests/delegate/driven/submit.spec.ts`: every accepted finding reaches the report carrying an origin uxlint assigned, and no path through `submit` constructs a finding itself — the document is split and handed to the existing intake (FR-007, research R6)
-- [ ] T018 [P] [US1] Red test in `tests/delegate/driven/submit.spec.ts`: a document mixing one refused finding with good ones has the good ones accepted and the bad one refused by name, and the report contains exactly the accepted ones (contracts/submission.md "Partial acceptance")
-- [ ] T019 [P] [US1] Red test in `tests/delegate/driven/submit.spec.ts`: `submit` writes the report at the configured output path and reports the gate verdict with the existing exit semantics, on every call rather than only a final one (FR-006, research R2)
-- [ ] T020 [P] [US1] Red test in `tests/delegate/driven/skill.spec.ts`: every flag and verb named in `skills/uxlint-review/SKILL.md` exists in the CLI surface — a skill naming a flag uxlint does not have fails at the agent's first attempt, and nothing else would catch that drift
-- [ ] T021 [P] [US1] Red test in `tests/delegate/repo-untouched.spec.ts`: running every verb leaves the working tree exactly as it found it, untracked files included, except the report at the configured output path. This route touches the filesystem more than the launcher route does — it creates runs, sweeps directories and writes across separate invocations — so the guarantee 009 asserts for one route has to be asserted for this one too (FR-015)
+- [X] T012 [P] [US1] Red test in `tests/delegate/driven/capture.spec.ts`: with an injected browser client, `capture` captures and measures every configured page, creates the run, and emits the run identity and per-page result on stdout and nothing else (FR-001, FR-003)
+- [X] T013 [P] [US1] Red test in `tests/delegate/driven/capture.spec.ts`: `capture` reads no model provider credential, asserted by spying on the credential reader the way `tests/services/ai-service.spec.ts` already does for the launcher route (FR-001, SC-001)
+- [X] T014 [P] [US1] Red test in `tests/delegate/driven/evidence.spec.ts`: `evidence` returns every page's features, persona, captured structure and measurement description from an existing run, opens no browser, and serves a failed page with its reason rather than withholding it (FR-002, FR-004)
+- [X] T015 [P] [US1] Red test in `tests/delegate/driven/evidence.spec.ts`: `evidence --page` serves one page without re-capturing, and a page outside the run is refused with the run's pages named (FR-005, FR-008)
+- [X] T016 [P] [US1] Red test in `tests/delegate/driven/submission-document.spec.ts`: the judgement document schema accepts the shape in `contracts/submission.md`, and refuses `origin`, `ruleId` and `affectedElements` by name, a second measurement note for a page, and a malformed document (FR-007, FR-010, SC-004)
+- [X] T017 [P] [US1] Red test in `tests/delegate/driven/submit.spec.ts`: every accepted finding reaches the report carrying an origin uxlint assigned, and no path through `submit` constructs a finding itself — the document is split and handed to the existing intake (FR-007, research R6)
+- [X] T018 [P] [US1] Red test in `tests/delegate/driven/submit.spec.ts`: a document mixing one refused finding with good ones has the good ones accepted and the bad one refused by name, and the report contains exactly the accepted ones (contracts/submission.md "Partial acceptance")
+- [X] T019 [P] [US1] Red test in `tests/delegate/driven/submit.spec.ts`: `submit` writes the report at the configured output path and reports the gate verdict with the existing exit semantics, on every call rather than only a final one (FR-006, research R2)
+- [X] T020 [P] [US1] Red test in `tests/delegate/driven/skill.spec.ts`: every flag and verb named in `skills/uxlint-review/SKILL.md` exists in the CLI surface — a skill naming a flag uxlint does not have fails at the agent's first attempt, and nothing else would catch that drift
+- [X] T021 [P] [US1] Red test in `tests/delegate/repo-untouched.spec.ts`: running every verb leaves the working tree exactly as it found it, untracked files included, except the report at the configured output path. This route touches the filesystem more than the launcher route does — it creates runs, sweeps directories and writes across separate invocations — so the guarantee 009 asserts for one route has to be asserted for this one too (FR-015)
 
 ### Implementation
 
-- [ ] T022 [US1] Factor the capture pass out of `source/delegate/runner.ts` into a function both routes call, leaving the launcher route's behaviour unchanged
-- [ ] T023 [US1] Implement `capture` in `source/delegate/driven/capture.ts`: preflight, the shared capture pass, run creation, the age sweep from T010, and the payload on stdout (depends on T008, T009, T010, T022)
-- [ ] T024 [P] [US1] Implement `evidence` in `source/delegate/driven/evidence.ts`, serving one page or all and marking pages open through the shared tracker (depends on T011)
-- [ ] T025 [P] [US1] Add the judgement document schema to `source/models/delegate.ts`, strict, reusing `judgementFindingSchema` for each finding so the two routes cannot diverge
-- [ ] T026 [US1] Implement `submit` in `source/delegate/driven/submit.ts`: decompose the document, hand each submission to `validateFinding`, record accepted ones, then assemble the report and report the gate verdict (depends on T025, T011)
-- [ ] T027 [US1] Wire `capture`, `evidence` and `submit` into the verb group in `source/cli.tsx`, keeping Ink unrendered on all three because the caller is a program
-- [ ] T028 [US1] Write `skills/uxlint-review/SKILL.md` with the frontmatter convention research R1 verified, giving the agent the verb sequence exactly as `contracts/cli-surface.md` defines it (FR-017, SC-005)
+- [X] T022 [US1] Factor the capture pass out of `source/delegate/runner.ts` into a function both routes call, leaving the launcher route's behaviour unchanged
+- [X] T023 [US1] Implement `capture` in `source/delegate/driven/capture.ts`: preflight, the shared capture pass, run creation, the age sweep from T010, and the payload on stdout (depends on T008, T009, T010, T022)
+- [X] T024 [P] [US1] Implement `evidence` in `source/delegate/driven/evidence.ts`, serving one page or all and marking pages open through the shared tracker (depends on T011)
+- [X] T025 [P] [US1] Add the judgement document schema to `source/models/delegate.ts`, strict, reusing `judgementFindingSchema` for each finding so the two routes cannot diverge
+- [X] T026 [US1] Implement `submit` in `source/delegate/driven/submit.ts`: decompose the document, hand each submission to `validateFinding`, record accepted ones, then assemble the report and report the gate verdict (depends on T025, T011)
+- [X] T027 [US1] Wire `capture`, `evidence` and `submit` into the verb group in `source/cli.tsx`, keeping Ink unrendered on all three because the caller is a program
+- [X] T028 [US1] Write `skills/uxlint-review/SKILL.md` with the frontmatter convention research R1 verified, giving the agent the verb sequence exactly as `contracts/cli-surface.md` defines it (FR-017, SC-005)
 
 **Checkpoint**: The feature works end to end without any agent present. This is the
 MVP and Quickstart Scenarios 1–3 should pass.
@@ -143,15 +143,15 @@ Scenario 4.
 ### Tests first
 
 - [ ] T036 [P] [US3] Red test in `tests/delegate/driven/submit.spec.ts`: with judgement for three of five pages, the report records the other two as partial with a reason, and a page an agent marked finished having submitted nothing is recorded as judged-and-empty rather than clean (FR-011, SC-007)
-- [ ] T037 [P] [US3] Red test in `tests/delegate/driven/runs.spec.ts`: `runs` lists each run with its identity, capture time, configuration, page count and judged count, and exits 0 when there are none (FR-014)
-- [ ] T038 [P] [US3] Red test in `tests/delegate/driven/runs.spec.ts`: `discard` removes a run and exits 0 on a second call for the same identity, because a cleanup command that fails on a second call is one a developer stops trusting
+- [X] T037 [P] [US3] Red test in `tests/delegate/driven/runs.spec.ts`: `runs` lists each run with its identity, capture time, configuration, page count and judged count, and exits 0 when there are none (FR-014)
+- [X] T038 [P] [US3] Red test in `tests/delegate/driven/runs.spec.ts`: `discard` removes a run and exits 0 on a second call for the same identity, because a cleanup command that fails on a second call is one a developer stops trusting
 - [ ] T039 [P] [US3] Red test in `tests/delegate/driven/concurrency.spec.ts`: two runs captured from different configurations stay separate, and judgement submitted against the wrong identity is refused naming that run's pages without touching the other report (FR-012)
 
 ### Implementation
 
 - [ ] T040 [US3] Record unjudged pages as partial with a reason in `source/delegate/driven/submit.ts`, reusing the launcher route's page status rules rather than restating them (depends on T026)
-- [ ] T041 [P] [US3] Implement `runs` and `discard` in `source/delegate/driven/runs.ts` (depends on T010)
-- [ ] T042 [US3] Wire `runs` and `discard` into the verb group in `source/cli.tsx`
+- [X] T041 [P] [US3] Implement `runs` and `discard` in `source/delegate/driven/runs.ts` (depends on T010)
+- [X] T042 [US3] Wire `runs` and `discard` into the verb group in `source/cli.tsx`
 
 **Checkpoint**: All three stories independently functional.
 

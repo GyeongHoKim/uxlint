@@ -21,9 +21,9 @@ Filled in during implementation, as 009 did.
 
 | Scenario | Status | Evidence |
 | --- | --- | --- |
-| 1 — the two halves, no agent | Not yet run | |
-| 2 — one page at a time | Not yet run | |
-| 3 — provenance cannot be forged | Not yet run | |
+| 1 — the two halves, no agent | **Passed, run for real** | Chrome 152, `UXLINT_AI_API_KEY` unset. `capture` → `evidence` → `submit` by hand over two pages of news.ycombinator.com: 3 judgement findings accepted, 24 measured findings kept, report written |
+| 2 — one page at a time | **Passed, run for real** | `evidence --page` served one page and started no browser. Payload measured at ~47 KB per page (94,809 bytes for two) |
+| 3 — provenance cannot be forged | **Passed, run for real** | A finding carrying `origin: "audit"` and `ruleId` among two good ones was refused by name; the good two reached the report and the forged one did not |
 | 4 — abandoned run | Not yet run | |
 | 5 — concurrent runs | Not yet run | |
 | 6 — Claude Code, live | Not yet run | |
@@ -34,10 +34,22 @@ Filled in during implementation, as 009 did.
 Measurements to record here, because the plan states them as goals and research
 left them open:
 
-- Per-page time for `capture`, against the launcher route's measured 8 s.
+- Per-page time for `capture`, against the launcher route's measured 8 s. It runs
+  the same extracted capture pass, so the figure carries over; **still to be timed
+  through this verb.**
 - Per-verb scaffolding cost for `evidence`, `submit`, `runs` and `discard`, against
-  009's measured 1.6–2.0 ms for judgement scaffolding.
-- Evidence payload size per page, which bounds what an agent can hold at once.
+  009's measured 1.6–2.0 ms for judgement scaffolding. **Still open.**
+- Evidence payload size per page. **Measured at ~47 KB per page** — 94,809 bytes
+  for two pages of news.ycombinator.com.
+
+**One defect the live run caught that no unit test did.** The judgement document
+names each page once, in its page entry, and every finding was being refused for
+a missing `pageUrl` — a field the envelope had already supplied one level up. The
+unit tests passed because their helper filled it in, which made them a test of
+the author's assumption rather than of the document an agent actually writes.
+`submit` now attributes the page entry's URL to each finding, and a finding
+naming a *different* page is refused rather than silently corrected. This is the
+argument for scenarios 6–8 in one paragraph.
 
 ---
 

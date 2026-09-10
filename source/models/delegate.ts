@@ -109,18 +109,104 @@ export type PageEvidence = {
 };
 
 /**
+ * What a run records in place of a launcher identity when nothing was launched.
+ *
+ * The agent-driven route has no host agent: the developer's own agent calls
+ * uxlint, and uxlint never starts it. The field says which route made the run
+ * rather than naming an adapter that had no part in it.
+ */
+export const agentDrivenRoute = 'agent-driven';
+
+/**
  * What the orchestrator wrote for the server process to find.
  */
 export type SessionManifest = {
 	/** Identity of this run */
 	id: string;
 
-	/** Which adapter is performing the judgement */
-	hostAgent: DelegateHostId;
+	/** Which adapter is performing the judgement, or the route when none did */
+	hostAgent: DelegateHostId | typeof agentDrivenRoute;
 
 	/** The evidence set, in configuration order */
 	pages: PageEvidence[];
+
+	/**
+	 * Everything the report needs that the evidence does not carry.
+	 *
+	 * Present only on the agent-driven route, and load-bearing there. On the
+	 * launcher route one process captures, judges and writes the report, so the
+	 * measurements and the browser's identity are still in memory when the
+	 * report is assembled. On that route the report is assembled by a *later
+	 * command*, which has none of it -- so it is persisted here, or the measured
+	 * half of the report would simply be missing and SC-003 could not hold.
+	 *
+	 * Untyped at this layer on purpose: it holds `CapturedPage` values, and
+	 * naming that type here would make the model layer depend on the capture
+	 * pass rather than the other way round.
+	 */
+	captured?: unknown[];
+
+	/** Report provenance recorded at capture time, for the same reason */
+	provenance?: {
+		browserServer: string;
+		browserServerVersion: string;
+		browserVersion: string;
+		externalDataAllowed: boolean;
+	};
+
+	/** The run's persona, so the later command need not re-derive it */
+	persona?: string;
 };
+
+/**
+ * One page's judgement, as an agent submits it.
+ *
+ * `findings` is deliberately left unvalidated here. This schema checks the
+ * envelope; each finding inside it is checked one at a time by the same
+ * `validateFinding` the judgement server uses.
+ *
+ * That split is what makes partial acceptance possible, and partial acceptance
+ * is the normal case rather than an error path: validating findings as part of
+ * the document would mean one malformed finding rejected the whole document and
+ * cost an agent a page's work. It also keeps the promise that the document adds
+ * a wrapper rather than a second definition of a finding -- there is exactly one
+ * place a finding's shape is decided, and it is not here.
+ */
+const judgementPageSchema = z.strictObject({
+	pageUrl: z.string().min(1),
+	findings: z.array(z.unknown()).optional(),
+	measurementNote: z.string().min(1).optional(),
+
+	/**
+	 * The agent's signal that it is done with this page.
+	 *
+	 * A signal, not a status. uxlint records it and then decides status itself,
+	 * because page status is decided by what arrived and never by the agent's
+	 * account of how the review went.
+	 */
+	finished: z.boolean().optional(),
+});
+
+/**
+ * The document `delegate submit` accepts.
+ *
+ * One document per call covering one or more pages, because that is what an
+ * agent driving a CLI can compose in one step -- as against the tool route,
+ * where each finding is its own call.
+ *
+ * Strict at every level. An unrecognised key is a rejection rather than
+ * something quietly dropped: a submitter that believed it had claimed something
+ * uxlint silently discarded is worse off than one that was told no.
+ */
+export const judgementDocumentSchema = z.strictObject({
+	run: z.string().min(1),
+	pages: z.array(judgementPageSchema).min(1),
+});
+
+/**
+ * A judgement document, typed.
+ */
+export type JudgementDocument = z.infer<typeof judgementDocumentSchema>;
 
 /**
  * One thing a host agent submitted, as the server recorded it.
