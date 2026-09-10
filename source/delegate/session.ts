@@ -32,6 +32,14 @@ import {
 } from '../models/delegate.js';
 import {SubmissionRejected} from './ingest.js';
 
+/**
+ * Prefix of a run directory's name.
+ *
+ * Shared by creation, lookup by identity and the age sweep, so that the three
+ * cannot disagree about what a run directory looks like.
+ */
+export const runDirectoryPrefix = 'uxlint-delegate-';
+
 /** Name of the manifest inside a session directory. */
 const manifestFile = 'session.json';
 
@@ -60,7 +68,7 @@ export class DelegationSession {
 	): Promise<DelegationSession> {
 		const id = randomUUID();
 		const parent = options.parentDirectory ?? os.tmpdir();
-		const directory = path.join(parent, `uxlint-delegate-${id}`);
+		const directory = path.join(parent, `${runDirectoryPrefix}${id}`);
 
 		await fs.mkdir(directory, {recursive: true});
 
@@ -80,6 +88,27 @@ export class DelegationSession {
 		});
 
 		return new DelegationSession(directory, complete);
+	}
+
+	/**
+	 * Open a run by the identity `capture` printed.
+	 *
+	 * The agent-driven route spans separate invocations, so the identity is the
+	 * only handle an agent has. Resolved to a directory here rather than by the
+	 * caller, so that where runs live stays this class's business.
+	 *
+	 * @param id - The run identity
+	 * @param options - Overrides for tests
+	 * @param options.parentDirectory - Where run directories live
+	 * @returns The run
+	 * @throws Error when the identity names no run
+	 */
+	static async loadById(
+		id: string,
+		options: {parentDirectory?: string} = {},
+	): Promise<DelegationSession> {
+		const parent = options.parentDirectory ?? os.tmpdir();
+		return this.load(path.join(parent, `${runDirectoryPrefix}${id}`));
 	}
 
 	/**
@@ -197,6 +226,35 @@ export class DelegationSession {
 	}
 
 	/**
+	 * Record that a page's evidence was served.
+	 *
+	 * The launcher route keeps this in memory for the life of one server
+	 * process. This route has no such process -- `evidence` and `submit` are
+	 * separate invocations -- so the fact has to survive on disk, or a finding
+	 * would be refused for a page the agent had properly read.
+	 *
+	 * @param pageUrl - The page whose evidence was served
+	 */
+	async recordOpened(pageUrl: string): Promise<void> {
+		await this.append({kind: 'open', pageUrl});
+	}
+
+	/**
+	 * Rebuild the page judgement state from this run's log.
+	 *
+	 * Same transitions and same refusals as the live tracker, because a page's
+	 * status must not depend on which route judged it.
+	 *
+	 * @returns A tracker holding the state the log implies
+	 */
+	async trackerFromLog(): Promise<PageJudgementTracker> {
+		return PageJudgementTracker.fromLog(
+			this.pageUrls,
+			await this.submissions(),
+		);
+	}
+
+	/**
 	 * One log line, if it is one this run's intake could have written.
 	 *
 	 * @param line - A line of the submission log
@@ -254,6 +312,43 @@ export class DelegationSession {
  * having its work silently discarded.
  */
 export class PageJudgementTracker {
+	/**
+	 * Rebuild the state a run's log implies.
+	 *
+	 * Replay applies state directly rather than going through `open` and
+	 * `finish`, because those exist to refuse a *submitter*. Replaying a log
+	 * through them would turn a line the log already holds into a rejection, and
+	 * a tampered log would then fail the whole run instead of losing one line —
+	 * the log is validated on read for exactly that reason.
+	 *
+	 * @param pageUrls - The run's pages, in configuration order
+	 * @param submissions - Its log, already validated
+	 * @returns A tracker holding the state the log implies
+	 */
+	static fromLog(
+		pageUrls: readonly string[],
+		submissions: readonly RecordedSubmission[],
+	): PageJudgementTracker {
+		const tracker = new PageJudgementTracker(pageUrls);
+
+		for (const submission of submissions) {
+			if (!tracker.states.has(submission.pageUrl)) {
+				continue;
+			}
+
+			if (submission.kind === 'complete') {
+				tracker.states.set(submission.pageUrl, 'finished');
+			} else if (tracker.states.get(submission.pageUrl) === 'not-started') {
+				// Anything else on a page means its evidence was served: the `open`
+				// record says so outright, and a finding or note could not have
+				// been accepted otherwise. A page already finished is not reopened.
+				tracker.states.set(submission.pageUrl, 'open');
+			}
+		}
+
+		return tracker;
+	}
+
 	private readonly states = new Map<string, PageJudgementState>();
 
 	constructor(pageUrls: readonly string[]) {

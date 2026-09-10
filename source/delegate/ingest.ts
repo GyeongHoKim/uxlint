@@ -136,16 +136,50 @@ export function collect(
 	const finished = new Set<string>();
 
 	for (const submission of submissions) {
-		if (submission.kind === 'finding') {
-			const existing = findingsByPage.get(submission.pageUrl) ?? [];
-			existing.push(toUxFinding(submission.finding));
-			findingsByPage.set(submission.pageUrl, existing);
-		} else if (submission.kind === 'note') {
-			noteByPage.set(submission.pageUrl, submission.note);
-		} else {
-			finished.add(submission.pageUrl);
-		}
+		applySubmission(submission, {findingsByPage, noteByPage, finished});
 	}
 
 	return {findingsByPage, noteByPage, finished};
+}
+
+/**
+ * Fold one recorded submission into the result being built.
+ *
+ * A function rather than a switch inside the loop, so that each kind is matched
+ * by name. The log also carries uxlint's own `open` records, and treating "not a
+ * finding or a note" as a completion would report a page as judged the moment
+ * its evidence was served.
+ *
+ * @param submission - One line of the log
+ * @param into - The result being accumulated
+ */
+function applySubmission(
+	submission: RecordedSubmission,
+	into: IngestResult,
+): void {
+	switch (submission.kind) {
+		case 'finding': {
+			const existing = into.findingsByPage.get(submission.pageUrl) ?? [];
+			existing.push(toUxFinding(submission.finding));
+			into.findingsByPage.set(submission.pageUrl, existing);
+			break;
+		}
+
+		case 'note': {
+			into.noteByPage.set(submission.pageUrl, submission.note);
+			break;
+		}
+
+		case 'complete': {
+			into.finished.add(submission.pageUrl);
+			break;
+		}
+
+		case 'open': {
+			// Page state, which the tracker owns. It contributes nothing to the
+			// report, and is matched by name so that a kind added later cannot
+			// arrive here unnoticed.
+			break;
+		}
+	}
 }

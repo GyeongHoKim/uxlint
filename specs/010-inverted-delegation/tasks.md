@@ -34,8 +34,8 @@ output, so `npm run build` precedes any test run.
 
 **Purpose**: The seams every later phase writes into.
 
-- [ ] T001 Add the `delegate` verb group to the usage text and argument parsing in `source/cli.tsx`, recognising `capture`, `evidence`, `submit`, `runs` and `discard` and rejecting an unknown verb by name, with every verb still unimplemented
-- [ ] T002 [P] Create `source/delegate/driven/` and `tests/delegate/driven/` with the package documentation header the other delegate modules carry, stating that this directory holds the route where the agent drives
+- [X] T001 Add the `delegate` verb group to the usage text and argument parsing in `source/cli.tsx`, recognising `capture`, `evidence`, `submit`, `runs` and `discard` and rejecting an unknown verb by name, with every verb still unimplemented
+- [X] T002 [P] Create `source/delegate/driven/` and `tests/delegate/driven/` with the package documentation header the other delegate modules carry, stating that this directory holds the route where the agent drives
 
 ---
 
@@ -49,18 +49,18 @@ these are done.
 
 ### Tests first
 
-- [ ] T003 [P] Red test in `tests/delegate/stdout-discipline.spec.ts`: a structured payload writer exists in `source/infrastructure/console-output.ts`, it is the only other module member permitted to touch stdout, and it remains unreachable from `source/delegate/mcp-server.ts` — the judgement server's stdout carries JSON-RPC and must not gain a second writer
-- [ ] T004 [P] Red test in `tests/delegate/session.spec.ts`: a run created by one process is loadable by identity in another, is **not** removed when the creating process exits, and reports when the identity names no run (FR-013, data-model "Review run")
-- [ ] T005 [P] Red test in `tests/delegate/driven/prune.spec.ts`: runs older than the retention window are swept, runs inside it are left alone, and a sweep that cannot remove a directory does not fail the command (FR-014, research R4)
-- [ ] T006 [P] Red test in `tests/delegate/session.spec.ts`: page judgement state derived from a run's submission log reproduces the launcher route's transitions and refusals exactly — an unopened page, a late submission after the page was finished, and an unknown page all refused with the same messages (FR-009, data-model "Page judgement state")
-- [ ] T007 [P] Red test in `tests/delegate/driven/host-neutrality.spec.ts`: no module under `source/delegate/driven/` reaches `source/delegate/host/`, proved by walking relative imports the way `tests/delegate/stdout-discipline.spec.ts` walks them. Host neutrality is the feature's central claim and would otherwise hold only because nobody has written host-specific code yet — which is how 009 came to assert a Cursor posture that had never been exercised (FR-016)
+- [X] T003 [P] Red test in `tests/delegate/stdout-discipline.spec.ts`: a structured payload writer exists in `source/infrastructure/console-output.ts`, it is the only other module member permitted to touch stdout, and it remains unreachable from `source/delegate/mcp-server.ts` — the judgement server's stdout carries JSON-RPC and must not gain a second writer
+- [X] T004 [P] Red test in `tests/delegate/session.spec.ts`: a run created by one process is loadable by identity in another, is **not** removed when the creating process exits, and reports when the identity names no run (FR-013, data-model "Review run")
+- [X] T005 [P] Red test in `tests/delegate/driven/prune.spec.ts`: runs older than the retention window are swept, runs inside it are left alone, and a sweep that cannot remove a directory does not fail the command (FR-014, research R4)
+- [X] T006 [P] Red test in `tests/delegate/session.spec.ts`: page judgement state derived from a run's submission log reproduces the launcher route's transitions and refusals exactly — an unopened page, a late submission after the page was finished, and an unknown page all refused with the same messages (FR-009, data-model "Page judgement state")
+- [X] T007 [P] Red test in `tests/delegate/driven/host-neutrality.spec.ts`: no module under `source/delegate/driven/` reaches `source/delegate/host/`, proved by walking relative imports the way `tests/delegate/stdout-discipline.spec.ts` walks them. Host neutrality is the feature's central claim and would otherwise hold only because nobody has written host-specific code yet — which is how 009 came to assert a Cursor posture that had never been exercised (FR-016)
 
 ### Implementation
 
-- [ ] T008 Add the structured payload writer to `source/infrastructure/console-output.ts` as a second named function, documenting why the existing terminating-message exception was not widened (plan Complexity Tracking)
-- [ ] T009 Extend `source/delegate/session.ts` so a run survives the process that created it: remove disposal from the creating path, keep `dispose` for explicit removal, and add loading by identity with the "no run here" failure
-- [ ] T010 [P] Implement age-based sweeping in `source/delegate/driven/runs.ts`, with the 24-hour retention window research R4 settled
-- [ ] T011 Derive `PageJudgementTracker` state from a run's submission log in `source/delegate/session.ts`, so the state machine has one implementation across both routes rather than one in memory and one on disk
+- [X] T008 Add the structured payload writer to `source/infrastructure/console-output.ts` as a second named function, documenting why the existing terminating-message exception was not widened (plan Complexity Tracking)
+- [X] T009 Extend `source/delegate/session.ts` so a run survives the process that created it: remove disposal from the creating path, keep `dispose` for explicit removal, and add loading by identity with the "no run here" failure
+- [X] T010 [P] Implement age-based sweeping in `source/delegate/driven/runs.ts`, with the 24-hour retention window research R4 settled
+- [X] T011 Derive `PageJudgementTracker` state from a run's submission log in `source/delegate/session.ts`, so the state machine has one implementation across both routes rather than one in memory and one on disk
 
 **Checkpoint**: The run outlives its process, stdout has a second disciplined
 writer, and page state is reconstructible. User story work can begin.

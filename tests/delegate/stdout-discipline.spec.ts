@@ -74,3 +74,52 @@ test('console-output.ts is unreachable from every module the server pulls in', t
 
 	t.deepEqual(offenders, []);
 });
+
+// The agent-driven route puts a machine-readable payload on stdout, which is a
+// third role for the stream and the reason `console-output.ts` gains a second
+// writer. Adding it must not widen the module: the ban outside it, and the
+// judgement server's inability to reach any of it, both still hold.
+test('the structured payload writer lives in console-output.ts, not beside it', t => {
+	const source = fs.readFileSync(forbidden, 'utf8');
+
+	t.regex(
+		source,
+		/export function writeStructuredOutput\(/,
+		'the payload writer belongs in the one module permitted to write to stdout',
+	);
+});
+
+test('no module outside console-output.ts writes to stdout', t => {
+	const sourceRoot = path.join(repoRoot, 'source');
+
+	const offenders: string[] = [];
+	const walk = (directory: string) => {
+		for (const entry of fs.readdirSync(directory, {withFileTypes: true})) {
+			const full = path.join(directory, entry.name);
+			if (entry.isDirectory()) {
+				walk(full);
+			} else if (
+				full.endsWith('.ts') &&
+				full !== forbidden &&
+				/process\.stdout\b/.test(fs.readFileSync(full, 'utf8'))
+			) {
+				offenders.push(path.relative(repoRoot, full));
+			}
+		}
+	};
+
+	walk(sourceRoot);
+
+	t.deepEqual(offenders, []);
+});
+
+// The new writer is on the same module the server must not reach, so this is
+// the assertion that stops the payload writer becoming a way in.
+test('the payload writer is unreachable from the judgement server too', t => {
+	const entry = path.join(repoRoot, 'source', 'delegate', 'mcp-server.ts');
+	const offenders = reachableSources(entry).filter(file =>
+		fs.readFileSync(file, 'utf8').includes('writeStructuredOutput'),
+	);
+
+	t.deepEqual(offenders, []);
+});
