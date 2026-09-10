@@ -4,13 +4,13 @@ import type {
 	HostAgentAdapter,
 	HostAvailability,
 } from '../../../source/delegate/host/types.js';
-import type {DelegateHostId} from '../../../source/models/delegate.js';
+import type {LaunchableHostId} from '../../../source/models/delegate.js';
 
 /**
  * An adapter that reports the availability it was told to.
  */
 function stub(
-	id: DelegateHostId,
+	id: LaunchableHostId,
 	availability: HostAvailability,
 ): HostAgentAdapter {
 	return {
@@ -28,15 +28,14 @@ function stub(
 	};
 }
 
-const ready = (id: DelegateHostId) => stub(id, {kind: 'ready'});
-const missing = (id: DelegateHostId) =>
+const ready = (id: LaunchableHostId) => stub(id, {kind: 'ready'});
+const missing = (id: LaunchableHostId) =>
 	stub(id, {kind: 'not-installed', message: `uxlint: ${id} is not installed.`});
 
 test('the single installed agent is used, and the run says which', async t => {
 	const selection = await selectHostAgent(undefined, [
 		ready('claude-code'),
 		missing('codex'),
-		missing('cursor-agent'),
 	]);
 
 	t.is(selection.kind, 'selected');
@@ -52,7 +51,6 @@ test('several installed and none named stops rather than picking one', async t =
 	const selection = await selectHostAgent(undefined, [
 		ready('claude-code'),
 		ready('codex'),
-		missing('cursor-agent'),
 	]);
 
 	t.is(selection.kind, 'unavailable');
@@ -115,13 +113,53 @@ test('no supported agent installed names them all and how to get one', async t =
 	const selection = await selectHostAgent(undefined, [
 		missing('claude-code'),
 		missing('codex'),
-		missing('cursor-agent'),
 	]);
 
 	t.is(selection.kind, 'unavailable');
 	if (selection.kind === 'unavailable') {
 		t.regex(selection.message, /claude-code/);
 		t.regex(selection.message, /codex/);
+	}
+});
+
+// Cursor Agent has no launcher adapter, and the reason is not that nobody wrote
+// one. A live run showed `agent -p` will not start without workspace trust, that
+// Cursor gives an MCP server child none of its own environment so a per-run
+// session cannot reach it, and that no flag combination both submits findings
+// and refuses writes. Keeping an adapter would mean asserting a read-only
+// posture the run disproved.
+test('cursor-agent stops the run and names the route that does work', async t => {
+	const selection = await selectHostAgent('cursor-agent', [
+		ready('claude-code'),
+		ready('codex'),
+	]);
+
+	t.is(selection.kind, 'unavailable');
+	if (selection.kind === 'unavailable') {
+		// Not "unsupported": the identifier is still accepted, because a developer
+		// following the old README should get an explanation rather than a parse
+		// error.
+		t.notRegex(selection.message, /not a supported host agent/);
+		t.regex(selection.message, /skill/i);
 		t.regex(selection.message, /cursor-agent/);
 	}
+});
+
+// It has to stop before a browser is opened, or the explanation costs a full
+// navigation and measurement sweep first.
+test('cursor-agent is refused by selection, which runs before any capture', async t => {
+	let detected = false;
+
+	const selection = await selectHostAgent('cursor-agent', [
+		{
+			...ready('claude-code'),
+			async detect() {
+				detected = true;
+				return {kind: 'ready' as const};
+			},
+		},
+	]);
+
+	t.is(selection.kind, 'unavailable');
+	t.false(detected, 'no adapter is probed for a host that has no adapter');
 });

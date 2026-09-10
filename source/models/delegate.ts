@@ -25,6 +25,29 @@ export const delegateHostIds = [
 export type DelegateHostId = (typeof delegateHostIds)[number];
 
 /**
+ * A host agent uxlint can launch.
+ *
+ * `cursor-agent` is a supported host but not a launchable one, and the
+ * distinction is load-bearing rather than pedantic. A live run showed that no
+ * flag combination makes a launched Cursor Agent both submit findings and refuse
+ * writes, so there is no read-only posture to declare for it; it is supported
+ * through the agent-driven route, where uxlint launches nothing and therefore has
+ * nothing to confine. Spelling that out in the type stops an adapter for it being
+ * added back without the posture that would have to come with it.
+ */
+export type LaunchableHostId = Exclude<DelegateHostId, 'cursor-agent'>;
+
+/**
+ * Whether a string names a host agent uxlint can launch.
+ *
+ * @param value - Candidate identifier
+ * @returns Whether the launcher route supports it
+ */
+export function isLaunchableHostId(value: string): value is LaunchableHostId {
+	return value !== 'cursor-agent' && isDelegateHostId(value);
+}
+
+/**
  * Whether a string names a supported host agent.
  *
  * @param value - Candidate identifier, usually from the command line

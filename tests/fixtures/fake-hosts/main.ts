@@ -1,7 +1,7 @@
 /**
  * A host agent CLI, as its documentation describes it.
  *
- * One executable standing in for `claude`, `codex` and Cursor's `agent`. It
+ * One executable standing in for `claude` and `codex`. It
  * parses the argument vector the way the documented CLI does, finds the
  * judgement server the way the documented CLI finds it, starts that server as
  * its own child over stdio, and calls the tools a script tells it to. There
@@ -20,8 +20,8 @@ import process from 'node:process';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {
-	isDelegateHostId,
-	type DelegateHostId,
+	isLaunchableHostId,
+	type LaunchableHostId,
 } from '../../../source/models/delegate.js';
 import {parseArgv, type ParsedLaunch} from './argv.js';
 import {
@@ -176,7 +176,7 @@ async function judge(
  * @param host - Which CLI
  * @param succeeded - Whether the run is reported as a success
  */
-function printResult(host: DelegateHostId, succeeded: boolean): void {
+function printResult(host: LaunchableHostId, succeeded: boolean): void {
 	const result = 'Review submitted through the judgement tools.';
 
 	switch (host) {
@@ -215,22 +215,6 @@ function printResult(host: DelegateHostId, succeeded: boolean): void {
 			);
 			break;
 		}
-
-		case 'cursor-agent': {
-			// https://cursor.com/docs/cli/reference/output-format
-			console.log(
-				JSON.stringify({
-					type: 'result',
-					subtype: succeeded ? 'success' : 'error',
-					is_error: !succeeded,
-					duration_ms: 1234,
-					duration_api_ms: 1234,
-					result,
-					session_id: '00000000-0000-4000-8000-000000000000',
-				}),
-			);
-			break;
-		}
 	}
 }
 
@@ -241,7 +225,7 @@ function printResult(host: DelegateHostId, succeeded: boolean): void {
  * @param argv - Its arguments
  * @returns The exit code
  */
-async function main(host: DelegateHostId, argv: string[]): Promise<number> {
+async function main(host: LaunchableHostId, argv: string[]): Promise<number> {
 	const trace: FakeHostTrace = {
 		host,
 		argv,
@@ -323,7 +307,7 @@ async function main(host: DelegateHostId, argv: string[]): Promise<number> {
 
 const [host, ...argv] = process.argv.slice(2);
 
-if (host === undefined || !isDelegateHostId(host)) {
+if (host === undefined || !isLaunchableHostId(host)) {
 	console.error(`fake host: unknown host ${host ?? '(none)'}`);
 	process.exit(2);
 }

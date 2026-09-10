@@ -10,7 +10,7 @@
  * @packageDocumentation
  */
 
-import type {DelegateHostId} from '../../models/delegate.js';
+import type {LaunchableHostId} from '../../models/delegate.js';
 
 /**
  * The judgement tools a host agent is allowed to call.
@@ -89,7 +89,7 @@ export type HostLaunchContext = {
  */
 export type HostAgentAdapter = {
 	/** Which agent this is; recorded on the report */
-	id: DelegateHostId;
+	id: LaunchableHostId;
 
 	/** The executable this adapter looks for */
 	binary: string;
@@ -128,12 +128,15 @@ export type HostAgentAdapter = {
  * at all, rather than inheriting the obligation by convention and quietly
  * skipping it.
  *
- * `cursor-agent` has nothing required because its read-only posture is the
- * absence of a flag: without `--force` it proposes changes and applies none.
- * That is exactly why the forbidden list matters more there than anywhere else.
+ * `cursor-agent` is absent, and its absence is the point. A live run showed that
+ * no flag combination makes a launched Cursor Agent both submit findings and
+ * refuse writes, so there is no posture to declare for it -- and an entry
+ * claiming one would be this table asserting something already disproved. It is
+ * supported through the agent-driven route instead, where uxlint launches
+ * nothing and so has nothing to confine.
  */
 export const readOnlyPosture: Record<
-	DelegateHostId,
+	LaunchableHostId,
 	{
 		/** Argv tokens that must all be present */
 		required: string[];
@@ -159,11 +162,6 @@ export const readOnlyPosture: Record<
 			'--dangerously-bypass-hook-trust',
 		],
 	},
-	'cursor-agent': {
-		required: [],
-		requiredValues: [],
-		forbidden: ['--force', '--yolo', '-f'],
-	},
 };
 
 /**
@@ -177,7 +175,7 @@ export const readOnlyPosture: Record<
  * @param launch - What the adapter built
  * @throws Error when the launch is not read-only
  */
-export function assertReadOnly(id: DelegateHostId, launch: HostLaunch): void {
+export function assertReadOnly(id: LaunchableHostId, launch: HostLaunch): void {
 	const posture = readOnlyPosture[id];
 
 	const missing = posture.required.filter(flag => !launch.args.includes(flag));

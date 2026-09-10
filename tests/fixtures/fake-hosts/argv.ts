@@ -9,10 +9,13 @@
  * https://developers.openai.com/codex/cli/reference,
  * https://developers.openai.com/codex/noninteractive,
  * https://developers.openai.com/codex/mcp and
- * https://developers.openai.com/codex/config-advanced. Cursor:
- * https://cursor.com/docs/cli/reference/parameters,
- * https://cursor.com/docs/cli/headless, https://cursor.com/docs/cli/mcp and
- * https://cursor.com/docs/context/mcp.
+ * https://developers.openai.com/codex/config-advanced.
+ *
+ * Cursor Agent is deliberately absent. It had a parser here, built from its
+ * documentation, and a live run falsified three of the rules that parser
+ * encoded -- so keeping it would mean asserting documentation that has been
+ * disproved. Cursor is supported through the agent-driven route instead, which
+ * launches no binary and therefore needs no fake for one.
  *
  * A rule marked "assumed" is not in those pages. It is what uxlint relies on,
  * stated so that a reader knows which parts of these fakes a real run has to
@@ -22,7 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {parse as parseToml} from 'smol-toml';
-import type {DelegateHostId} from '../../../source/models/delegate.js';
+import type {LaunchableHostId} from '../../../source/models/delegate.js';
 
 /**
  * A stdio MCP server, as the CLI resolved it.
@@ -38,10 +41,8 @@ export type ResolvedServer = {
 	/**
 	 * Whether the server also receives the CLI's own environment.
 	 *
-	 * Assumed for Cursor: its documented registration file for uxlint carries
-	 * no `env`, so the session can only reach the server by inheritance.
-	 * Withheld for the other two, which makes the `env` in the injected
-	 * configuration load-bearing.
+	 * Withheld for both remaining hosts, which is what makes the `env` in the
+	 * injected configuration load-bearing rather than incidental.
 	 */
 	inheritsEnvironment: boolean;
 };
@@ -50,7 +51,7 @@ export type ResolvedServer = {
  * What the fake learned from the command line.
  */
 export type ParsedLaunch = {
-	host: DelegateHostId;
+	host: LaunchableHostId;
 	promptSource: 'stdin' | 'argument' | 'none';
 	prompt: string;
 	server?: ResolvedServer;
@@ -501,98 +502,6 @@ function parseTomlOverride(override: string): Record<string, unknown> {
 }
 
 /**
- * Cursor Agent.
- *
- * @param argv - Arguments after the executable
- * @param context - Process facts
- * @returns The parsed launch
- */
-function parseCursor(argv: string[], context: ParseContext): ParsedLaunch {
-	// Per reference/parameters, `-v, --version`. Format observed.
-	if (argv[0] === '--version' || argv[0] === '-v') {
-		return probe('cursor-agent', {exitCode: 0, stdout: '2026.09.01-abc1234'});
-	}
-
-	let print = false;
-	let approveMcps = false;
-	let force = false;
-
-	const setPrint: FlagHandler = () => {
-		print = true;
-	};
-
-	// Per headless, "--force allows the agent to make direct file changes
-	// without confirmation"; --yolo is its alias.
-	const setForce: FlagHandler = () => {
-		force = true;
-	};
-
-	const positional = walk(new Arguments(argv), {
-		'-p': setPrint,
-		'--print': setPrint,
-		'--output-format': takesValue,
-		'--api-key': takesValue,
-		'-m': takesValue,
-		'--model': takesValue,
-		'--workspace': takesValue,
-		'--approve-mcps'() {
-			approveMcps = true;
-		},
-		'-f': setForce,
-		'--force': setForce,
-		'--yolo': setForce,
-		'--trust': ignored,
-	});
-
-	requirePrintMode(print);
-
-	// Per reference/parameters, `agent [prompt...]`. Reading the prompt from
-	// stdin is not documented, so the fake does not.
-	if (positional.length === 0) {
-		throw new Error('no prompt was provided');
-	}
-
-	// Per cli/mcp, servers come from `.cursor/mcp.json` in the project or in
-	// the home directory; there is no flag to pass one inline.
-	const candidates = [
-		[path.join(context.cwd, '.cursor', 'mcp.json'), 'project .cursor/mcp.json'],
-		[path.join(context.home, '.cursor', 'mcp.json'), 'home .cursor/mcp.json'],
-	] as const;
-	let server: ResolvedServer | undefined;
-	for (const [file, source] of candidates) {
-		if (!server && fs.existsSync(file)) {
-			server = serverFromJson(
-				JSON.parse(fs.readFileSync(file, 'utf8')) as McpServersJson,
-				source,
-				true,
-			);
-		}
-	}
-
-	// Per cli/mcp, `--approve-mcps` auto-approves configured servers; without
-	// it a headless run has no one to answer the approval prompt.
-	let skipped: string | undefined;
-	if (!server) {
-		skipped = 'no MCP server is registered in .cursor/mcp.json';
-	} else if (!approveMcps) {
-		skipped = 'the uxlint server was not approved; pass --approve-mcps';
-		server = undefined;
-	}
-
-	return {
-		host: 'cursor-agent',
-		promptSource: 'argument',
-		prompt: positional.join(' '),
-		server,
-		// Per headless, without --force the agent proposes changes and applies
-		// none.
-		writable: force,
-		skipped,
-		permitsTool: () => true,
-	};
-}
-
-/**
  * A launch that is only a probe.
  *
  * @param host - Which CLI
@@ -600,7 +509,7 @@ function parseCursor(argv: string[], context: ParseContext): ParsedLaunch {
  * @returns A parsed launch carrying nothing but the probe
  */
 function probe(
-	host: DelegateHostId,
+	host: LaunchableHostId,
 	result: NonNullable<ParsedLaunch['probe']>,
 ): ParsedLaunch {
 	return {
@@ -622,7 +531,7 @@ function probe(
  * @returns The parsed launch
  */
 export function parseArgv(
-	host: DelegateHostId,
+	host: LaunchableHostId,
 	argv: string[],
 	context: ParseContext,
 ): ParsedLaunch {
@@ -633,10 +542,6 @@ export function parseArgv(
 
 		case 'codex': {
 			return parseCodex(argv, context);
-		}
-
-		case 'cursor-agent': {
-			return parseCursor(argv, context);
 		}
 	}
 }

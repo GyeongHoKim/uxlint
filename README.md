@@ -226,9 +226,20 @@ uxlint --delegate
 
 **No provider credential is needed, and none is read even if one is set.**
 
-### Choosing an agent
+There are two ways to do this, and which one applies depends on your agent.
+
+| Your agent   | How                                 | Why                                                                  |
+| ------------ | ----------------------------------- | -------------------------------------------------------------------- |
+| Claude Code  | `uxlint --delegate`                 | uxlint starts it for you, read-only                                  |
+| Codex        | `uxlint --delegate`                 | uxlint starts it for you, read-only                                  |
+| Cursor Agent | install the skill, then just ask it | uxlint cannot start Cursor read-only, so Cursor calls uxlint instead |
+
+Either way the report is the same report, and no model API key is involved.
+
+### uxlint starts the agent: `--delegate`
 
 ```bash
+uxlint --delegate
 uxlint --delegate --host-agent codex
 ```
 
@@ -237,49 +248,73 @@ several installed and none named, it stops and asks you to choose: which agent
 judges a review changes the review, so it is not a decision uxlint makes for
 you.
 
-### Cursor Agent needs a one-time setup
+**Your repository is read-only on this route.** uxlint applies each agent's
+read-only mechanism at launch, refuses to start one whose command line is not
+read-only, and never passes a flag that would grant write access. A delegated
+run leaves your working tree exactly as it found it, untracked files included.
 
-Claude Code and Codex are handed the judgement tools on the command line, so
-they need no setup. Cursor discovers MCP servers only from its own
-configuration file, so add this once to `~/.cursor/mcp.json`:
+**Cursor Agent is not on this route, and the reason is not that nobody got round
+to it.** Its CLI will not start non-interactively without being granted trust in
+the workspace; it gives an MCP server child none of its own environment, so
+uxlint cannot get a per-run session to the judgement server; and no combination
+of its flags both submits findings and refuses writes — `--mode plan` stops the
+tool calls, while `--trust` and `--sandbox enabled` both let it write to any
+absolute path, which `--workspace` does not prevent either. All of that was
+established by running it. Rather than claim a guarantee we cannot keep, uxlint
+supports Cursor the other way round.
 
-```json
-{
-	"mcpServers": {
-		"uxlint": {
-			"command": "uxlint",
-			"args": ["mcp-serve"]
-		}
-	}
-}
+### The agent starts uxlint: install the skill
+
+Ask your agent to review the app, in your own words, and it does the rest. It
+needs one file first — the same file for every agent, in a different place:
+
+| Agent        | Install to                        |
+| ------------ | --------------------------------- |
+| Claude Code  | `~/.claude/skills/uxlint-review/` |
+| Codex        | `~/.codex/skills/uxlint-review/`  |
+| Cursor Agent | `~/.cursor/skills/uxlint-review/` |
+
+```bash
+cp -r node_modules/@gyeonghokim/uxlint/skills/uxlint-review ~/.cursor/skills/
 ```
 
-uxlint deliberately does not write that file for you. It runs at your
-repository root, so writing it there would modify your working tree, and
-writing the home-level one at run time could damage a configuration you own if
-a run were interrupted.
+Then, in the agent: _"review this app's UX"_. It runs the deterministic half
+itself, reads back what uxlint captured, judges it as your persona, and hands
+the judgement to uxlint, which writes the report.
 
-### Your repository is read-only
+This route works for all three agents, so it is also there if you would rather
+drive from inside your agent than from a terminal.
 
-The delegated agent runs at your repository root, which is what lets its
-recommendations name real files. It cannot write there. uxlint applies each
-agent's read-only mechanism at launch, refuses to start one whose command line
-is not read-only, and never passes a flag that would grant write access. A
-delegated run leaves your working tree exactly as it found it, untracked files
-included.
+Under the hood it is three commands, which you can also run by hand:
+
+```bash
+uxlint delegate capture                       # opens, captures and measures every page
+uxlint delegate evidence --run <id>           # what it captured, all pages or one
+uxlint delegate submit --run <id> --file j.json  # judgement in, report out
+uxlint delegate runs                          # reviews that exist, and how far each got
+uxlint delegate discard --run <id>            # throw one away
+```
+
+Runs are kept for 24 hours so a review can be picked up the next day.
+
+**What this route does not promise.** Here your agent is running in your own
+session, started by you, and uxlint does not confine it — the same as any other
+work you ask it to do. The read-only guarantee above belongs to the route where
+uxlint starts the agent, because that is the case where uxlint owes you one.
 
 ### Continuous integration keeps the existing mode
 
-Delegate mode is for your own machine. In CI the premise does not hold: coding
-agent CLIs are not installed in build images, and once you provision
-credentials for one you are paying for model access anyway — with an extra
-process in the middle. Keep using `uxlint` with `UXLINT_AI_API_KEY` there.
+Delegate mode is for your own machine, on either route. In CI the premise does
+not hold: coding agent CLIs are not installed in build images, no agent is
+driving, and once you provision credentials for one you are paying for model
+access anyway — with an extra process in the middle. Keep using `uxlint` with
+`UXLINT_AI_API_KEY` there.
 
 ### `uxlint mcp-serve`
 
-The judgement server your agent connects to. It is started by a delegated run,
-not by you; it is documented only because the Cursor registration above names
-it.
+The judgement server the launched agent connects to. It is started by
+`uxlint --delegate`, not by you, and is documented only so that a process you
+see in a list is not a mystery.
 
 ## Authentication
 

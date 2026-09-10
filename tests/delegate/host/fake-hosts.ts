@@ -41,13 +41,6 @@ export type FakeHostsOptions = {
 	script?: FakeHostScript;
 
 	/**
-	 * Cursor's home-level registration, when a test wants one. Written to a
-	 * private HOME so the developer's own `~/.cursor/mcp.json` is never read
-	 * or touched.
-	 */
-	cursorRegistration?: {command: string; args: string[]};
-
-	/**
 	 * The developer's Claude Code settings, when a test wants some. Written to
 	 * the same private HOME.
 	 */
@@ -94,15 +87,6 @@ export function installFakeHosts(
 			shim,
 			`#!/bin/sh\nexec ${quote(process.execPath)} ${quote(fakeHostEntryPoint)} ${id} "$@"\n`,
 			{mode: 0o755},
-		);
-	}
-
-	if (options.cursorRegistration) {
-		const cursorDirectory = path.join(home, '.cursor');
-		fs.mkdirSync(cursorDirectory);
-		fs.writeFileSync(
-			path.join(cursorDirectory, 'mcp.json'),
-			JSON.stringify({mcpServers: {uxlint: options.cursorRegistration}}),
 		);
 	}
 
