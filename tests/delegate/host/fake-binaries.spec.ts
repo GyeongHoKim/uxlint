@@ -263,6 +263,89 @@ test.serial(
 	},
 );
 
+// R2, held by a behavioural test. `-p` on Codex is `--profile`, not print mode,
+// so an adapter that reached for it expecting the latter does not merely lose the
+// prompt: the command line fails to parse. Verified against codex-cli 0.153.4,
+// which answers `invalid --profile value ...; pass a plain name such as \`work\``.
+test.serial(
+	'Codex: passing the prompt to -p fails to parse, which is why print mode is not that flag',
+	async t => {
+		installFakeHosts(t, {installed: ['codex']});
+		const launch = codex.buildLaunch(await context(t));
+
+		const outcome = await codex.run({
+			...launch,
+			args: ['exec', '-p', 'Judge these pages.'],
+		});
+
+		t.is(outcome.terminated, 'failed');
+		t.regex(outcome.stderrSummary!, /invalid --profile value/);
+	},
+);
+
+// The other branch of the same rule, and the one the fake used to get wrong: a
+// plain name that names no profile is accepted and ignored rather than refused.
+test.serial(
+	'Codex: a profile name that does not exist does not stop the run',
+	async t => {
+		installFakeHosts(t, {
+			installed: ['codex'],
+			script: {pages: [{findings: 1, complete: true}]},
+		});
+		const launch = codex.buildLaunch(await context(t));
+		const args = [...launch.args];
+		args.splice(1, 0, '-p', 'nosuchprofile');
+
+		const outcome = await codex.run({...launch, args});
+
+		t.is(outcome.terminated, 'completed');
+	},
+);
+
+// The defect Scenario 9 found in 009, held by a behavioural test rather than by
+// a check that the flag string is present. Codex refuses to start in a directory
+// it does not consider trusted, and the refusal is silent where it matters: the
+// run still exits 0 and every page is reported unjudged.
+test.serial(
+	'Codex: without the trusted-directory skip, a plain directory stops the session',
+	async t => {
+		const hosts = installFakeHosts(t, {
+			installed: ['codex'],
+			script: {pages: [{findings: 1, complete: true}]},
+		});
+		// A directory that is not a git repository, which is what Codex refuses.
+		const plain = temporaryDirectory(t.teardown);
+		const launch = codex.buildLaunch(await context(t));
+		const args = launch.args.filter(
+			argument => argument !== '--skip-git-repo-check',
+		);
+
+		const outcome = await codex.run({...launch, args}, {cwd: plain});
+
+		t.is(outcome.terminated, 'failed');
+		t.regex(outcome.stderrSummary!, /Not inside a trusted directory/);
+		t.deepEqual(hosts.trace().calls, [], 'nothing was judged');
+	},
+);
+
+// And with the flag the adapter does pass, the same directory is fine.
+test.serial(
+	'Codex: with the skip the adapter passes, a plain directory runs',
+	async t => {
+		const hosts = installFakeHosts(t, {
+			installed: ['codex'],
+			script: {pages: [{findings: 1, complete: true}]},
+		});
+		const plain = temporaryDirectory(t.teardown);
+		const launch = codex.buildLaunch(await context(t));
+
+		const outcome = await codex.run(launch, {cwd: plain});
+
+		t.is(outcome.terminated, 'completed');
+		t.true(hosts.trace().calls.length > 0);
+	},
+);
+
 // FR-016. Codex is the one host that will say whether it is signed in, and the
 // adapter asks before a browser is started.
 test.serial(

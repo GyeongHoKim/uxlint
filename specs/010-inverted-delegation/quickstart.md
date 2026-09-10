@@ -208,6 +208,33 @@ the launcher route, where uxlint started it and therefore owed the guarantee.
 
 ---
 
+## The fakes were audited against the real binaries
+
+The launcher route's fake `claude` and `codex` are the only thing standing
+between an adapter change and a machine nobody can test on. On 2026-09-10 they
+were checked against the installed CLIs rather than against their documentation,
+and two rules were wrong:
+
+| Rule | Was | Is |
+| --- | --- | --- |
+| Trusted directory | `--skip-git-repo-check` tolerated, nothing required it | Codex refuses to start without it outside a git repository, and the fake now refuses too |
+| `-p` / `--profile` | Assumed to fail when the profile does not exist | A plain name that names nothing is accepted and ignored; a value that does not look like a name is refused at parse time with exit 2 |
+| `codex login status` when logged out | Assumed non-zero | Confirmed: "Not logged in", exit 1 |
+
+The first was not academic: it is why an adapter missing that flag shipped in
+009. The fake shrugged, so only a test asserting the literal flag string would
+have caught it — and there was none.
+
+Both corrections are now held by behavioural tests. Removing
+`--skip-git-repo-check` from the adapter fails
+`fake-binaries › Codex: with the skip the adapter passes, a plain directory runs`,
+not merely a check that the string is present. That was verified by removing it.
+
+**Still modelled on documentation**: that Claude Code's `--restricted` ignores a
+permissive user settings file. Confirming it needs the developer's own
+`~/.claude/settings.json` rewritten or their credentials copied into a throwaway
+HOME, and neither is something a test run should do to somebody's machine.
+
 ## Contract-level checks (automated, not manual)
 
 - Every verb's flags and output shape match

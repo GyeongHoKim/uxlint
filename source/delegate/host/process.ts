@@ -80,18 +80,24 @@ export function probeAuthenticated(binary: string, args: string[]): boolean {
  * @param launch - What the adapter built
  * @param options - Execution controls
  * @param options.timeoutMs - How long the session may take before it is killed
+ * @param options.cwd - Where to run it; the caller's directory by default
  * @returns How the session ended
  */
 export async function runLaunch(
 	launch: HostLaunch,
-	options: {timeoutMs?: number} = {},
+	options: {timeoutMs?: number; cwd?: string} = {},
 ): Promise<HostOutcome> {
-	const {timeoutMs} = options;
+	const {timeoutMs, cwd} = options;
 
 	return new Promise<HostOutcome>(resolve => {
+		// The working directory is inherited in production -- a delegated run
+		// judges the developer's own project. It is settable because at least one
+		// host refuses to start depending on what the directory is, and that
+		// refusal has to be exercisable.
 		const child = spawn(launch.command, launch.args, {
 			env: {...process.env, ...launch.env},
 			stdio: ['pipe', 'pipe', 'pipe'],
+			...(cwd !== undefined && {cwd}),
 		});
 
 		let stderr = '';
