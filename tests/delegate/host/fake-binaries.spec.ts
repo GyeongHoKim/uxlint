@@ -230,6 +230,40 @@ test.serial(
 	},
 );
 
+// The failure a live run exited 0 on. Under `approval_policy = never`, which
+// is what `codex exec` runs with, Codex auto-approves an MCP call only for a
+// sandbox that can write everywhere -- so the read-only launch has to approve
+// this one server's tools explicitly or it can call none of them. Reproduced
+// by removing that approval from the launch the adapter builds.
+test.serial(
+	'Codex: without the per-server tool approval, a read-only session can call nothing',
+	async t => {
+		const hosts = installFakeHosts(t, {
+			installed: ['codex'],
+			script: {pages: [{findings: 1, complete: true}]},
+		});
+		const launch = codex.buildLaunch(await context(t));
+		const configIndex = launch.args.indexOf('-c');
+		const args = [...launch.args];
+		args[configIndex + 1] = args[configIndex + 1]!.replace(
+			', default_tools_approval_mode="approve"',
+			'',
+		);
+
+		const outcome = await codex.run({...launch, args});
+
+		// The session still ends well: the agent is told no, not broken. That
+		// is why the report, and not the exit code, decides a page's status.
+		t.is(outcome.terminated, 'completed');
+
+		const trace = hosts.trace();
+		t.is(trace.server?.source, '--config');
+		t.deepEqual([...trace.tools].sort(), [...judgementToolNames].sort());
+		t.deepEqual(trace.calls, []);
+		t.deepEqual(trace.denied, ['listPages']);
+	},
+);
+
 // FR-016. Codex is the one host that will say whether it is signed in, and the
 // adapter asks before a browser is started.
 test.serial(
