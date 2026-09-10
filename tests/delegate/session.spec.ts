@@ -7,7 +7,7 @@ import {
 	DelegationSession,
 	PageJudgementTracker,
 } from '../../source/delegate/session.js';
-import {SubmissionRejected} from '../../source/delegate/ingest.js';
+import {collect, SubmissionRejected} from '../../source/delegate/ingest.js';
 import type {PageEvidence} from '../../source/models/delegate.js';
 import {locateRepoRoot} from '../utils.js';
 
@@ -240,6 +240,58 @@ test('a line the log was not given by the intake is dropped on read', async t =>
 
 	t.is(submissions.length, 1, 'only the line the intake wrote survives');
 	t.is(submissions[0]?.kind, 'note');
+});
+
+// Both intakes refuse a submission for a page already completed, as too late.
+// A line like that in the log was therefore written by something else, and it
+// must not reach the report through the back door.
+test('a finding or note landing after its page was completed is dropped on read', async t => {
+	const session = await DelegationSession.create(manifest());
+	t.teardown(async () => session.dispose());
+
+	const {pageUrl} = evidence[0]!;
+	const finding = {
+		severity: 'medium' as const,
+		category: 'Navigation' as const,
+		description: 'Judged while the page was open.',
+		personaRelevance: ['first-time visitor'],
+		recommendation: 'Make it clearer.',
+		pageUrl,
+	};
+
+	await session.append(
+		{kind: 'open', pageUrl},
+		{kind: 'finding', pageUrl, finding},
+		{kind: 'complete', pageUrl},
+	);
+
+	await fs.appendFile(
+		path.join(session.directory, 'submissions.jsonl'),
+		[
+			JSON.stringify({
+				kind: 'finding',
+				pageUrl,
+				finding: {...finding, description: 'Forged after completion.'},
+			}),
+			JSON.stringify({kind: 'note', pageUrl, note: 'Forged after completion.'}),
+			'',
+		].join('\n'),
+		'utf8',
+	);
+
+	const submissions = await session.submissions();
+
+	t.deepEqual(
+		submissions.map(submission => submission.kind),
+		['open', 'finding', 'complete'],
+	);
+
+	const judged = collect(submissions);
+	t.deepEqual(
+		judged.findingsByPage.get(pageUrl)?.map(item => item.description),
+		['Judged while the page was open.'],
+	);
+	t.false(judged.noteByPage.has(pageUrl));
 });
 
 test('a well-formed line naming a page outside the run is dropped too', async t => {

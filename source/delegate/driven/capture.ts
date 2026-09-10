@@ -51,15 +51,6 @@ export type CaptureDependencies = {
 
 	/** Where run directories live */
 	parentDirectory?: string;
-
-	/**
-	 * Only a test passes this, and only to prove it is never called.
-	 *
-	 * A credential reader this command has no use for. Asserting the absence is
-	 * worth a parameter, because "no credential is read" is the claim the whole
-	 * feature rests on and nothing else would notice it being broken.
-	 */
-	readCredentialForTest?: () => string | undefined;
 };
 
 /**

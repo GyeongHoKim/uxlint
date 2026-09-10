@@ -26,9 +26,11 @@ import type {UxLintConfig} from '../../models/config.js';
 import {
 	judgementDocumentSchema,
 	type JudgementDocument,
+	type RecordedSubmission,
 } from '../../models/delegate.js';
 import {evaluateGate, renderGateVerdict} from '../../models/gate-result.js';
 import {ReportBuilder} from '../../services/report-builder.js';
+import {runSequentially} from '../../utils/run-sequentially.js';
 import {assembleReport, type CapturedPage} from '../capture-pass.js';
 import {collect, validateFinding, SubmissionRejected} from '../ingest.js';
 import {DelegationSession} from '../session.js';
@@ -131,8 +133,10 @@ async function record(
 	const refusals: string[] = [];
 	let accepted = 0;
 
-	for (const page of document.pages) {
-		// eslint-disable-next-line no-await-in-loop -- the tracker must see each page's submissions in order
+	// One page at a time: the tracker must see each page's submissions before it
+	// judges the next, or a document that finishes a page and then submits to it
+	// again would have the late half accepted.
+	await runSequentially(document.pages, async page => {
 		const tracker = await session.trackerFromLog();
 
 		try {
@@ -141,8 +145,10 @@ async function record(
 			refusals.push(
 				error instanceof SubmissionRejected ? error.message : String(error),
 			);
-			continue;
+			return;
 		}
+
+		const lines: RecordedSubmission[] = [];
 
 		for (const candidate of page.findings ?? []) {
 			try {
@@ -150,13 +156,7 @@ async function record(
 					attributeToPage(candidate, page.pageUrl),
 					session.pageUrls,
 				);
-				// eslint-disable-next-line no-await-in-loop -- submissions are sequential
-				await session.append({
-					kind: 'finding',
-					pageUrl: finding.pageUrl,
-					finding,
-				});
-				accepted++;
+				lines.push({kind: 'finding', pageUrl: finding.pageUrl, finding});
 			} catch (error) {
 				refusals.push(
 					error instanceof SubmissionRejected ? error.message : String(error),
@@ -165,8 +165,7 @@ async function record(
 		}
 
 		if (page.measurementNote !== undefined) {
-			// eslint-disable-next-line no-await-in-loop -- as above
-			await session.append({
+			lines.push({
 				kind: 'note',
 				pageUrl: page.pageUrl,
 				note: page.measurementNote,
@@ -174,10 +173,12 @@ async function record(
 		}
 
 		if (page.finished === true) {
-			// eslint-disable-next-line no-await-in-loop -- as above
-			await session.append({kind: 'complete', pageUrl: page.pageUrl});
+			lines.push({kind: 'complete', pageUrl: page.pageUrl});
 		}
-	}
+
+		await session.append(...lines);
+		accepted += lines.filter(line => line.kind === 'finding').length;
+	});
 
 	return {accepted, refusals};
 }
@@ -268,10 +269,11 @@ export async function submitJudgement(
 	// Said out loud even when nothing was refused. An agent that gets silence
 	// back cannot tell a successful submission from a command that did nothing,
 	// and this is the only signal it has -- the report is a file it may not read.
+	// Where the report went is said by `writeReport`, once it is actually there.
 	emitMessage(
 		`uxlint: recorded ${accepted} ${accepted === 1 ? 'finding' : 'findings'}${
 			refusals.length > 0 ? `, ${refusals.length} refused` : ''
-		}. Report written to ${config.report.output}.`,
+		}.`,
 	);
 
 	return writeReport(config, session, emitMessage);
@@ -308,6 +310,7 @@ async function writeReport(
 
 	const report = builder.generateFinalReport();
 	await builder.saveReport(config.report.output);
+	emitMessage(`uxlint: report written to ${config.report.output}.`);
 
 	logger.info('Agent-driven report written', {
 		run: session.id,

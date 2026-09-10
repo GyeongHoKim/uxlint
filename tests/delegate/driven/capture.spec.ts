@@ -9,6 +9,7 @@
 import {promises as fsPromises} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 import test from 'ava';
 import {captureForAgent} from '../../../source/delegate/driven/capture.js';
 import {DelegationSession} from '../../../source/delegate/session.js';
@@ -158,9 +159,35 @@ test('a browser the environment cannot run stops the command before it claims a 
 });
 
 // The feature's premise. A credential may be present and must still go unread.
-test('no model provider credential is read', async t => {
+// Watched at its real source, the environment, rather than through a hook the
+// command could simply never call. Serial because it swaps a process global.
+test.serial('no model provider credential is read', async t => {
 	const parent = await parentDirectory(t.teardown);
+	const credential = 'UXLINT_AI_API_KEY';
+	const environment = process.env;
 	let readCredential = false;
+
+	process.env = new Proxy(environment, {
+		get(target, key) {
+			if (key === credential) {
+				readCredential = true;
+				return 'a-key';
+			}
+
+			return Reflect.get(target, key) as unknown;
+		},
+		has(target, key) {
+			if (key === credential) {
+				readCredential = true;
+				return true;
+			}
+
+			return Reflect.has(target, key);
+		},
+	});
+	t.teardown(() => {
+		process.env = environment;
+	});
 
 	await captureForAgent(configFor(1, 'report.md'), {
 		...silent,
@@ -168,10 +195,6 @@ test('no model provider credential is read', async t => {
 		parentDirectory: parent,
 		emitPayload() {
 			// Discarded.
-		},
-		readCredentialForTest() {
-			readCredential = true;
-			return 'a-key';
 		},
 	});
 

@@ -92,10 +92,8 @@ export async function serveEvidence(options: EvidenceOptions): Promise<number> {
 
 	// Recorded before the payload goes out, so a crash between the two cannot
 	// leave an agent holding evidence for a page uxlint does not think it read.
-	for (const served of pages) {
-		// eslint-disable-next-line no-await-in-loop -- appends to one log, in order
-		await session.recordOpened(served.pageUrl);
-	}
+	// One append for all of them, in the order they are served.
+	await session.recordOpened(...pages.map(served => served.pageUrl));
 
 	logger.info('Evidence served', {run, pages: pages.length});
 	emitPayload({run: session.id, pages});

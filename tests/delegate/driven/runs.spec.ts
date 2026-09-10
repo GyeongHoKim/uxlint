@@ -135,6 +135,20 @@ test('discarding the same run twice is not an error', async t => {
 	await t.notThrowsAsync(discardRun(session.id, {parentDirectory: parent}));
 });
 
+// The identity arrives on a command line an agent writes, and discard deletes
+// recursively. Joined onto a path unchecked, `../keep-me` names a sibling of
+// the runs rather than a run.
+test('discard refuses an identity that is not one, and deletes nothing', async t => {
+	const parent = await parentDirectory(t.teardown);
+	const bystander = path.join(parent, 'keep-me');
+	await fsPromises.mkdir(bystander);
+
+	await t.throwsAsync(discardRun('../keep-me', {parentDirectory: parent}), {
+		message: /not a run identity/,
+	});
+	await t.notThrowsAsync(fsPromises.stat(bystander));
+});
+
 test('discarding a run that never existed is not an error', async t => {
 	const parent = await parentDirectory(t.teardown);
 

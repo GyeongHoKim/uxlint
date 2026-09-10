@@ -22,6 +22,14 @@ import type {HostAvailability, HostLaunch, HostOutcome} from './types.js';
 const stderrKeptBytes = 2000;
 
 /**
+ * How long an agent is given to exit after SIGTERM before it is killed outright.
+ *
+ * Enough for an agent to close its own MCP children; short enough that one
+ * which handles the signal and carries on cannot hold the run open.
+ */
+const defaultKillGraceMs = 5000;
+
+/**
  * Whether an executable is on PATH.
  *
  * Probed by asking it for its version rather than by searching PATH by hand,
@@ -81,13 +89,20 @@ export function probeAuthenticated(binary: string, args: string[]): boolean {
  * @param options - Execution controls
  * @param options.timeoutMs - How long the session may take before it is killed
  * @param options.cwd - Where to run it; the caller's directory by default
+ * @param options.signal - Ends the session when aborted, as its bound would
+ * @param options.killGraceMs - How long SIGTERM is given before SIGKILL
  * @returns How the session ended
  */
 export async function runLaunch(
 	launch: HostLaunch,
-	options: {timeoutMs?: number; cwd?: string} = {},
+	options: {
+		timeoutMs?: number;
+		cwd?: string;
+		signal?: AbortSignal;
+		killGraceMs?: number;
+	} = {},
 ): Promise<HostOutcome> {
-	const {timeoutMs, cwd} = options;
+	const {timeoutMs, cwd, signal, killGraceMs = defaultKillGraceMs} = options;
 
 	return new Promise<HostOutcome>(resolve => {
 		// The working directory is inherited in production -- a delegated run
@@ -115,18 +130,34 @@ export async function runLaunch(
 		// already documents for the browser server's stderr.
 		child.stdout?.on('data', () => undefined);
 
+		let escalation: NodeJS.Timeout | undefined;
+
+		// SIGTERM first, so the agent can close its own children. SIGKILL after
+		// a grace period, because an agent that handles SIGTERM and carries on
+		// would otherwise hold the run open indefinitely. Its pipes go with it:
+		// `close` waits for them, and a grandchild that inherited one would keep
+		// the session open after the agent itself is gone.
+		const terminate = () => {
+			if (timedOut) {
+				return;
+			}
+
+			timedOut = true;
+			child.kill('SIGTERM');
+			escalation = setTimeout(() => {
+				child.kill('SIGKILL');
+				child.stdout?.destroy();
+				child.stderr?.destroy();
+			}, killGraceMs);
+		};
+
 		const timer =
-			timeoutMs === undefined
-				? undefined
-				: setTimeout(() => {
-						timedOut = true;
-						child.kill('SIGTERM');
-					}, timeoutMs);
+			timeoutMs === undefined ? undefined : setTimeout(terminate, timeoutMs);
 
 		const settle = (outcome: HostOutcome) => {
-			if (timer) {
-				clearTimeout(timer);
-			}
+			clearTimeout(timer);
+			clearTimeout(escalation);
+			signal?.removeEventListener('abort', terminate);
 
 			logger.info('Host agent session ended', {
 				command: launch.command,
@@ -165,6 +196,14 @@ export async function runLaunch(
 			child.stdin?.end();
 		} else {
 			child.stdin?.end(launch.stdin);
+		}
+
+		// The run's own bound, when it expires, ends the session the same way
+		// the timeout above would.
+		if (signal?.aborted) {
+			terminate();
+		} else {
+			signal?.addEventListener('abort', terminate, {once: true});
 		}
 	});
 }

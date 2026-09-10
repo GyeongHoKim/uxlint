@@ -20,7 +20,8 @@ import {promises as fs} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {logger} from '../../infrastructure/logger.js';
-import {DelegationSession, runDirectoryPrefix} from '../session.js';
+import {runSequentially} from '../../utils/run-sequentially.js';
+import {DelegationSession, isRunId, runDirectoryPrefix} from '../session.js';
 
 /**
  * How long a run nobody came back for is kept.
@@ -48,6 +49,11 @@ export type RunSummary = {
 };
 
 /**
+ * One run directory, as found on disk.
+ */
+type RunDirectory = {id: string; directory: string; modified: Date};
+
+/**
  * Where runs live.
  *
  * @param options - Overrides for tests
@@ -67,7 +73,7 @@ function parentOf(options: {parentDirectory?: string}): string {
  */
 async function runDirectories(
 	options: {parentDirectory?: string} = {},
-): Promise<Array<{id: string; directory: string; modified: Date}>> {
+): Promise<RunDirectory[]> {
 	const parent = parentOf(options);
 
 	let entries;
@@ -84,17 +90,16 @@ async function runDirectories(
 		return [];
 	}
 
-	const found = [];
+	const found: RunDirectory[] = [];
+	const runs = entries.filter(
+		entry => entry.isDirectory() && entry.name.startsWith(runDirectoryPrefix),
+	);
 
-	for (const entry of entries) {
-		if (!entry.isDirectory() || !entry.name.startsWith(runDirectoryPrefix)) {
-			continue;
-		}
-
+	// One stat per run, and there are few.
+	await runSequentially(runs, async entry => {
 		const directory = path.join(parent, entry.name);
 
 		try {
-			// eslint-disable-next-line no-await-in-loop -- one stat per run, and there are few
 			const stats = await fs.stat(directory);
 			found.push({
 				id: entry.name.slice(runDirectoryPrefix.length),
@@ -104,7 +109,7 @@ async function runDirectories(
 		} catch {
 			// Gone between the listing and the stat. Nothing to report.
 		}
-	}
+	});
 
 	return found.sort((a, b) => b.modified.getTime() - a.modified.getTime());
 }
@@ -124,15 +129,13 @@ export async function pruneRuns(
 	options: {parentDirectory?: string} = {},
 ): Promise<string[]> {
 	const cutoff = Date.now() - runRetentionMs;
+	const runs = await runDirectories(options);
+	const expired = runs.filter(run => run.modified.getTime() < cutoff);
 	const removed: string[] = [];
 
-	for (const run of await runDirectories(options)) {
-		if (run.modified.getTime() >= cutoff) {
-			continue;
-		}
-
+	// One removal at a time, in the order the runs were listed.
+	await runSequentially(expired, async run => {
 		try {
-			// eslint-disable-next-line no-await-in-loop -- removals are sequential by design
 			await fs.rm(run.directory, {recursive: true, force: true});
 			removed.push(run.id);
 			logger.info('Abandoned run swept', {id: run.id});
@@ -142,7 +145,7 @@ export async function pruneRuns(
 				error: error instanceof Error ? error.message : String(error),
 			});
 		}
-	}
+	});
 
 	return removed;
 }
@@ -163,11 +166,10 @@ export async function listRuns(
 ): Promise<RunSummary[]> {
 	const summaries: RunSummary[] = [];
 
-	for (const run of await runDirectories(options)) {
+	// One run at a time, and there are few.
+	await runSequentially(await runDirectories(options), async run => {
 		try {
-			// eslint-disable-next-line no-await-in-loop -- one run at a time, and there are few
 			const session = await DelegationSession.load(run.directory);
-			// eslint-disable-next-line no-await-in-loop -- as above
 			const tracker = await session.trackerFromLog();
 
 			summaries.push({
@@ -180,7 +182,7 @@ export async function listRuns(
 			// Not a readable run. Skipped silently: an unreadable directory is
 			// noise here, and the sweep will deal with it in time.
 		}
-	}
+	});
 
 	return summaries;
 }
@@ -194,11 +196,22 @@ export async function listRuns(
  * @param id - The run identity
  * @param options - Overrides for tests
  * @param options.parentDirectory - Where run directories live
+ * @throws Error when `id` is not shaped like a run identity
  */
 export async function discardRun(
 	id: string,
 	options: {parentDirectory?: string} = {},
 ): Promise<void> {
+	// The identity arrives on a command line an agent writes, and the removal
+	// below is recursive. One carrying a separator or a `..` would name a
+	// directory outside the runs, so anything but the shape `capture` hands
+	// out is refused before it becomes a path.
+	if (!isRunId(id)) {
+		throw new Error(
+			`${id} is not a run identity. \`uxlint delegate runs\` lists the runs that exist.`,
+		);
+	}
+
 	const directory = path.join(parentOf(options), `${runDirectoryPrefix}${id}`);
 	await fs.rm(directory, {recursive: true, force: true});
 	logger.info('Run discarded', {id});

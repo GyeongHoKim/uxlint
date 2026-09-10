@@ -73,6 +73,33 @@ test('an agent that outlives its bound is killed and reported as timed out', asy
 	t.true(Date.now() - started < 10_000, 'the bound settled it, not the child');
 });
 
+// SIGTERM is a request. An agent that handles it and carries on would hold
+// the run open indefinitely, so the request is followed by SIGKILL.
+test('an agent that ignores SIGTERM is killed outright after a grace period', async t => {
+	const started = Date.now();
+	const outcome = await runLaunch(
+		nodeLaunch('process.on("SIGTERM", () => {}); setInterval(() => {}, 1000);'),
+		{timeoutMs: 500, killGraceMs: 200},
+	);
+
+	t.is(outcome.terminated, 'timed-out');
+	t.true(Date.now() - started < 5000, 'SIGKILL ended it, not the child');
+});
+
+test('an aborted signal ends the agent the way its bound would', async t => {
+	const controller = new AbortController();
+	const pending = runLaunch(nodeLaunch('setInterval(() => {}, 1000);'), {
+		signal: controller.signal,
+	});
+
+	setTimeout(() => {
+		controller.abort();
+	}, 200);
+
+	const outcome = await pending;
+	t.is(outcome.terminated, 'timed-out');
+});
+
 test('a command that does not exist is a failure, not a crash', async t => {
 	const outcome = await runLaunch({
 		command: 'uxlint-no-such-agent',

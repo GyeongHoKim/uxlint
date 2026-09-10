@@ -26,11 +26,15 @@ import type {
 import type {PreflightVerdict} from '../../source/models/browser-preflight.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import {sessionEnvironmentVariable} from '../../source/models/delegate.js';
+import {runSequentially} from '../../source/utils/run-sequentially.js';
 import {auditReportJson} from '../fixtures/lighthouse-report.js';
 import {auditSnapshotReply} from '../fixtures/lighthouse-reply.js';
 import {mcpError, mcpResult} from '../fixtures/mcp-result.js';
 import {pageSnapshotFixture} from '../fixtures/page-snapshot.js';
 import {traceWithNavigationReply} from '../fixtures/trace-reply.js';
+
+/** One judgement tool call the scripted host makes. */
+type ToolCall = {name: string; arguments: Record<string, unknown>};
 
 /** A preflight verdict that lets a run proceed. */
 export const readyVerdict: PreflightVerdict = {
@@ -211,21 +215,21 @@ export function scriptedHost(
 			]);
 
 			try {
+				const calls: ToolCall[] = [];
+
 				for (const [index, page] of session.manifest.pages.entries()) {
 					const step = script[index];
 					if (!step) {
 						continue;
 					}
 
-					// eslint-disable-next-line no-await-in-loop -- a host agent works one page at a time
-					await client.callTool({
+					calls.push({
 						name: 'getPageEvidence',
 						arguments: {pageUrl: page.pageUrl},
 					});
 
 					for (let n = 0; n < (step.findings ?? 0); n++) {
-						// eslint-disable-next-line no-await-in-loop -- submissions are sequential
-						await client.callTool({
+						calls.push({
 							name: 'addFinding',
 							arguments: {
 								severity: 'medium',
@@ -239,8 +243,7 @@ export function scriptedHost(
 					}
 
 					if (step.note) {
-						// eslint-disable-next-line no-await-in-loop -- submissions are sequential
-						await client.callTool({
+						calls.push({
 							name: 'noteOnMeasuredIssues',
 							arguments: {
 								pageUrl: page.pageUrl,
@@ -250,13 +253,16 @@ export function scriptedHost(
 					}
 
 					if (step.complete) {
-						// eslint-disable-next-line no-await-in-loop -- submissions are sequential
-						await client.callTool({
+						calls.push({
 							name: 'completePageAnalysis',
 							arguments: {pageUrl: page.pageUrl},
 						});
 					}
 				}
+
+				// A host agent works one page at a time, and its submissions
+				// arrive in the order it made them.
+				await runSequentially(calls, async call => client.callTool(call));
 			} finally {
 				await client.close();
 				await server.close();

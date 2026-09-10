@@ -40,6 +40,20 @@ import {SubmissionRejected} from './ingest.js';
  */
 export const runDirectoryPrefix = 'uxlint-delegate-';
 
+/**
+ * Whether a string has the shape of a run identity.
+ *
+ * Identities are the random UUIDs `create` assigns, so anything else -- a path
+ * separator, a `..` -- did not come from a run and must not be joined onto a
+ * path as if it had.
+ *
+ * @param id - A candidate identity
+ * @returns Whether it could name a run
+ */
+export function isRunId(id: string): boolean {
+	return /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(id);
+}
+
 /** Name of the manifest inside a session directory. */
 const manifestFile = 'session.json';
 
@@ -70,7 +84,10 @@ export class DelegationSession {
 		const parent = options.parentDirectory ?? os.tmpdir();
 		const directory = path.join(parent, `${runDirectoryPrefix}${id}`);
 
-		await fs.mkdir(directory, {recursive: true});
+		// Owner-only. The temporary directory is shared with every account on
+		// the machine, and this one holds captured pages and the judgement
+		// log.
+		await fs.mkdir(directory, {recursive: true, mode: 0o700});
 
 		const complete: SessionManifest = {...manifest, id};
 		await fs.writeFile(
@@ -167,17 +184,21 @@ export class DelegationSession {
 	}
 
 	/**
-	 * Record one accepted submission.
+	 * Record accepted submissions, in the order given.
 	 *
-	 * Appended as a line rather than rewritten as a document, so a crash
-	 * mid-run costs the last line instead of the whole log.
+	 * Appended as lines rather than rewritten as a document, so a crash
+	 * mid-run costs the last write instead of the whole log.
 	 *
-	 * @param submission - What the host agent submitted, already validated
+	 * @param submissions - What the host agent submitted, already validated
 	 */
-	async append(submission: RecordedSubmission): Promise<void> {
+	async append(...submissions: RecordedSubmission[]): Promise<void> {
+		if (submissions.length === 0) {
+			return;
+		}
+
 		await fs.appendFile(
 			path.join(this.directory, submissionsFile),
-			JSON.stringify(submission) + '\n',
+			submissions.map(submission => JSON.stringify(submission) + '\n').join(''),
 			'utf8',
 		);
 	}
@@ -190,7 +211,9 @@ export class DelegationSession {
 	 * Agent run, asked to, did. A line that did not come from the intake is
 	 * dropped rather than trusted: the strict schema refuses a finding
 	 * claiming it was measured, and the page check refuses one attributed to a
-	 * page this run never captured.
+	 * page this run never captured. A finding or note that follows its page's
+	 * completion is dropped as well: both intakes refuse one as too late, so a
+	 * line like that cannot have come from either.
 	 *
 	 * Dropped rather than raised, because a report assembled from what
 	 * genuinely arrived is worth more than no report at all.
@@ -204,6 +227,7 @@ export class DelegationSession {
 		);
 
 		const accepted: RecordedSubmission[] = [];
+		const completed = new Set<string>();
 
 		for (const [index, line] of raw.split('\n').entries()) {
 			if (line.trim().length === 0) {
@@ -211,13 +235,22 @@ export class DelegationSession {
 			}
 
 			const submission = this.parseLine(line);
+			const late =
+				submission !== undefined &&
+				(submission.kind === 'finding' || submission.kind === 'note') &&
+				completed.has(submission.pageUrl);
 
-			if (submission) {
+			if (submission && !late) {
 				accepted.push(submission);
+
+				if (submission.kind === 'complete') {
+					completed.add(submission.pageUrl);
+				}
 			} else {
 				logger.warn('Submission log line rejected on read', {
 					id: this.id,
 					line: index + 1,
+					reason: late ? 'after its page was completed' : 'not a submission',
 				});
 			}
 		}
@@ -233,10 +266,12 @@ export class DelegationSession {
 	 * separate invocations -- so the fact has to survive on disk, or a finding
 	 * would be refused for a page the agent had properly read.
 	 *
-	 * @param pageUrl - The page whose evidence was served
+	 * @param pageUrls - The pages whose evidence was served, in serving order
 	 */
-	async recordOpened(pageUrl: string): Promise<void> {
-		await this.append({kind: 'open', pageUrl});
+	async recordOpened(...pageUrls: string[]): Promise<void> {
+		await this.append(
+			...pageUrls.map(pageUrl => ({kind: 'open' as const, pageUrl})),
+		);
 	}
 
 	/**
