@@ -31,7 +31,11 @@ function reachableSources(entry: string): string[] {
 		const source = fs.readFileSync(current, 'utf8');
 		// Compiled ESM imports carry a .js suffix even from .ts sources, so the
 		// specifier is rewritten back before it is resolved on disk.
-		for (const match of source.matchAll(/from\s+'(\.[^']+)'/g)) {
+		// Static, re-exporting, side-effect and dynamic imports alike, in either
+		// quote style: a walker that saw only one form would let the others past.
+		for (const match of source.matchAll(
+			/\b(?:from|import)\s*(?:\(\s*)?["'](\.[^"']+)["']/g,
+		)) {
 			const specifier = match[1]!.replace(/\.js$/, '.ts');
 			queue.push(path.resolve(path.dirname(current), specifier));
 		}

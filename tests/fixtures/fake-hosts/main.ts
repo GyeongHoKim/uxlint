@@ -23,6 +23,7 @@ import {
 	isLaunchableHostId,
 	type LaunchableHostId,
 } from '../../../source/models/delegate.js';
+import {runSequentially} from '../../../source/utils/run-sequentially.js';
 import {parseArgv, type ParsedLaunch} from './argv.js';
 import {
 	fakeHostEnvironment,
@@ -129,6 +130,7 @@ async function judge(
 		}
 
 		const pages = JSON.parse(textOf(pagesReply)) as ListedPage[];
+		const calls: Array<[string, Record<string, unknown>]> = [];
 
 		for (const [index, page] of pages.entries()) {
 			const step: FakeHostPageScript | undefined =
@@ -137,34 +139,40 @@ async function judge(
 				continue;
 			}
 
-			// eslint-disable-next-line no-await-in-loop -- a host agent works one page at a time
-			await call('getPageEvidence', {pageUrl: page.pageUrl});
+			calls.push(['getPageEvidence', {pageUrl: page.pageUrl}]);
 
 			for (let n = 0; n < (step.findings ?? 0); n++) {
-				// eslint-disable-next-line no-await-in-loop -- submissions are sequential
-				await call('addFinding', {
-					severity: 'medium',
-					category: 'Navigation',
-					description: `Judgement ${n + 1} on ${page.pageUrl}`,
-					personaRelevance: ['first-time visitor'],
-					recommendation: 'Make it clearer.',
-					pageUrl: page.pageUrl,
-				});
+				calls.push([
+					'addFinding',
+					{
+						severity: 'medium',
+						category: 'Navigation',
+						description: `Judgement ${n + 1} on ${page.pageUrl}`,
+						personaRelevance: ['first-time visitor'],
+						recommendation: 'Make it clearer.',
+						pageUrl: page.pageUrl,
+					},
+				]);
 			}
 
 			if (step.note) {
-				// eslint-disable-next-line no-await-in-loop -- submissions are sequential
-				await call('noteOnMeasuredIssues', {
-					pageUrl: page.pageUrl,
-					note: `What the measurements mean on ${page.pageUrl}`,
-				});
+				calls.push([
+					'noteOnMeasuredIssues',
+					{
+						pageUrl: page.pageUrl,
+						note: `What the measurements mean on ${page.pageUrl}`,
+					},
+				]);
 			}
 
 			if (step.complete) {
-				// eslint-disable-next-line no-await-in-loop -- submissions are sequential
-				await call('completePageAnalysis', {pageUrl: page.pageUrl});
+				calls.push(['completePageAnalysis', {pageUrl: page.pageUrl}]);
 			}
 		}
+
+		// A host agent works one page at a time, and its submissions arrive in
+		// the order it made them.
+		await runSequentially(calls, async ([name, args]) => call(name, args));
 	} finally {
 		await client.close();
 	}

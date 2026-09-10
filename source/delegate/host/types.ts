@@ -118,10 +118,12 @@ export type HostAgentAdapter = {
 	 * @param options - Execution controls
 	 * @param options.timeoutMs - How long the session may take
 	 * @param options.cwd - Where to run it; the caller's directory by default
+	 * @param options.signal - Aborted when the run's own bound expires; the
+	 * session must end when it is, because the run removes its directory next
 	 */
 	run(
 		launch: HostLaunch,
-		options?: {timeoutMs?: number; cwd?: string},
+		options?: {timeoutMs?: number; cwd?: string; signal?: AbortSignal},
 	): Promise<HostOutcome>;
 };
 

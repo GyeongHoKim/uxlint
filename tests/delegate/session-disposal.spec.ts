@@ -4,7 +4,11 @@ import path from 'node:path';
 import test from 'ava';
 import {runDelegatedAnalysis} from '../../source/delegate/runner.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
-import type {HostAgentAdapter} from '../../source/delegate/host/types.js';
+import type {
+	HostAgentAdapter,
+	HostOutcome,
+} from '../../source/delegate/host/types.js';
+import {sessionEnvironmentVariable} from '../../source/models/delegate.js';
 import {
 	configFor,
 	fakeBrowser,
@@ -46,6 +50,36 @@ async function runWithSessionsIn(
 	return {exitCode, remaining: await fs.readdir(sessions)};
 }
 
+/**
+ * A host agent that ignores the timeout it is handed.
+ *
+ * Left alone it would finish five seconds later; it ends sooner only because
+ * the run's own bound aborts it. Its timer is released either way, so a test
+ * does not keep its worker alive once the assertions are done.
+ */
+function ignoresItsTimeout(): HostAgentAdapter {
+	return {
+		...scriptedHost([]),
+		async run(_launch, options) {
+			return new Promise<HostOutcome>(resolve => {
+				const late = setTimeout(() => {
+					resolve({terminated: 'completed', exitCode: 0});
+				}, 5000);
+				late.unref();
+
+				options?.signal?.addEventListener(
+					'abort',
+					() => {
+						clearTimeout(late);
+						resolve({terminated: 'timed-out'});
+					},
+					{once: true},
+				);
+			});
+		},
+	};
+}
+
 test('the session directory is removed after a successful run', async t => {
 	const {exitCode, remaining} = await runWithSessionsIn(
 		t,
@@ -82,24 +116,55 @@ test('the session directory is removed after the run throws', async t => {
 });
 
 test('the session directory is removed after the bound expires', async t => {
+	const {remaining} = await runWithSessionsIn(t, ignoresItsTimeout(), 50);
+
+	t.deepEqual(remaining, []);
+});
+
+// Expiry used to return while the session was still running, so the log was
+// read and the directory removed underneath a judgement server that could still
+// be writing into it. The session is now ended, and waited for, first.
+test('an expired session is ended and waited for before its directory is removed', async t => {
+	let directoryAtExit: boolean | undefined;
+
 	const {remaining} = await runWithSessionsIn(
 		t,
 		{
 			...scriptedHost([]),
-			async run() {
-				// Ignores the bound entirely, which is the case the run's own
-				// timer exists for: a cancellation signal handed to a callee is
-				// not a bound if the callee declines to honour it.
-				return new Promise(resolve => {
-					setTimeout(() => {
-						resolve({terminated: 'completed', exitCode: 0});
-					}, 5000);
+			async run(launch, options) {
+				// Ignores the timeout; only the run's own abort ends it.
+				await new Promise<void>(resolve => {
+					options?.signal?.addEventListener(
+						'abort',
+						() => {
+							resolve();
+						},
+						{once: true},
+					);
 				});
+
+				// A session takes a moment to wind down once it is told to.
+				await new Promise(resolve => {
+					setTimeout(resolve, 20);
+				});
+
+				try {
+					await fs.stat(launch.env[sessionEnvironmentVariable]!);
+					directoryAtExit = true;
+				} catch {
+					directoryAtExit = false;
+				}
+
+				return {terminated: 'timed-out' as const};
 			},
 		},
 		50,
 	);
 
+	t.true(
+		directoryAtExit,
+		'the session ended while its directory was still there',
+	);
 	t.deepEqual(remaining, []);
 });
 
@@ -118,16 +183,7 @@ test('a session that outlives its bound still produces a report', async t => {
 			// Nothing is printed during a test.
 		},
 		sessionTimeLimitMs: 50,
-		adapter: {
-			...scriptedHost([]),
-			async run() {
-				return new Promise(resolve => {
-					setTimeout(() => {
-						resolve({terminated: 'completed', exitCode: 0});
-					}, 5000);
-				});
-			},
-		},
+		adapter: ignoresItsTimeout(),
 	});
 
 	const report = builder.generateFinalReport();

@@ -23,7 +23,7 @@ import type {UxLintConfig} from '../models/config.js';
 import type {PageEvidence} from '../models/delegate.js';
 import {evaluateGate, renderGateVerdict} from '../models/gate-result.js';
 import {createDelegatedRun} from '../services/ai-service.js';
-import {withDeadline} from '../services/deadline.js';
+import {DeadlineExpired, withDeadline} from '../services/deadline.js';
 import {runPreflight as defaultRunPreflight} from '../services/browser-preflight.js';
 import {
 	browserServerIdentity,
@@ -167,13 +167,47 @@ class SessionBoundExceeded extends Error {
 }
 
 /**
+ * How long a session is given to end once its bound has expired.
+ *
+ * Longer than the grace `runLaunch` allows between SIGTERM and SIGKILL, so a
+ * spawned agent is always seen to exit. An adapter that honours neither the
+ * timeout nor the signal is waited for this long and no longer.
+ */
+const settlementGraceMs = 10_000;
+
+/**
+ * Wait for work to settle, but not indefinitely.
+ *
+ * @param work - What to wait for
+ * @param graceMs - How long to wait
+ * @returns Whether it settled within the grace period
+ */
+async function settlesWithin(
+	work: Promise<unknown> | undefined,
+	graceMs: number,
+): Promise<boolean> {
+	try {
+		await withDeadline(graceMs, async () => work);
+	} catch (error) {
+		// A session that fails on its way out has still ended.
+		return !(error instanceof DeadlineExpired);
+	}
+
+	return true;
+}
+
+/**
  * Run the host agent under a bound the run owns.
  *
- * The bound is a timer raced against the work rather than a signal handed to
- * it. An adapter that spawns a process can kill it; an adapter that does not
- * honour the timeout at all still cannot hold the run open, because the race
- * settles either way. Expiry is not a failure: whatever the agent submitted
- * before it expired is real, and the report is assembled from that.
+ * The bound is a timer raced against the work rather than a promise the run
+ * waits on. On expiry the signal handed to the adapter is aborted, which ends
+ * a spawned agent whether or not its adapter honoured the timeout, and the
+ * session is then waited for: the caller reads the log and removes the
+ * directory next, and a judgement server still running would be writing into
+ * both. An adapter that honours nothing at all is waited for only as long as
+ * `settlementGraceMs`, so it still cannot hold the run open. Expiry is not a
+ * failure: whatever the agent submitted before it expired is real, and the
+ * report is assembled from that.
  *
  * @param adapter - The host agent
  * @param launch - What it should run
@@ -185,17 +219,25 @@ async function boundedRun(
 	launch: HostLaunch,
 	boundMs: number,
 ): Promise<HostOutcome> {
+	let running: Promise<HostOutcome> | undefined;
+
 	try {
 		return await withDeadline(
 			boundMs,
-			async () => adapter.run(launch, {timeoutMs: boundMs}),
+			async signal => {
+				running = adapter.run(launch, {timeoutMs: boundMs, signal});
+				return running;
+			},
 			{timeoutError: () => new SessionBoundExceeded(boundMs)},
 		);
 	} catch (error) {
 		if (error instanceof SessionBoundExceeded) {
+			const ended = await settlesWithin(running, settlementGraceMs);
+
 			logger.warn('Host agent session exceeded its bound', {
 				hostAgent: adapter.id,
 				boundMs,
+				ended,
 			});
 			return {terminated: 'timed-out'};
 		}

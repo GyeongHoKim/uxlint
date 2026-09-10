@@ -37,6 +37,7 @@ import {
 	type MeasurementService,
 } from '../services/measurement.js';
 import type {ReportBuilder} from '../services/report-builder.js';
+import {runSequentially} from '../utils/run-sequentially.js';
 import type {collect} from './ingest.js';
 
 /**
@@ -159,24 +160,20 @@ export async function captureAllPages(
 	pages: readonly Page[],
 	onPageCaptured?: (pageUrl: string) => void,
 ): Promise<CapturedPage[]> {
-	const captured: CapturedPage[] = [];
-
-	for (const page of pages) {
-		// eslint-disable-next-line no-await-in-loop -- one browser, one page at a time
+	// One browser, one page at a time, and measurement follows its own page.
+	return runSequentially(pages, async (page): Promise<CapturedPage> => {
 		const opened = await capturePage(client, page);
-		// eslint-disable-next-line no-await-in-loop -- measurement follows its own page
 		const measured = await measurement.measure(opened.stage);
 
-		captured.push({page, ...opened, measurement: measured});
 		onPageCaptured?.(page.url);
 
 		logger.info('Page captured for delegation', {
 			pageUrl: page.url,
 			stage: opened.stage,
 		});
-	}
 
-	return captured;
+		return {page, ...opened, measurement: measured};
+	});
 }
 
 /**

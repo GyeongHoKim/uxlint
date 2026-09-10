@@ -56,6 +56,11 @@ test('the invariant refuses a launch that added a write-enabling flag', t => {
 	const posture = readOnlyPosture[adapter!.id];
 	const built = adapter!.buildLaunch(context);
 
+	t.true(
+		posture.forbidden.length > 0,
+		`${adapter!.id} declares no forbidden flag, so there is nothing to add`,
+	);
+
 	t.throws(() => {
 		assertReadOnly(adapter!.id, {
 			...built,
