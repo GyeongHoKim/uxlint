@@ -1,3 +1,4 @@
+import {spawnSync} from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -255,4 +256,132 @@ test('a well-formed line naming a page outside the run is dropped too', async t 
 	const submissions = await session.submissions();
 
 	t.deepEqual(submissions, []);
+});
+
+// The agent-driven route spans separate invocations: one process captures, a
+// later one submits. So a run has to be findable by the identity `capture`
+// printed, and it must still be there after the process that made it is gone.
+test('a run is loadable by identity, by a process that did not create it', async t => {
+	const parent = path.join(process.cwd(), 'test-runs-' + Date.now().toString());
+	await fs.mkdir(parent, {recursive: true});
+	t.teardown(async () => fs.rm(parent, {recursive: true, force: true}));
+
+	const created = await DelegationSession.create(manifest(), {
+		parentDirectory: parent,
+	});
+
+	const reopened = await DelegationSession.loadById(created.id, {
+		parentDirectory: parent,
+	});
+
+	t.is(reopened.id, created.id);
+	t.deepEqual(reopened.pageUrls, created.pageUrls);
+});
+
+test('an identity naming no run is reported rather than guessed at', async t => {
+	await t.throwsAsync(
+		DelegationSession.loadById('00000000-0000-4000-8000-000000000000'),
+		{message: /No delegation session/},
+	);
+});
+
+// A run outliving its process is the whole point, and it is also the only new
+// failure mode in the route: nothing can hold a `finally` across two commands.
+test('a run created by a process that then exits is still there', async t => {
+	const parent = path.join(process.cwd(), 'test-exit-' + Date.now().toString());
+	await fs.mkdir(parent, {recursive: true});
+	t.teardown(async () => fs.rm(parent, {recursive: true, force: true}));
+
+	const sessionModule = path.join(
+		locateRepoRoot(process.cwd()),
+		'dist',
+		'source',
+		'delegate',
+		'session.js',
+	);
+	const child = spawnSync(
+		process.execPath,
+		[
+			'--input-type=module',
+			'-e',
+			`import {DelegationSession} from ${JSON.stringify(sessionModule)};
+			const session = await DelegationSession.create(
+				{hostAgent: 'claude-code', pages: [{pageUrl: 'https://example.com/', features: 'f', persona: 'p', snapshot: 's', measurementDigest: 'm'}]},
+				{parentDirectory: ${JSON.stringify(parent)}},
+			);
+			process.stdout.write(session.id);`,
+		],
+		{encoding: 'utf8'},
+	);
+
+	t.is(child.status, 0, child.stderr);
+
+	const reopened = await DelegationSession.loadById(child.stdout.trim(), {
+		parentDirectory: parent,
+	});
+	t.is(reopened.id, child.stdout.trim());
+});
+
+// On the launcher route the tracker is an in-memory object owned by a
+// long-lived server. Here there is no long-lived process, so the same state has
+// to come back out of the log -- with the same transitions and the same
+// refusals, because a page's status must not depend on which route judged it.
+test('page state comes back out of the log with the same transitions', async t => {
+	const session = await DelegationSession.create(manifest());
+	t.teardown(async () => session.dispose());
+
+	const [first, second] = session.pageUrls;
+
+	await session.recordOpened(first!);
+	await session.append({
+		kind: 'finding',
+		pageUrl: first!,
+		finding: {
+			severity: 'medium',
+			category: 'Navigation',
+			description: 'Something',
+			personaRelevance: ['someone'],
+			recommendation: 'Fix it.',
+			pageUrl: first!,
+		},
+	});
+	await session.append({kind: 'complete', pageUrl: first!});
+
+	const tracker = await session.trackerFromLog();
+
+	t.is(tracker.stateOf(first!), 'finished');
+	t.is(tracker.stateOf(second!), 'not-started');
+});
+
+test('a rebuilt tracker refuses what the live one refuses', async t => {
+	const session = await DelegationSession.create(manifest());
+	t.teardown(async () => session.dispose());
+
+	const [first, second] = session.pageUrls;
+	await session.recordOpened(first!);
+	await session.append({kind: 'complete', pageUrl: first!});
+
+	const tracker = await session.trackerFromLog();
+
+	// Late: the page is finished.
+	t.throws(
+		() => {
+			tracker.requireOpen(first!);
+		},
+		{instanceOf: SubmissionRejected},
+	);
+	// Never opened: judgement would be made on the URL, not the evidence.
+	t.throws(
+		() => {
+			tracker.requireOpen(second!);
+		},
+		{instanceOf: SubmissionRejected, message: /has not been started/},
+	);
+	// Not part of the run at all.
+	t.throws(
+		() => {
+			tracker.requireOpen('https://elsewhere.test/');
+		},
+		{instanceOf: SubmissionRejected, message: /not a page in this run/},
+	);
 });

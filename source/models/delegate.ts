@@ -150,6 +150,16 @@ export const recordedSubmissionSchema = z.discriminatedUnion('kind', [
 		kind: z.literal('complete'),
 		pageUrl: z.string().min(1),
 	}),
+	// Written by uxlint, never submitted: the record that a page's evidence was
+	// served, so the state machine survives a route where no process outlives
+	// one command. On the launcher route the tracker holds this in memory for
+	// the life of a session; here `submit` runs in a different process from
+	// `evidence`, and without it a finding would be refused for a page the
+	// agent had properly read. It carries no provenance risk.
+	z.strictObject({
+		kind: z.literal('open'),
+		pageUrl: z.string().min(1),
+	}),
 ]);
 
 /**

@@ -34,3 +34,28 @@ import process from 'node:process';
 export function writeTerminalMessage(message: string): void {
 	process.stdout.write(`${message}\n`);
 }
+
+/**
+ * Write a command's structured payload to stdout.
+ *
+ * The third role stdout has in this project, and the reason this is a second
+ * named function rather than a widening of the one above. The agent-driven
+ * route's `capture` and `evidence` are called *by a program*, which parses this
+ * stream: their payload is the command's entire output, not a terminating
+ * message about it.
+ *
+ * The exception's condition still holds and is what makes this safe — both
+ * callers print only after the browser transport is closed, so nothing else owns
+ * the stream at that moment. What does not hold is the *description*, and
+ * stretching one writer to cover both would blur the rule
+ * `tests/delegate/stdout-discipline.spec.ts` enforces against the judgement
+ * server, where stdout genuinely carries JSON-RPC.
+ *
+ * Two narrow writers in one module keep the `xo` ban and that test intact. One
+ * vague writer would not.
+ *
+ * @param payload - The value to serialise; printed as JSON with a trailing newline
+ */
+export function writeStructuredOutput(payload: unknown): void {
+	process.stdout.write(`${JSON.stringify(payload, undefined, '\t')}\n`);
+}
