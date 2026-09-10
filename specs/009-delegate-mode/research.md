@@ -357,6 +357,6 @@ and the gate verdict is emitted after the browser transport is closed.
 
 | Item | Why it is open | How it gets closed |
 | --- | --- | --- |
-| Cursor Agent cannot be both functional and confined | Closed as an observation 2026-09-10 and reopened as a design problem: the launch needs `--trust` to run at all, the session can only reach the server through a registration uxlint will not write, and no flag both submits findings and refuses writes | Pending a decision on how Cursor is supported, if at all |
+| ~~Cursor Agent cannot be both functional and confined~~ | Closed 2026-09-10 by [010-inverted-delegation](../010-inverted-delegation/spec.md), which inverts the direction: the agent calls uxlint, so there is no launch to confine. The launcher adapter and its `readOnlyPosture` entry were removed rather than weakened, because the run had disproved the guarantee they asserted | Closed |
 | ~~Codex auto-approval of MCP tool calls under `exec`~~ | Closed 2026-09-10 by a live run: `exec` needs `default_tools_approval_mode = "approve"` per server, because `approval_policy = never` auto-approves only a fully writable sandbox | Closed |
 | Session time bound default | No baseline exists for a delegated run | Measure during implementation and set with headroom, as 008 did for the page bound |
