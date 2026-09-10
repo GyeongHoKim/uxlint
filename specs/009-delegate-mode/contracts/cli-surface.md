@@ -92,6 +92,7 @@ claude -p
 codex exec
   -s read-only
   --json
+  --skip-git-repo-check
   -c 'mcp_servers.uxlint={command="uxlint", args=["mcp-serve"],
       env={UXLINT_DELEGATE_SESSION="<session dir>"},
       default_tools_approval_mode="approve"}'
@@ -99,6 +100,13 @@ codex exec
 ```
 
 `-c` parses its value as TOML, so the inline table needs no configuration file.
+
+`--skip-git-repo-check` is required, not optional. Outside a directory Codex
+trusts it refuses to start — "Not inside a trusted directory and
+--skip-git-repo-check was not specified" — and the session ends in a second with
+every page unjudged. Skipping the check is safe here because `-s read-only`
+already denies every write. Found live in
+[010-inverted-delegation](../../010-inverted-delegation/quickstart.md).
 
 `default_tools_approval_mode` is load-bearing, not decoration. `codex exec` runs
 with `approval_policy = never`, under which Codex auto-approves an MCP call only
