@@ -82,6 +82,21 @@ export function validateFinding(
 }
 
 /**
+ * Refuse a page's second measurement note.
+ *
+ * One note per page, and the refusal is written once here because both intakes
+ * enforce it: the tool route holds the fact in a live server, the document
+ * route reads it back off the log. Two wordings would be two rules the moment
+ * one of them was edited.
+ *
+ * @param pageUrl - The page a second note was submitted for
+ * @returns What the submitter should do differently
+ */
+export function secondNoteRefusal(pageUrl: string): string {
+	return `${pageUrl} already carries a measurement note. It is recorded once per page; a second note would overwrite the first.`;
+}
+
+/**
  * Turn an accepted submission into a report finding.
  *
  * The origin is set here rather than accepted from the submitter. A model able

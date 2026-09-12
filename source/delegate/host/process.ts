@@ -192,6 +192,18 @@ export async function runLaunch(
 			});
 		});
 
+		// An agent that exits before it has read the prompt closes the pipe under
+		// the write. Absorbed rather than left to surface: an unhandled `error`
+		// on this stream is an uncaught EPIPE that takes the whole run down, and
+		// how the session ended is already reported by the child's own `close`
+		// and `error`.
+		child.stdin?.on('error', error => {
+			logger.debug('Host agent closed stdin before the prompt was written', {
+				command: launch.command,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		});
+
 		if (launch.stdin === undefined) {
 			child.stdin?.end();
 		} else {
