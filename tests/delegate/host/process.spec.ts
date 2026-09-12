@@ -100,6 +100,18 @@ test('an aborted signal ends the agent the way its bound would', async t => {
 	t.is(outcome.terminated, 'timed-out');
 });
 
+// An agent that exits before it has read the prompt closes the pipe under the
+// write. An unhandled `error` on stdin is an uncaught EPIPE, which would take
+// the whole run down over a child that had already reported how it ended.
+test('an agent that exits before reading the prompt does not crash the run', async t => {
+	const outcome = await runLaunch(
+		nodeLaunch('process.exit(2)', 'judge these pages'.repeat(20_000)),
+	);
+
+	t.is(outcome.terminated, 'failed');
+	t.is(outcome.exitCode, 2);
+});
+
 test('a command that does not exist is a failure, not a crash', async t => {
 	const outcome = await runLaunch({
 		command: 'uxlint-no-such-agent',

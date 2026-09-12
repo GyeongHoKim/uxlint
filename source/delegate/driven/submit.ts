@@ -32,8 +32,13 @@ import {evaluateGate, renderGateVerdict} from '../../models/gate-result.js';
 import {ReportBuilder} from '../../services/report-builder.js';
 import {runSequentially} from '../../utils/run-sequentially.js';
 import {assembleReport, type CapturedPage} from '../capture-pass.js';
-import {collect, validateFinding, SubmissionRejected} from '../ingest.js';
-import {DelegationSession} from '../session.js';
+import {
+	collect,
+	secondNoteRefusal,
+	validateFinding,
+	SubmissionRejected,
+} from '../ingest.js';
+import {DelegationSession, PageJudgementTracker} from '../session.js';
 
 /**
  * What `submit` needs.
@@ -137,7 +142,8 @@ async function record(
 	// judges the next, or a document that finishes a page and then submits to it
 	// again would have the late half accepted.
 	await runSequentially(document.pages, async page => {
-		const tracker = await session.trackerFromLog();
+		const recorded = await session.submissions();
+		const tracker = PageJudgementTracker.fromLog(session.pageUrls, recorded);
 
 		try {
 			tracker.requireOpen(page.pageUrl);
@@ -165,11 +171,22 @@ async function record(
 		}
 
 		if (page.measurementNote !== undefined) {
-			lines.push({
-				kind: 'note',
-				pageUrl: page.pageUrl,
-				note: page.measurementNote,
-			});
+			// One note per page, as the tool route enforces it. Overwriting the
+			// first would discard a note the agent has no way of knowing was
+			// lost, so the second is refused by name instead.
+			if (
+				recorded.some(
+					line => line.kind === 'note' && line.pageUrl === page.pageUrl,
+				)
+			) {
+				refusals.push(secondNoteRefusal(page.pageUrl));
+			} else {
+				lines.push({
+					kind: 'note',
+					pageUrl: page.pageUrl,
+					note: page.measurementNote,
+				});
+			}
 		}
 
 		if (page.finished === true) {
@@ -257,6 +274,18 @@ export async function submitJudgement(
 
 	if (!validated.success) {
 		emitMessage(`uxlint: ${describeDocumentIssues(validated.error)}`);
+		return 1;
+	}
+
+	// The document names its run and so does the command line. Recording one
+	// review's judgement into another's log is exactly what `--run` exists to
+	// prevent, and a document that disagrees with it is the one case where
+	// uxlint can see the mistake being made -- so it is refused rather than
+	// resolved in favour of either side.
+	if (validated.data.run !== session.id) {
+		emitMessage(
+			`uxlint: the document is for run ${validated.data.run}, but this command is submitting to ${session.id}. Submit it with --run ${validated.data.run}, or correct the document.`,
+		);
 		return 1;
 	}
 

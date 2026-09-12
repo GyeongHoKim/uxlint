@@ -22,7 +22,11 @@ import {
 	judgementFindingSchema,
 	sessionEnvironmentVariable,
 } from '../models/delegate.js';
-import {SubmissionRejected, validateFinding} from './ingest.js';
+import {
+	SubmissionRejected,
+	secondNoteRefusal,
+	validateFinding,
+} from './ingest.js';
 import {DelegationSession, PageJudgementTracker} from './session.js';
 
 /**
@@ -187,9 +191,7 @@ export function createJudgementServer(
 				tracker.requireOpen(pageUrl);
 
 				if (noted.has(pageUrl)) {
-					return refuse(
-						`${pageUrl} already carries a measurement note. It is recorded once per page; a second note would overwrite the first.`,
-					);
+					return refuse(secondNoteRefusal(pageUrl));
 				}
 
 				noted.add(pageUrl);

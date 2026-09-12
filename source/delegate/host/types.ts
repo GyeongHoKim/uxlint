@@ -171,6 +171,24 @@ export const readOnlyPosture: Record<
 };
 
 /**
+ * Whether an argument vector carries a flag, in either form it can be written.
+ *
+ * `--flag value` and `--flag=value` are one instruction to an argument parser,
+ * so a check that looked only for the bare token would pass a launch that had
+ * written a forbidden flag the other way -- which is the whole of what this
+ * table is there to stop.
+ *
+ * @param args - The argument vector
+ * @param flag - The flag to look for
+ * @returns Whether it is present in either form
+ */
+function carriesFlag(args: readonly string[], flag: string): boolean {
+	return args.some(
+		argument => argument === flag || argument.startsWith(`${flag}=`),
+	);
+}
+
+/**
  * Refuse a launch that would let a host agent write.
  *
  * Called by the orchestrator on every built launch, not only by tests. FR-012
@@ -184,7 +202,9 @@ export const readOnlyPosture: Record<
 export function assertReadOnly(id: LaunchableHostId, launch: HostLaunch): void {
 	const posture = readOnlyPosture[id];
 
-	const missing = posture.required.filter(flag => !launch.args.includes(flag));
+	const missing = posture.required.filter(
+		flag => !carriesFlag(launch.args, flag),
+	);
 	if (missing.length > 0) {
 		throw new Error(
 			`The ${id} launch is missing ${missing.join(', ')}, which is what keeps a delegated run from modifying the repository.`,
@@ -193,7 +213,8 @@ export function assertReadOnly(id: LaunchableHostId, launch: HostLaunch): void {
 
 	for (const [flag, value] of posture.requiredValues) {
 		const index = launch.args.indexOf(flag);
-		if (index === -1 || launch.args[index + 1] !== value) {
+		const joined = launch.args.includes(`${flag}=${value}`);
+		if (!joined && (index === -1 || launch.args[index + 1] !== value)) {
 			throw new Error(
 				`The ${id} launch must pass ${flag} ${value}, which is what keeps a delegated run from modifying the repository.`,
 			);
@@ -201,7 +222,7 @@ export function assertReadOnly(id: LaunchableHostId, launch: HostLaunch): void {
 	}
 
 	const permitted = posture.forbidden.filter(flag =>
-		launch.args.includes(flag),
+		carriesFlag(launch.args, flag),
 	);
 	if (permitted.length > 0) {
 		throw new Error(

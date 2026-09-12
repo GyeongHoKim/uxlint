@@ -227,6 +227,79 @@ test('a submission naming a run that does not exist is refused', async t => {
 	t.regex(messages.join('\n'), /00000000-0000-4000-8000-000000000000/);
 });
 
+// The document names its run and so does the command line. A command that
+// records one review's judgement into another's log is the failure `--run`
+// exists to prevent, so the two have to agree rather than one being decorative.
+test('a document naming a different run than the command is refused', async t => {
+	const {run, parent, config} = await capturedRun(t.teardown, 1);
+	const url = 'https://example.com/page-1';
+	const messages: string[] = [];
+
+	const exitCode = await submitJudgement(config, {
+		run,
+		parentDirectory: parent,
+		document: {
+			run: '00000000-0000-4000-8000-000000000000',
+			pages: [{pageUrl: url, findings: [finding(url, 'Anything.')]}],
+		},
+		emitMessage(message: string) {
+			messages.push(message);
+		},
+	});
+
+	t.is(exitCode, 1);
+	t.regex(messages.join('\n'), /00000000-0000-4000-8000-000000000000/);
+
+	const report = await fsPromises
+		.readFile(config.report.output, 'utf8')
+		.catch(() => '');
+	t.notRegex(
+		report,
+		/Anything\./,
+		'nothing was recorded against the wrong run',
+	);
+});
+
+// The same rule the tool route enforces. A second note would overwrite the
+// first, and an agent whose note vanished into a silent overwrite has no way
+// to know it happened.
+test('a second measurement note for a page is refused, not overwritten', async t => {
+	const {run, parent, config} = await capturedRun(t.teardown, 1);
+	const url = 'https://example.com/page-1';
+	const messages: string[] = [];
+
+	await submitJudgement(config, {
+		run,
+		parentDirectory: parent,
+		document: {
+			run,
+			pages: [{pageUrl: url, measurementNote: 'The first note.'}],
+		},
+		emitMessage() {
+			// Discarded.
+		},
+	});
+
+	await submitJudgement(config, {
+		run,
+		parentDirectory: parent,
+		document: {run, pages: [{pageUrl: url, measurementNote: 'A second note.'}]},
+		emitMessage(message: string) {
+			messages.push(message);
+		},
+	});
+
+	t.regex(messages.join('\n'), /already carries a measurement note/);
+
+	const report = await fsPromises.readFile(config.report.output, 'utf8');
+	t.regex(
+		report,
+		/The first note\./,
+		'the note that arrived first is the one kept',
+	);
+	t.notRegex(report, /A second note\./);
+});
+
 // The report is written on every call, not only a final one, so a review
 // abandoned after any submission has already produced its honest partial.
 test('the report is rewritten on each call, from everything that has arrived', async t => {

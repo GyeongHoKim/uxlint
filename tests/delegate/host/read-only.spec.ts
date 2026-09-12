@@ -69,6 +69,22 @@ test('the invariant refuses a launch that added a write-enabling flag', t => {
 	});
 });
 
+// `--flag value` and `--flag=value` are the same instruction to an argument
+// parser, so a posture that only looked for the bare token would wave through a
+// launch that had written the forbidden flag the other way.
+test('the invariant refuses a write-enabling flag written as --flag=value', t => {
+	const [adapter] = hostAdapters;
+	const posture = readOnlyPosture[adapter!.id];
+	const built = adapter!.buildLaunch(context);
+
+	t.throws(() => {
+		assertReadOnly(adapter!.id, {
+			...built,
+			args: [...built.args, `${posture.forbidden[0]!}=on`],
+		});
+	});
+});
+
 test('every supported host agent has a posture declared for it', t => {
 	for (const adapter of hostAdapters) {
 		t.truthy(
