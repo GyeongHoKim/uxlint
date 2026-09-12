@@ -22,6 +22,7 @@ import {
 	judgementFindingSchema,
 	sessionEnvironmentVariable,
 } from '../models/delegate.js';
+import {createSerialQueue} from '../utils/serial-queue.js';
 import {
 	SubmissionRejected,
 	secondNoteRefusal,
@@ -105,6 +106,24 @@ export function createJudgementServer(
 	const server = new McpServer({name: 'uxlint', version: '1.0.0'});
 	const noted = new Set<string>();
 
+	// Every tool below moves a page's state and then writes the log, and the SDK
+	// dispatches a request without waiting for the handler before it. Left to
+	// interleave, a finding appended while its page's own `open` record is still
+	// in flight lands before that record, and replay drops the finding as out of
+	// turn -- so the agent is told its work was accepted and the report never
+	// sees it. One queue for the session keeps each handler's transition and its
+	// write together.
+	const exclusive = createSerialQueue();
+
+	/**
+	 * Run one tool's work alone, with its refusals turned back into replies.
+	 *
+	 * @param body - The tool's work
+	 * @returns Its reply, or the refusal
+	 */
+	const serialized = async (body: () => Promise<ToolReply>) =>
+		exclusive(async () => guarded(body));
+
 	server.registerTool(
 		'listPages',
 		{
@@ -113,13 +132,15 @@ export function createJudgementServer(
 			inputSchema: {},
 		},
 		async () =>
-			reply(
-				session.manifest.pages.map(page => ({
-					pageUrl: page.pageUrl,
-					features: page.features,
-					captured: page.captureFailureReason === undefined,
-					judgement: tracker.stateOf(page.pageUrl),
-				})),
+			exclusive(async () =>
+				reply(
+					session.manifest.pages.map(page => ({
+						pageUrl: page.pageUrl,
+						features: page.features,
+						captured: page.captureFailureReason === undefined,
+						judgement: tracker.stateOf(page.pageUrl),
+					})),
+				),
 			),
 	);
 
@@ -131,7 +152,7 @@ export function createJudgementServer(
 			inputSchema: {pageUrl: z.string()},
 		},
 		async ({pageUrl}) =>
-			guarded(async () => {
+			serialized(async () => {
 				tracker.open(pageUrl);
 				// Journalled as well as tracked. This route keeps page state in
 				// one live server, so it could do without the record -- but then
@@ -159,7 +180,7 @@ export function createJudgementServer(
 			inputSchema: judgementFindingSchema,
 		},
 		async input =>
-			guarded(async () => {
+			serialized(async () => {
 				tracker.requireOpen(input.pageUrl);
 				const finding = validateFinding(input, session.pageUrls);
 				await session.append({
@@ -187,7 +208,7 @@ export function createJudgementServer(
 			inputSchema: {pageUrl: z.string(), note: z.string().min(1)},
 		},
 		async ({pageUrl, note}) =>
-			guarded(async () => {
+			serialized(async () => {
 				tracker.requireOpen(pageUrl);
 
 				if (noted.has(pageUrl)) {
@@ -208,7 +229,7 @@ export function createJudgementServer(
 			inputSchema: {pageUrl: z.string()},
 		},
 		async ({pageUrl}) =>
-			guarded(async () => {
+			serialized(async () => {
 				tracker.finish(pageUrl);
 				await session.append({kind: 'complete', pageUrl});
 

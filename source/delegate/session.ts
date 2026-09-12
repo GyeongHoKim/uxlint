@@ -84,6 +84,34 @@ function inTurn(
 }
 
 /**
+ * Why a line was not accepted, given what the preceding lines established.
+ *
+ * @param submission - A line the schema and the page check already accepted
+ * @param state - Where its page had reached by the preceding lines
+ * @param noted - Pages that already carry a note
+ * @returns The reason to log, or undefined when the line belongs where it is
+ */
+function rejection(
+	submission: RecordedSubmission,
+	state: PageJudgementState | undefined,
+	noted: ReadonlySet<string>,
+): string | undefined {
+	if (!inTurn(submission, state)) {
+		return 'out of turn for its page';
+	}
+
+	// One note per page is what both intakes enforce, so a second one in the log
+	// is a line neither of them wrote. It is also the one kind of forgery that
+	// wins by arriving late: the report keeps the last note it reads, so an
+	// appended line would replace what the agent actually said.
+	if (submission.kind === 'note' && noted.has(submission.pageUrl)) {
+		return 'a second note for its page';
+	}
+
+	return undefined;
+}
+
+/**
  * One delegated run's working state.
  */
 export class DelegationSession {
@@ -250,9 +278,10 @@ export class DelegationSession {
 	 * cannot have come from either.
 	 *
 	 * The order is replayed with the transitions the live tracker enforces
-	 * rather than a rule of its own. Checking one end and not the other would
-	 * leave a forged line accepted wherever the check does not look, which is
-	 * no check at all.
+	 * rather than a rule of its own, and the one-note-per-page rule both
+	 * intakes enforce is applied here as well. Checking one end and not the
+	 * other would leave a forged line accepted wherever the check does not
+	 * look, which is no check at all.
 	 *
 	 * Dropped rather than raised, because a report assembled from what
 	 * genuinely arrived is worth more than no report at all.
@@ -266,6 +295,7 @@ export class DelegationSession {
 		);
 
 		const accepted: RecordedSubmission[] = [];
+		const noted = new Set<string>();
 		const states = new Map<string, PageJudgementState>(
 			this.pageUrls.map(pageUrl => [pageUrl, 'not-started' as const]),
 		);
@@ -276,21 +306,26 @@ export class DelegationSession {
 			}
 
 			const submission = this.parseLine(line);
-			const outOfTurn =
-				submission !== undefined &&
-				!inTurn(submission, states.get(submission.pageUrl));
+			const reason =
+				submission === undefined
+					? 'not a submission'
+					: rejection(submission, states.get(submission.pageUrl), noted);
 
-			if (submission && !outOfTurn) {
+			if (submission && reason === undefined) {
 				accepted.push(submission);
 				states.set(
 					submission.pageUrl,
 					submission.kind === 'complete' ? 'finished' : 'open',
 				);
+
+				if (submission.kind === 'note') {
+					noted.add(submission.pageUrl);
+				}
 			} else {
 				logger.warn('Submission log line rejected on read', {
 					id: this.id,
 					line: index + 1,
-					reason: outOfTurn ? 'out of turn for its page' : 'not a submission',
+					reason,
 				});
 			}
 		}

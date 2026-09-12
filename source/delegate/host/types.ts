@@ -171,12 +171,36 @@ export const readOnlyPosture: Record<
 };
 
 /**
- * Whether an argument vector carries a flag, in either form it can be written.
+ * Every value a flag was given, in the order it was given them.
  *
- * `--flag value` and `--flag=value` are one instruction to an argument parser,
- * so a check that looked only for the bare token would pass a launch that had
- * written a forbidden flag the other way -- which is the whole of what this
- * table is there to stop.
+ * Both forms count, because `--flag value` and `--flag=value` are one
+ * instruction to an argument parser. Every occurrence counts too: a repeated
+ * flag is resolved by the agent's own parser, and Codex takes the last `-s` it
+ * is given -- so a launch checked at its first occurrence is a launch whose
+ * effective sandbox nobody checked.
+ *
+ * @param args - The argument vector
+ * @param flag - The flag to collect
+ * @returns Its values, one per occurrence
+ */
+function valuesOf(args: readonly string[], flag: string): string[] {
+	const values: string[] = [];
+
+	for (const [index, argument] of args.entries()) {
+		if (argument === flag) {
+			// A trailing flag has no value at all, which is not the required one
+			// either.
+			values.push(args[index + 1] ?? '');
+		} else if (argument.startsWith(`${flag}=`)) {
+			values.push(argument.slice(flag.length + 1));
+		}
+	}
+
+	return values;
+}
+
+/**
+ * Whether an argument vector carries a flag, in either form it can be written.
  *
  * @param args - The argument vector
  * @param flag - The flag to look for
@@ -212,11 +236,11 @@ export function assertReadOnly(id: LaunchableHostId, launch: HostLaunch): void {
 	}
 
 	for (const [flag, value] of posture.requiredValues) {
-		const index = launch.args.indexOf(flag);
-		const joined = launch.args.includes(`${flag}=${value}`);
-		if (!joined && (index === -1 || launch.args[index + 1] !== value)) {
+		const given = valuesOf(launch.args, flag);
+
+		if (given.length === 0 || given.some(one => one !== value)) {
 			throw new Error(
-				`The ${id} launch must pass ${flag} ${value}, which is what keeps a delegated run from modifying the repository.`,
+				`The ${id} launch must pass ${flag} ${value} and no other value for it, which is what keeps a delegated run from modifying the repository.`,
 			);
 		}
 	}

@@ -364,6 +364,37 @@ test('evidence served twice does not make the second serving out of turn', async
 	t.is(tracker.stateOf(pageUrl), 'open');
 });
 
+// One note per page is what both intakes enforce, so a log carrying two of them
+// carries one the intake did not write. The later record is the dangerous one:
+// the report keeps the last note it reads, so an appended line would replace
+// what the agent actually said.
+test('a second note for a page is dropped on read, keeping the first', async t => {
+	const session = await DelegationSession.create(manifest());
+	t.teardown(async () => session.dispose());
+
+	const {pageUrl} = evidence[0]!;
+	await session.append(
+		{kind: 'open', pageUrl},
+		{kind: 'note', pageUrl, note: 'What the agent actually said.'},
+	);
+
+	await fs.appendFile(
+		path.join(session.directory, 'submissions.jsonl'),
+		JSON.stringify({kind: 'note', pageUrl, note: 'Appended afterwards.'}) +
+			'\n',
+		'utf8',
+	);
+
+	const submissions = await session.submissions();
+	const notes = submissions.filter(submission => submission.kind === 'note');
+
+	t.is(notes.length, 1, 'a page carries one note however many were written');
+	t.is(
+		notes[0]!.kind === 'note' ? notes[0]!.note : '',
+		'What the agent actually said.',
+	);
+});
+
 test('a well-formed line naming a page outside the run is dropped too', async t => {
 	const session = await DelegationSession.create(manifest());
 	t.teardown(async () => session.dispose());

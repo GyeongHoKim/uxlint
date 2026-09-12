@@ -28,12 +28,32 @@ const evidence: PageEvidence[] = [
 
 /**
  * A connected client speaking to a judgement server over a linked pair.
+ *
+ * `beforeAppend` holds a write back for as long as the caller wants, which is
+ * how a test makes the interleaving between two tool calls something it decides
+ * rather than something the scheduler happens to produce that day.
  */
-async function connect(t: ExecutionContext) {
+async function connect(
+	t: ExecutionContext,
+	options: {beforeAppend?: (write: number) => Promise<void>} = {},
+) {
 	const session = await DelegationSession.create({
 		hostAgent: 'claude-code',
 		pages: evidence,
 	});
+
+	if (options.beforeAppend) {
+		const {beforeAppend} = options;
+		const append = session.append.bind(session);
+		let writes = 0;
+
+		session.append = async (...submissions) => {
+			writes += 1;
+			await beforeAppend(writes);
+			await append(...submissions);
+		};
+	}
+
 	const server = createJudgementServer(session);
 	const client = new Client({name: 'test', version: '0.0.0'});
 	const [clientTransport, serverTransport] =
@@ -82,6 +102,48 @@ async function call(
 		};
 	}
 }
+
+// Every tool mutates page state and then writes the log, and the SDK does not
+// wait for one request's handler before dispatching the next. A finding
+// appended while the page's own `open` record is still in flight lands before
+// it, and replay then drops the finding as out of turn -- the agent is told its
+// work was accepted and the report never sees it.
+test('a finding submitted while the page’s open record is in flight is kept', async t => {
+	const {client, session} = await connect(t, {
+		async beforeAppend(write) {
+			// Only the first write is slow: the `open` record that
+			// getPageEvidence journals.
+			if (write === 1) {
+				await new Promise(resolve => {
+					setTimeout(resolve, 50);
+				});
+			}
+		},
+	});
+
+	const [, added] = await Promise.all([
+		call(client, 'getPageEvidence', {pageUrl: first}),
+		call(client, 'addFinding', {
+			severity: 'high',
+			category: 'navigation',
+			description: 'Submitted while the page was being opened.',
+			personaRelevance: ['A first-time visitor on a phone'],
+			recommendation: 'Fix it.',
+			pageUrl: first,
+		}),
+	]);
+
+	t.false(added.isError, added.text);
+
+	const recorded = await session.submissions();
+	const findings = recorded.filter(submission => submission.kind === 'finding');
+
+	t.is(
+		findings.length,
+		1,
+		'what the agent was told was accepted is in the log',
+	);
+});
 
 test('the server offers exactly the five judgement tools and nothing else', async t => {
 	const {client} = await connect(t);

@@ -85,6 +85,28 @@ test('the invariant refuses a write-enabling flag written as --flag=value', t =>
 	});
 });
 
+// An argument parser that takes the last value wins is the normal case, so a
+// posture satisfied by the first occurrence is satisfied by a launch whose
+// effective sandbox is whatever came after it.
+test('the invariant refuses a repeated flag whose later value is not the required one', t => {
+	const codex = hostAdapters.find(adapter => adapter.id === 'codex');
+	const built = codex!.buildLaunch(context);
+
+	t.throws(() => {
+		assertReadOnly(codex!.id, {
+			...built,
+			args: [...built.args, '-s', 'danger-full-access'],
+		});
+	});
+
+	t.throws(() => {
+		assertReadOnly(codex!.id, {
+			...built,
+			args: [...built.args, '-s=danger-full-access'],
+		});
+	});
+});
+
 test('every supported host agent has a posture declared for it', t => {
 	for (const adapter of hostAdapters) {
 		t.truthy(
