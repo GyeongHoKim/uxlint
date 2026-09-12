@@ -61,6 +61,29 @@ const manifestFile = 'session.json';
 const submissionsFile = 'submissions.jsonl';
 
 /**
+ * Whether a logged submission is one its page could have accepted.
+ *
+ * The mirror of what `PageJudgementTracker` refuses a live submitter, so that a
+ * log read back enforces the same order the intake did. Serving evidence twice
+ * is the one repetition allowed, because an agent asking again is recovering
+ * its place rather than making a claim.
+ *
+ * @param submission - A line the schema and the page check already accepted
+ * @param state - Where its page had reached by the preceding lines
+ * @returns Whether the line belongs where it was found
+ */
+function inTurn(
+	submission: RecordedSubmission,
+	state: PageJudgementState | undefined,
+): boolean {
+	if (submission.kind === 'open') {
+		return state === 'not-started' || state === 'open';
+	}
+
+	return state === 'open';
+}
+
+/**
  * One delegated run's working state.
  */
 export class DelegationSession {
@@ -221,9 +244,15 @@ export class DelegationSession {
 	 * Agent run, asked to, did. A line that did not come from the intake is
 	 * dropped rather than trusted: the strict schema refuses a finding
 	 * claiming it was measured, and the page check refuses one attributed to a
-	 * page this run never captured. A finding or note that follows its page's
-	 * completion is dropped as well: both intakes refuse one as too late, so a
-	 * line like that cannot have come from either.
+	 * page this run never captured. A line out of turn for its page is dropped
+	 * as well -- a finding before the page was served, anything after it was
+	 * completed -- because both intakes refuse those, so a line like that
+	 * cannot have come from either.
+	 *
+	 * The order is replayed with the transitions the live tracker enforces
+	 * rather than a rule of its own. Checking one end and not the other would
+	 * leave a forged line accepted wherever the check does not look, which is
+	 * no check at all.
 	 *
 	 * Dropped rather than raised, because a report assembled from what
 	 * genuinely arrived is worth more than no report at all.
@@ -237,7 +266,9 @@ export class DelegationSession {
 		);
 
 		const accepted: RecordedSubmission[] = [];
-		const completed = new Set<string>();
+		const states = new Map<string, PageJudgementState>(
+			this.pageUrls.map(pageUrl => [pageUrl, 'not-started' as const]),
+		);
 
 		for (const [index, line] of raw.split('\n').entries()) {
 			if (line.trim().length === 0) {
@@ -245,22 +276,21 @@ export class DelegationSession {
 			}
 
 			const submission = this.parseLine(line);
-			const late =
+			const outOfTurn =
 				submission !== undefined &&
-				(submission.kind === 'finding' || submission.kind === 'note') &&
-				completed.has(submission.pageUrl);
+				!inTurn(submission, states.get(submission.pageUrl));
 
-			if (submission && !late) {
+			if (submission && !outOfTurn) {
 				accepted.push(submission);
-
-				if (submission.kind === 'complete') {
-					completed.add(submission.pageUrl);
-				}
+				states.set(
+					submission.pageUrl,
+					submission.kind === 'complete' ? 'finished' : 'open',
+				);
 			} else {
 				logger.warn('Submission log line rejected on read', {
 					id: this.id,
 					line: index + 1,
-					reason: late ? 'after its page was completed' : 'not a submission',
+					reason: outOfTurn ? 'out of turn for its page' : 'not a submission',
 				});
 			}
 		}
