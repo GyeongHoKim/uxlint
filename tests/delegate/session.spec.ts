@@ -337,6 +337,46 @@ test('an identity naming no run is reported rather than guessed at', async t => 
 	);
 });
 
+// The identity arrives on a command line an agent writes, and `submit` appends
+// to the log of whatever run it resolves to. Three `..` segments are what it
+// takes: the identity is glued onto the `uxlint-delegate-` prefix, so the first
+// is spent undoing that one segment and only the rest climb.
+test('an identity that climbs out of the runs is refused before it is a path', async t => {
+	const parent = path.join(
+		process.cwd(),
+		'test-escape-' + Date.now().toString(),
+	);
+	const outside = path.join(parent, 'outsider');
+	await fs.mkdir(outside, {recursive: true});
+	t.teardown(async () => fs.rm(parent, {recursive: true, force: true}));
+
+	// A session manifest where the traversal lands, so the refusal is the only
+	// thing standing between the identity and a run uxlint would have opened.
+	const planted = await DelegationSession.create(manifest(), {
+		parentDirectory: outside,
+	});
+	const runs = path.join(parent, 'runs');
+	await fs.mkdir(runs, {recursive: true});
+
+	const identity = path.join(
+		'..',
+		'..',
+		'..',
+		'outsider',
+		path.basename(planted.directory),
+	);
+	t.is(
+		path.join(runs, `uxlint-delegate-${identity}`),
+		planted.directory,
+		'the identity must really resolve to the planted run, or this proves nothing',
+	);
+
+	await t.throwsAsync(
+		DelegationSession.loadById(identity, {parentDirectory: runs}),
+		{message: /not a run identity/},
+	);
+});
+
 // A run outliving its process is the whole point, and it is also the only new
 // failure mode in the route: nothing can hold a `finally` across two commands.
 test('a run created by a process that then exits is still there', async t => {

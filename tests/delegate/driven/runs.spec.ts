@@ -136,14 +136,25 @@ test('discarding the same run twice is not an error', async t => {
 });
 
 // The identity arrives on a command line an agent writes, and discard deletes
-// recursively. Joined onto a path unchecked, `../keep-me` names a sibling of
-// the runs rather than a run.
+// recursively. Three `..` segments are what it takes to leave the runs: the
+// identity is glued onto the `uxlint-delegate-` prefix, so the first only
+// undoes that segment. An identity with fewer lands inside the runs and would
+// have been harmless, which is why the one asserted here has three.
 test('discard refuses an identity that is not one, and deletes nothing', async t => {
 	const parent = await parentDirectory(t.teardown);
 	const bystander = path.join(parent, 'keep-me');
 	await fsPromises.mkdir(bystander);
+	const runs = path.join(parent, 'runs');
+	await fsPromises.mkdir(runs);
 
-	await t.throwsAsync(discardRun('../keep-me', {parentDirectory: parent}), {
+	const identity = path.join('..', '..', '..', 'keep-me');
+	t.is(
+		path.join(runs, `uxlint-delegate-${identity}`),
+		bystander,
+		'the identity must really resolve to the bystander, or this proves nothing',
+	);
+
+	await t.throwsAsync(discardRun(identity, {parentDirectory: runs}), {
 		message: /not a run identity/,
 	});
 	await t.notThrowsAsync(fsPromises.stat(bystander));
