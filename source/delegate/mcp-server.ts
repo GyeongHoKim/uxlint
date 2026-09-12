@@ -129,6 +129,11 @@ export function createJudgementServer(
 		async ({pageUrl}) =>
 			guarded(async () => {
 				tracker.open(pageUrl);
+				// Journalled as well as tracked. This route keeps page state in
+				// one live server, so it could do without the record -- but then
+				// the two routes write logs of different shapes, and a rule read
+				// back off the log could only hold for one of them.
+				await session.recordOpened(pageUrl);
 				const evidence = session.evidenceFor(pageUrl);
 
 				if (!evidence) {

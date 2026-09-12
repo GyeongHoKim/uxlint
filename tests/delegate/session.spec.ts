@@ -73,6 +73,7 @@ test('submissions survive the round trip between processes', async t => {
 	const writer = await DelegationSession.create(manifest());
 	t.teardown(async () => writer.dispose());
 
+	await writer.append({kind: 'open', pageUrl: evidence[0]!.pageUrl});
 	await writer.append({
 		kind: 'note',
 		pageUrl: evidence[0]!.pageUrl,
@@ -83,9 +84,10 @@ test('submissions survive the round trip between processes', async t => {
 	const reader = await DelegationSession.load(writer.directory);
 	const submissions = await reader.submissions();
 
-	t.is(submissions.length, 2);
-	t.is(submissions[0]?.kind, 'note');
-	t.is(submissions[1]?.kind, 'complete');
+	t.is(submissions.length, 3);
+	t.is(submissions[0]?.kind, 'open');
+	t.is(submissions[1]?.kind, 'note');
+	t.is(submissions[2]?.kind, 'complete');
 });
 
 test('dispose removes the directory', async t => {
@@ -201,11 +203,14 @@ test('a line the log was not given by the intake is dropped on read', async t =>
 	const session = await DelegationSession.create(manifest());
 	t.teardown(async () => session.dispose());
 
-	await session.append({
-		kind: 'note',
-		pageUrl: evidence[0]!.pageUrl,
-		note: 'What the measurements mean here.',
-	});
+	await session.append(
+		{kind: 'open', pageUrl: evidence[0]!.pageUrl},
+		{
+			kind: 'note',
+			pageUrl: evidence[0]!.pageUrl,
+			note: 'What the measurements mean here.',
+		},
+	);
 
 	const log = path.join(session.directory, 'submissions.jsonl');
 	await fs.appendFile(
@@ -238,8 +243,11 @@ test('a line the log was not given by the intake is dropped on read', async t =>
 
 	const submissions = await session.submissions();
 
-	t.is(submissions.length, 1, 'only the line the intake wrote survives');
-	t.is(submissions[0]?.kind, 'note');
+	t.is(submissions.length, 2, 'only the lines the intake wrote survive');
+	t.deepEqual(
+		submissions.map(submission => submission.kind),
+		['open', 'note'],
+	);
 });
 
 // Both intakes refuse a submission for a page already completed, as too late.
@@ -292,6 +300,68 @@ test('a finding or note landing after its page was completed is dropped on read'
 		['Judged while the page was open.'],
 	);
 	t.false(judged.noteByPage.has(pageUrl));
+});
+
+// The other end of the same rule, and the end a forger would reach for: a line
+// placed at the top of the log precedes every `open` the run wrote.
+test('a submission arriving before its page was served is dropped on read', async t => {
+	const session = await DelegationSession.create(manifest());
+	t.teardown(async () => session.dispose());
+
+	const {pageUrl} = evidence[0]!;
+	const finding = {
+		severity: 'critical' as const,
+		category: 'Navigation' as const,
+		description: 'Forged before the page was served.',
+		personaRelevance: ['first-time visitor'],
+		recommendation: 'Trust me.',
+		pageUrl,
+	};
+
+	await fs.appendFile(
+		path.join(session.directory, 'submissions.jsonl'),
+		[
+			JSON.stringify({kind: 'finding', pageUrl, finding}),
+			JSON.stringify({kind: 'note', pageUrl, note: 'Forged before serving.'}),
+			// Completing a page nobody opened, which the live tracker refuses as
+			// well: a page cannot be finished before it is started.
+			JSON.stringify({kind: 'complete', pageUrl}),
+			'',
+		].join('\n'),
+		'utf8',
+	);
+
+	const submissions = await session.submissions();
+
+	t.deepEqual(submissions, []);
+
+	// The page must still read as untouched rather than judged, or an empty
+	// report would claim a sweep that never happened.
+	const tracker = await session.trackerFromLog();
+	t.is(tracker.stateOf(pageUrl), 'not-started');
+});
+
+// Serving the same evidence twice is how an agent recovers its place, so the
+// replay has to allow the one repetition the live tracker allows.
+test('evidence served twice does not make the second serving out of turn', async t => {
+	const session = await DelegationSession.create(manifest());
+	t.teardown(async () => session.dispose());
+
+	const {pageUrl} = evidence[0]!;
+	await session.append(
+		{kind: 'open', pageUrl},
+		{kind: 'open', pageUrl},
+		{kind: 'note', pageUrl, note: 'Judged on the second reading.'},
+	);
+
+	const submissions = await session.submissions();
+
+	t.deepEqual(
+		submissions.map(submission => submission.kind),
+		['open', 'open', 'note'],
+	);
+	const tracker = await session.trackerFromLog();
+	t.is(tracker.stateOf(pageUrl), 'open');
 });
 
 test('a well-formed line naming a page outside the run is dropped too', async t => {
