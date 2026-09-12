@@ -38,6 +38,7 @@ import {
 	validateFinding,
 	SubmissionRejected,
 } from '../ingest.js';
+import {RunBusy, withRunLock} from '../run-lock.js';
 import {DelegationSession, PageJudgementTracker} from '../session.js';
 
 /**
@@ -289,23 +290,43 @@ export async function submitJudgement(
 		return 1;
 	}
 
-	const {accepted, refusals} = await record(session, validated.data);
+	// Held across the whole of it, not only the appends. Deciding what the run
+	// already holds, writing it, and then assembling the report from everything
+	// the run has accumulated are one operation: a second submission that read
+	// the log in the middle of this one would decide against a state that no
+	// longer exists, and its report -- saved by overwriting the same file --
+	// would drop whatever landed after its read.
+	try {
+		return await withRunLock(session.directory, async () => {
+			const {accepted, refusals} = await record(session, validated.data);
 
-	for (const refusal of refusals) {
-		emitMessage(`uxlint: ${refusal}`);
+			for (const refusal of refusals) {
+				emitMessage(`uxlint: ${refusal}`);
+			}
+
+			// Said out loud even when nothing was refused. An agent that gets
+			// silence back cannot tell a successful submission from a command that
+			// did nothing, and this is the only signal it has -- the report is a
+			// file it may not read. Where the report went is said by
+			// `writeReport`, once it is actually there.
+			emitMessage(
+				`uxlint: recorded ${accepted} ${accepted === 1 ? 'finding' : 'findings'}${
+					refusals.length > 0 ? `, ${refusals.length} refused` : ''
+				}.`,
+			);
+
+			return writeReport(config, session, emitMessage);
+		});
+	} catch (error) {
+		if (error instanceof RunBusy) {
+			// Nothing was recorded, so the agent can simply submit this document
+			// again rather than work out which half of it landed.
+			emitMessage(`uxlint: ${error.message}`);
+			return 1;
+		}
+
+		throw error;
 	}
-
-	// Said out loud even when nothing was refused. An agent that gets silence
-	// back cannot tell a successful submission from a command that did nothing,
-	// and this is the only signal it has -- the report is a file it may not read.
-	// Where the report went is said by `writeReport`, once it is actually there.
-	emitMessage(
-		`uxlint: recorded ${accepted} ${accepted === 1 ? 'finding' : 'findings'}${
-			refusals.length > 0 ? `, ${refusals.length} refused` : ''
-		}.`,
-	);
-
-	return writeReport(config, session, emitMessage);
 }
 
 /**

@@ -20,6 +20,7 @@ import {
 	writeTerminalMessage,
 } from '../../infrastructure/console-output.js';
 import type {PageEvidence} from '../../models/delegate.js';
+import {RunBusy, withRunLock} from '../run-lock.js';
 import {DelegationSession} from '../session.js';
 
 /**
@@ -92,8 +93,21 @@ export async function serveEvidence(options: EvidenceOptions): Promise<number> {
 
 	// Recorded before the payload goes out, so a crash between the two cannot
 	// leave an agent holding evidence for a page uxlint does not think it read.
-	// One append for all of them, in the order they are served.
-	await session.recordOpened(...pages.map(served => served.pageUrl));
+	// One append for all of them, in the order they are served, and under the
+	// run's lock: a submission deciding what this run holds must not have these
+	// lines appear in the middle of its own read.
+	try {
+		await withRunLock(session.directory, async () => {
+			await session.recordOpened(...pages.map(served => served.pageUrl));
+		});
+	} catch (error) {
+		if (error instanceof RunBusy) {
+			emitMessage(`uxlint: ${error.message}`);
+			return 1;
+		}
+
+		throw error;
+	}
 
 	logger.info('Evidence served', {run, pages: pages.length});
 	emitPayload({run: session.id, pages});

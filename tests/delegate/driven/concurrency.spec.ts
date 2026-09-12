@@ -116,6 +116,72 @@ test('two runs captured at once stay separate', async t => {
 	t.notRegex(second, /Belongs to the first review\./);
 });
 
+// An agent may submit a page as it finishes it, and nothing stops two of those
+// calls overlapping. Each one reads the log, decides what the run already holds,
+// and only then appends -- so without a lock spanning the decision and the
+// write, both calls decide against the same stale log. Here both are told their
+// note was recorded while the report can only keep one of them.
+test('two submissions to one run arriving at once are serialized', async t => {
+	const parent = await fsPromises.mkdtemp(
+		path.join(os.tmpdir(), 'uxlint-concurrency-test-'),
+	);
+	t.teardown(async () => {
+		await fsPromises.rm(parent, {recursive: true, force: true});
+	});
+
+	const only = await capture(parent, path.join(parent, 'one.md'), 1);
+	const url = 'https://example.com/page-1';
+	const messages: string[] = [];
+
+	const submit = async (description: string, note: string) =>
+		submitJudgement(only.config, {
+			run: only.run,
+			parentDirectory: parent,
+			document: {
+				run: only.run,
+				pages: [
+					{
+						pageUrl: url,
+						findings: [
+							{
+								severity: 'high' as const,
+								category: 'navigation',
+								description,
+								personaRelevance: ['Someone'],
+								recommendation: 'Fix it.',
+							},
+						],
+						measurementNote: note,
+					},
+				],
+			},
+			emitMessage(message: string) {
+				messages.push(message);
+			},
+		});
+
+	await Promise.all([
+		submit('Arrived first.', 'The first note.'),
+		submit('Arrived second.', 'The second note.'),
+	]);
+
+	// A finding from each call: nothing about two calls at once makes either
+	// submission wrong, so both are recorded.
+	const report = await fsPromises.readFile(only.config.report.output, 'utf8');
+	t.regex(report, /Arrived first\./);
+	t.regex(report, /Arrived second\./);
+
+	// The note is the one thing a page holds only once, so exactly one of the
+	// two has to be turned away -- and the agent has to be told which.
+	t.is(
+		messages.filter(message =>
+			message.includes('already carries a measurement note'),
+		).length,
+		1,
+		'the call that lost the race was told its note was not recorded',
+	);
+});
+
 test('judgement submitted against the wrong run is refused, not misfiled', async t => {
 	const parent = await fsPromises.mkdtemp(
 		path.join(os.tmpdir(), 'uxlint-concurrency-test-'),
