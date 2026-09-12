@@ -21,7 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      # Write, because the prompt below asks Claude to leave its review with
+      # `gh pr comment`. With read the job still runs and still costs a review,
+      # but the comment cannot be posted and the output is hidden, so the whole
+      # run is discarded silently.
+      pull-requests: write
       issues: read
       id-token: write
 
