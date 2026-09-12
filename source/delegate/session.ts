@@ -118,12 +118,22 @@ export class DelegationSession {
 	 * @param options - Overrides for tests
 	 * @param options.parentDirectory - Where run directories live
 	 * @returns The run
-	 * @throws Error when the identity names no run
+	 * @throws Error when `id` is not shaped like a run identity, or names no run
 	 */
 	static async loadById(
 		id: string,
 		options: {parentDirectory?: string} = {},
 	): Promise<DelegationSession> {
+		// Refused before it becomes a path, for the reason `discardRun` refuses
+		// it: `submit` appends to the log of whatever run this resolves to, so an
+		// identity carrying a `..` would write one review's judgement into a
+		// directory outside the runs entirely.
+		if (!isRunId(id)) {
+			throw new Error(
+				`${id} is not a run identity. \`uxlint delegate runs\` lists the runs that exist.`,
+			);
+		}
+
 		const parent = options.parentDirectory ?? os.tmpdir();
 		return this.load(path.join(parent, `${runDirectoryPrefix}${id}`));
 	}
