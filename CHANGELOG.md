@@ -1,3 +1,29 @@
+# [4.6.0](https://github.com/GyeongHoKim/uxlint/compare/v4.5.0...v4.6.0) (2026-09-12)
+
+
+### Bug Fixes
+
+* close four gaps a code review found on the delegate routes (010) ([f84ec0d](https://github.com/GyeongHoKim/uxlint/commit/f84ec0d8142f39c82afd93f67936924bfa454595))
+* close the last two gaps the live agent runs found (010) ([20d5480](https://github.com/GyeongHoKim/uxlint/commit/20d5480a44f6c0940224ea40b0e21e272889323d))
+* enforce one page-state rule on both delegate routes (010) ([2f7da2b](https://github.com/GyeongHoKim/uxlint/commit/2f7da2bb52edc0a7f1df99d99c64b821b051cd2a))
+* harden delegate runs against the review findings (010) ([bd3a863](https://github.com/GyeongHoKim/uxlint/commit/bd3a863003711c94ef3ce2c6918bccd0298d8977))
+* look for Cursor's CLI under the name its documentation gives it (009) ([4162cd7](https://github.com/GyeongHoKim/uxlint/commit/4162cd776afe5e4fe2ef4b22618ac460a7614f61))
+* make a delegated Codex run reach the judgement tools (009) ([2364981](https://github.com/GyeongHoKim/uxlint/commit/2364981f96dafbbc2d3345c456f1d95851311bc0))
+* make a run have one writer, and check every value a flag was given (010) ([debcda9](https://github.com/GyeongHoKim/uxlint/commit/debcda9b910bc9fd827c9c22b9ca790abc6205da))
+* treat the submission log as untrusted on read (009) ([7eb86e6](https://github.com/GyeongHoKim/uxlint/commit/7eb86e629185de82c6da8e1448ea63e55a4bc943))
+* validate the run identity on the read path too (010) ([94a9abe](https://github.com/GyeongHoKim/uxlint/commit/94a9abecbf3126c1b5f4515732e3c128a9ddfbc6))
+
+
+### Features
+
+* let a run outlive the command that made it (010) ([80ce6d3](https://github.com/GyeongHoKim/uxlint/commit/80ce6d30e82272898e7c962398506d280ca2b698))
+* let an agent drive a review end to end (010) ([15ba360](https://github.com/GyeongHoKim/uxlint/commit/15ba360569f4927ee40876ee608e07c6e2804b7f))
+* make the read-only guarantee structural, not conventional (009) ([f55edf6](https://github.com/GyeongHoKim/uxlint/commit/f55edf69f5ff304866dadbaf870e6e41e36e7d59))
+* run a review with no model credential via Claude Code (009) ([646ce36](https://github.com/GyeongHoKim/uxlint/commit/646ce36be10447f15afa447d93c1dd3d46b3df80))
+* serve judgement tools over MCP for delegate mode (009) ([4ea5a0c](https://github.com/GyeongHoKim/uxlint/commit/4ea5a0caf33236ab311aa611d9642924039f22d6))
+* stop offering a Cursor launch that never worked (010) ([251ffce](https://github.com/GyeongHoKim/uxlint/commit/251ffce1d26f281c814c2a0444cdefcc19fd20e2))
+* support Codex and Cursor Agent, and validate against a real run (009) ([e45ea87](https://github.com/GyeongHoKim/uxlint/commit/e45ea87c2bbf01733849af0fd9ccf0cce907e9f3))
+
 # [4.5.0](https://github.com/GyeongHoKim/uxlint/compare/v4.4.0...v4.5.0) (2026-08-25)
 
 
