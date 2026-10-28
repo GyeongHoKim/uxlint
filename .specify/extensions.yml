@@ -1,5 +1,10 @@
 installed:
+- agent-context
 - git
+- github
+- reconcile
+- speckit-superpowers-bridge
+- verify-tasks
 settings:
   auto_execute_hooks: true
 hooks:
@@ -30,6 +35,15 @@ hooks:
     prompt: Commit outstanding changes before clarification?
     description: Auto-commit before spec clarification
     condition: null
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.guard
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.speckit-superpowers-bridge.guard?
+    description: Prevent Spec Kit contract changes while Superpowers implementation
+      is executing
+    condition: null
   before_plan:
   - extension: git
     command: speckit.git.commit
@@ -38,6 +52,15 @@ hooks:
     priority: 10
     prompt: Commit outstanding changes before planning?
     description: Auto-commit before implementation planning
+    condition: null
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.guard
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.speckit-superpowers-bridge.guard?
+    description: Prevent Spec Kit contract changes while Superpowers implementation
+      is executing
     condition: null
   before_tasks:
   - extension: git
@@ -48,6 +71,15 @@ hooks:
     prompt: Commit outstanding changes before task generation?
     description: Auto-commit before task generation
     condition: null
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.guard
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.speckit-superpowers-bridge.guard?
+    description: Prevent Spec Kit contract changes while Superpowers implementation
+      is executing
+    condition: null
   before_implement:
   - extension: git
     command: speckit.git.commit
@@ -56,6 +88,14 @@ hooks:
     priority: 10
     prompt: Commit outstanding changes before implementation?
     description: Auto-commit before implementation
+    condition: null
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.guard
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.speckit-superpowers-bridge.guard?
+    description: Block speckit.implement for features handed off to Superpowers
     condition: null
   before_checklist:
   - extension: git
@@ -102,6 +142,14 @@ hooks:
     prompt: Commit specification changes?
     description: Auto-commit after specification
     condition: null
+  - extension: agent-context
+    command: speckit.agent-context.update
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Execute speckit.agent-context.update?
+    description: Refresh agent context after specification
+    condition: null
   after_clarify:
   - extension: git
     command: speckit.git.commit
@@ -120,6 +168,14 @@ hooks:
     prompt: Commit plan changes?
     description: Auto-commit after implementation planning
     condition: null
+  - extension: agent-context
+    command: speckit.agent-context.update
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Execute speckit.agent-context.update?
+    description: Refresh agent context after planning
+    condition: null
   after_tasks:
   - extension: git
     command: speckit.git.commit
@@ -129,6 +185,14 @@ hooks:
     prompt: Commit task changes?
     description: Auto-commit after task generation
     condition: null
+  - extension: speckit-superpowers-bridge
+    command: speckit.speckit-superpowers-bridge.handoff
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.speckit-superpowers-bridge.handoff?
+    description: Create the Superpowers handoff after Spec Kit task generation
+    condition: null
   after_implement:
   - extension: git
     command: speckit.git.commit
@@ -137,6 +201,24 @@ hooks:
     priority: 10
     prompt: Commit implementation changes?
     description: Auto-commit after implementation
+    condition: null
+  - extension: verify-tasks
+    command: speckit.verify-tasks.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Run verify-tasks in a fresh session to check for phantom completions
+    description: Post-implementation phantom completion detector
+    condition: null
+  - extension: reconcile
+    command: speckit.reconcile.run
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: Did implementation surface a discovery the team accepts, or a gap the
+      artifacts should record? Re-run with a feature path and a description of what
+      drifted, e.g. specs/001-feature the screen shipped but is unreachable.
+    description: Amend the feature's spec, plan, and tasks from a gap report
     condition: null
   after_checklist:
   - extension: git
@@ -164,4 +246,25 @@ hooks:
     priority: 10
     prompt: Commit after syncing issues?
     description: Auto-commit after tasks-to-issues conversion
+    condition: null
+  after_converge:
+  - extension: verify-tasks
+    command: speckit.verify-tasks.run
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Converged? Run verify-tasks in a fresh session as the final gate before
+      opening a PR
+    description: Post-convergence phantom completion detector
+    condition: null
+  - extension: reconcile
+    command: speckit.reconcile.run
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: Did convergence surface a discovery the team accepts that the artifacts
+      do not record yet? Re-run this command with a feature path and a description
+      of what drifted, e.g. specs/001-feature the endpoint shipped but the plan never
+      declared it.
+    description: Amend the feature's spec, plan, and tasks from a gap report
     condition: null
