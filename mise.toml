@@ -1,0 +1,25 @@
+# Tools needed to develop uxlint. Run `mise install` in the repo root.
+# See: https://mise.jdx.dev/configuration.html
+
+[tools]
+# Kept in step with .nvmrc, which CI reads through actions/setup-node.
+node = "24"
+
+# Spec Kit CLI, pinned to the version recorded in .specify/init-options.json.
+# mise installs it through uv into its own virtualenv.
+uv = "latest"
+"pypi:github/spec-kit" = { version = "1.2.4", package_name = "specify-cli" }
+
+# The Spec Kit and superpowers-bridge shell scripts read JSON with jq; the
+# bridge's guard lets every command through when jq is missing.
+jq = "1.8"
+
+# The release flow and the GitHub-facing scripts use the GitHub CLI.
+gh = "latest"
+
+[env]
+# The agent-context extension's script needs a Python with PyYAML and only
+# looks at SPECKIT_PYTHON, python3 and python. specify's own interpreter has
+# PyYAML (a specify-cli dependency), so point at it through the launcher's
+# shebang instead of hard-coding the install path.
+SPECKIT_PYTHON = { value = "{{ exec(command='head -n 1 \"$(command -v specify)\" | cut -c 3-') }}", tools = true }
