@@ -8,6 +8,11 @@ feature.json
 # Per-machine extension config overrides.
 extensions/*/local-config.yml
 
+# Executable adapter packages and their per-checkout provenance registry.
+# Execution consent is stored separately in the user's local trust registry.
+integrations/packages/
+integrations/packages.json
+
 # Downloaded snapshot of the remote extension catalog. Refetched on demand and
 # stamped with per-machine `cached_at` times, so it is cache rather than state.
 # `.registry` is deliberately not ignored: it pins which extension version is

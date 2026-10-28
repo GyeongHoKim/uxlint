@@ -3,5 +3,5 @@
   "ai_skills": true,
   "integration": "claude",
   "script": "sh",
-  "speckit_version": "0.16.2"
+  "speckit_version": "1.2.4"
 }

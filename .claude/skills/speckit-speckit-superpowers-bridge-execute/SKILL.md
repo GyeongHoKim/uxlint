@@ -1,0 +1,189 @@
+---
+name: speckit-speckit-superpowers-bridge-execute
+description: Execute Spec Kit tasks through the Superpowers bridge
+compatibility: Requires spec-kit project structure with .specify/ directory
+metadata:
+  author: lihan3238
+  source: speckit-superpowers-bridge:commands/speckit.speckit-superpowers-bridge.execute.md
+---
+
+# Bridge Execute
+
+Execute the active Spec Kit feature through Superpowers without running `speckit.implement`.
+
+## Behavior
+
+1. Read `.specify/superpowers-handoff.json`; if it is missing or stale, create a ready handoff with the platform-selected `update-handoff` script.
+2. Read `.specify/memory/constitution.md`, `spec.md`, `plan.md`, and `tasks.md` before touching implementation files.
+3. Run the bridge guard for `superpowers.executing-plans`.
+4. Derive a disposable Superpowers adapter outside `.superpowers/sdd/` from the canonical `tasks.md` and execute that adapter with Superpowers implementation discipline: TDD, systematic debugging, review, verification, and branch finishing.
+5. Keep task checkboxes and handoff state current. If the Spec Kit contract is wrong or incomplete, stop and set handoff status to `blocked`.
+
+## Execution
+
+Use the short marketplace alias as the normal implementation driver:
+
+- Codex: `$speckit-superpowers-bridge`
+- Claude Code: `/speckit-superpowers-bridge`
+
+The canonical extension command remains available as a fallback:
+
+- Codex: `$speckit-speckit-superpowers-bridge-execute`
+- Claude Code: `/speckit-speckit-superpowers-bridge-execute`
+
+In this source repository, the same protocol is mirrored in project-local bridge skill files:
+
+- Codex: `.agents/skills/speckit-superpowers-bridge/SKILL.md`
+- Claude Code: `.claude/skills/speckit-superpowers-bridge/SKILL.md`
+
+Fresh marketplace installs do not copy those source-repository mirrors directly. Instead, Spec Kit generates skills from extension commands, including `.agents/skills/speckit-speckit-superpowers-bridge-*` / `.claude/skills/speckit-speckit-superpowers-bridge-*`; those generated directories are expected and authoritative.
+
+Before implementation begins, run the platform flavor selected by `.specify/init-options.json.script`.
+
+```powershell
+.\.specify\extensions\speckit-superpowers-bridge\scripts\powershell\update-handoff.ps1 -Status executing -Actor <codex|claude>
+.\.specify\extensions\speckit-superpowers-bridge\scripts\powershell\guard-command.ps1 -Action "superpowers:executing-plans" -Actor <codex|claude>
+```
+
+```bash
+bash .specify/extensions/speckit-superpowers-bridge/scripts/bash/update-handoff.sh --status executing --actor <codex|claude>
+bash .specify/extensions/speckit-superpowers-bridge/scripts/bash/guard-command.sh --action "superpowers:executing-plans" --actor <codex|claude>
+```
+
+Do not invoke Superpowers `brainstorming` or `writing-plans` for this active feature. Spec Kit artifacts are the only design and execution contract.
+
+## Extension hooks (before_implement / after_implement)
+
+This command replaces `speckit.implement`, so it MUST fire the same
+`before_implement` and `after_implement` extension hooks that `speckit.implement`
+would fire, so user and third-party hooks stay plug-and-play. This mirrors
+Spec Kit's own `implement` command (the "Pre-Execution Checks" and "Mandatory
+Post-Execution Hooks" sections) and adds one bridge-specific rule.
+
+### Before implementation (`before_implement`)
+
+Fire these BEFORE transitioning the handoff to `executing`:
+
+1. Check `.specify/extensions.yml`. If it does not exist, or has no
+   `hooks.before_implement`, skip silently. If it is malformed, report the
+   parser error and state that no hooks were checked, including mandatory
+   hooks, then continue the core lifecycle normally.
+2. For each hook under `hooks.before_implement`:
+   - **Skip any hook whose `extension` is `speckit-superpowers-bridge`.** The
+     bridge's own `before_implement` hook is its guard, whose purpose is to
+     block `speckit.implement` while Superpowers owns execution; firing it from
+     the bridge would block the bridge itself.
+   - Skip hooks where `enabled` is explicitly `false` (a hook without an
+     `enabled` field is enabled by default).
+   - Skip hooks with a non-empty `condition` (leave condition evaluation to the
+     upstream HookExecutor).
+3. Fire each remaining hook via its `command`, rendered per agent:
+   `speckit.git.commit` → `/speckit-git-commit` (Claude Code) or
+   `$speckit-git-commit` (Codex).
+   - **Mandatory hook** (`optional: false`): execute it and wait for its result
+     before proceeding.
+   - **Optional hook** (`optional: true`): surface the hook's `prompt` and
+     execute if the user confirms.
+
+### After implementation (`after_implement`)
+
+Dispatch `after_implement` before transitioning the handoff to `complete`:
+
+1. Check `.specify/extensions.yml` for `hooks.after_implement`. If absent, skip. If it is malformed, report the parser error and state that no hooks were checked, including mandatory hooks, then continue to the Completion Report.
+2. Apply the same filters as above (`enabled: false` → skip, non-empty
+   `condition` → skip, and `extension` is `speckit-superpowers-bridge` → skip —
+   the bridge registers no `after_implement` hook today, but the rule keeps the
+   dispatch uniform).
+3. Fire each remaining hook via its `command` with the same per-agent rendering
+   and the same mandatory/optional handling.
+
+### Hook invocation contract
+
+For every mandatory hook, emit Spec Kit's phase-appropriate automatic-hook
+block before invocation:
+
+```text
+## Extension Hooks
+
+**Automatic Pre-Hook**: <extension>   # before_implement
+**Automatic Hook**: <extension>       # after_implement
+Executing: `/<dotted-command-id>`
+EXECUTE_COMMAND: <dotted-command-id>
+```
+
+Emit only the phase-appropriate automatic label, not both labels in one live
+block. The dotted ID remains in the directive; the actual invocation uses the
+active agent's rendered command form.
+
+Actually invoke the rendered agent command and wait for its result. Printing
+the directive or invocation name without calling the command is not success.
+If any mandatory hook fails, stop the lifecycle and surface the failure.
+
+`before_implement` fires before the handoff transitions to `executing`.
+Dispatch `after_implement` before transitioning the handoff to `complete`.
+If a mandatory `after_implement` hook fails, do not transition the handoff to `complete`;
+leave the non-complete state visible for recovery. Optional hooks still run
+only after surfacing the extension, command, description, prompt, and
+agent-native invocation and receiving user confirmation. Declining one does not
+fail implementation.
+
+## Superpowers 6.4.2 adapter contract
+
+Spec Kit `tasks.md` remains the only requirements and completion contract.
+Because Superpowers 6.4.2's `task-brief` extractor requires headings that
+match `### Task N`, create a deterministic disposable adapter outside the
+native `.superpowers/sdd/` workspace (for example, under the OS temporary
+directory using a stable repository/feature-derived name reused on resume). Include pointers to
+the active `spec.md`, `plan.md`, constitution, and global constraints. For
+each unchecked non-deferred `- [ ] T###` line, emit one `### Task N: T###`
+heading followed by the exact canonical checkbox line and its file paths.
+Do not include already checked or deferred tasks. Invoke
+`superpowers:executing-plans` with the adapter, and after each native task
+passes, mark the corresponding canonical checkbox in `tasks.md`. Verify all
+IDs map exactly and no non-deferred canonical tasks remain unchecked before
+completion. Remove the adapter with cleanup on success or failure; the native
+`.superpowers/sdd/` workspace remains Superpowers-owned scratch.
+
+Malformed `.specify/extensions.yml` must be reported with the parser error and
+with an explicit statement that no hooks, including mandatory hooks, were
+checked; continue the core lifecycle normally. A missing registry is skipped.
+
+## Required Superpowers Discipline
+
+Use Superpowers execution skills only against the disposable adapter derived from Spec Kit `tasks.md`:
+
+- `superpowers:test-driven-development` before each code-modifying task.
+- `superpowers:systematic-debugging` before fixing any failure or unexpected behavior.
+- `superpowers:verification-before-completion` before marking a phase complete.
+- `superpowers:requesting-code-review` before final completion.
+- `superpowers:finishing-a-development-branch` before handing off merge, PR, or branch cleanup decisions.
+
+Before each required Superpowers skill invocation, the agent simply calls the skill — no extra logging or resume-context plumbing is needed. The bridge's only state is `superpowers-handoff.json`, updated at lifecycle boundaries (start / block / complete) via `update-handoff.ps1` or `update-handoff.sh`. See the bridge `SKILL.md` (linked above) for the authoritative 8-step orchestration sequence.
+
+For delegated implementation prompts, include:
+
+- `.specify/memory/constitution.md`
+- `<feature_directory>/spec.md`
+- `<feature_directory>/plan.md`
+- `<feature_directory>/tasks.md`
+- Denylist: `speckit.implement`, `superpowers:brainstorming`, `superpowers:writing-plans`
+
+Set the handoff to `blocked` if the Spec Kit contract is missing or wrong:
+
+```powershell
+.\.specify\extensions\speckit-superpowers-bridge\scripts\powershell\update-handoff.ps1 -Status blocked -Reason "Describe the Spec Kit artifact gap" -Actor <codex|claude>
+```
+
+```bash
+bash .specify/extensions/speckit-superpowers-bridge/scripts/bash/update-handoff.sh --status blocked --reason "Describe the Spec Kit artifact gap" --actor <codex|claude>
+```
+
+Set the handoff to `complete` only after all required task checkboxes are complete, code review has been requested, verification has fresh passing evidence, and branch finishing has run:
+
+```powershell
+.\.specify\extensions\speckit-superpowers-bridge\scripts\powershell\update-handoff.ps1 -Status complete -Actor <codex|claude>
+```
+
+```bash
+bash .specify/extensions/speckit-superpowers-bridge/scripts/bash/update-handoff.sh --status complete --actor <codex|claude>
+```

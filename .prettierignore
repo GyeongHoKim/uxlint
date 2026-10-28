@@ -4,6 +4,7 @@ coverage
 snapshots
 .specify
 .claude
+.agents
 .github
 .serena
 specs

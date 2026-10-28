@@ -250,11 +250,12 @@ See README.md for full schema and examples.
 
 Uses semantic-release configured in `.releaserc.json`. Release workflow runs on main branch pushes.
 
-## Active Technologies
+## Current Feature
 
-- TypeScript (ES modules) with Node.js >=22.22.2 (003-cloud-oauth2)
-- OS-native secure storage (keychain on macOS, credential manager on Windows, keyring on Linux) for tokens (003-cloud-oauth2)
-
-## Recent Changes
-
-- 003-cloud-oauth2: Added TypeScript (ES modules) with Node.js >=22.22.2
+<!-- prettier-ignore-start -->
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/010-inverted-delegation/plan.md
+<!-- SPECKIT END -->
+<!-- prettier-ignore-end -->
