@@ -207,11 +207,11 @@ credential set.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T069 [P] Add a "Pages behind a login" section to `README.md` agreeing with `contracts/config-surface.md` key for key: the `signIn` block, how a target is found, how secrets are supplied, the signed-in sign, `uxlint sign-in`, what a failed sign-in does to the run and its exit code, and the "what the block cannot express" list including that a password under `value:` is not redacted
-- [ ] T070 [P] Add `sign-in` and the `signIn` block to the quick-reference table and configuration summary in `README.md`, and add one line on signed-in review to the Delegate Mode notes in `AGENTS.md` stating that sign-in is carried out by uxlint and never by the host agent
-- [ ] T071 Run `npm run test:coverage` and add unit tests for any branch of `source/models/sign-in.ts`, `source/models/secret-redaction.ts`, `source/services/sign-in.ts` and `source/sign-in-check.ts` that keeps the 80% threshold from holding
-- [ ] T072 Walk through scenarios 1–4, 6 and 7 of `quickstart.md` by hand against the built CLI and the fixture site, and record the observed output under a `## Results` heading at the top of `quickstart.md`, as the 010 quickstart does, including the sign-in time measured by T025 as the performance baseline constitution principle IV asks for
-- [ ] T073 Run `npm run compile`, `npm run format`, `npm run lint` and `npm test` on the finished branch and resolve every error; confirm no `eslint-disable-next-line` was added and no lint rule was changed
+- [X] T069 [P] Add a "Pages behind a login" section to `README.md` agreeing with `contracts/config-surface.md` key for key: the `signIn` block, how a target is found, how secrets are supplied, the signed-in sign, `uxlint sign-in`, what a failed sign-in does to the run and its exit code, and the "what the block cannot express" list including that a password under `value:` is not redacted
+- [X] T070 [P] Add `sign-in` and the `signIn` block to the quick-reference table and configuration summary in `README.md`, and add one line on signed-in review to the Delegate Mode notes in `AGENTS.md` stating that sign-in is carried out by uxlint and never by the host agent
+- [X] T071 Run `npm run test:coverage` and add unit tests for any branch of `source/models/sign-in.ts`, `source/models/secret-redaction.ts`, `source/services/sign-in.ts` and `source/sign-in-check.ts` that keeps the 80% threshold from holding
+- [X] T072 Walk through scenarios 1–4, 6 and 7 of `quickstart.md` by hand against the built CLI and the fixture site, and record the observed output under a `## Results` heading at the top of `quickstart.md`, as the 010 quickstart does, including the sign-in time measured by T025 as the performance baseline constitution principle IV asks for
+- [X] T073 Run `npm run compile`, `npm run format`, `npm run lint` and `npm test` on the finished branch and resolve every error; confirm no `eslint-disable-next-line` was added and no lint rule was changed
 
 ---
 
