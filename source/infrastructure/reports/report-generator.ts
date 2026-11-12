@@ -288,6 +288,27 @@ function countBySeverity(report: UxReport): Record<FindingSeverity, number> {
 }
 
 /**
+ * The header line saying whether the run was signed in.
+ *
+ * Absent is not false: only a run whose configuration described a sign-in
+ * says anything. The account is deliberately not named.
+ *
+ * @param signedIn - What the run recorded, if it described a sign-in
+ * @returns The line, or nothing
+ */
+function renderSignedIn(signedIn: boolean | undefined): string[] {
+	if (signedIn === undefined) {
+		return [];
+	}
+
+	return [
+		signedIn
+			? '**Signed in**: yes — reviewed as a signed-in visitor'
+			: '**Signed in**: no — sign-in failed; no page was reviewed',
+	];
+}
+
+/**
  * Generate markdown report from UX analysis results
  * Creates formatted markdown with all sections
  */
@@ -333,6 +354,7 @@ export function generateMarkdownReport(report: UxReport): string {
 
 	// Executive Summary and Statistics
 	sections.push(
+		...renderSignedIn(metadata.tooling.signedIn),
 		'',
 		'## Executive Summary\n',
 		summary,
@@ -369,6 +391,12 @@ export function generateMarkdownReport(report: UxReport): string {
 			`### ${note ? '⚠️ ' : ''}${page.pageUrl}\n`,
 			`**Features**: ${page.features}\n`,
 		);
+
+		if (page.reachedUrl !== undefined) {
+			sections.push(
+				`**Reviewed page**: ${page.reachedUrl} (the configured address forwarded here)\n`,
+			);
+		}
 
 		if (note) {
 			sections.push(note);

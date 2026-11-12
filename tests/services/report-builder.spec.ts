@@ -514,3 +514,49 @@ test('an address cannot be recorded before a page is open', t => {
 		{message: /No page analysis initialized/},
 	);
 });
+
+// --- a run that could not sign in (011) -------------------------------------
+
+test('failing every page records each configured page as failed, in order', t => {
+	const {builder} = createBuilder();
+	const pages = [
+		{url: 'https://example.com/dashboard', features: 'usage'},
+		{url: 'https://example.com/settings', features: 'profile'},
+	];
+	const reason = 'Sign-in did not finish within 30000 ms';
+
+	builder.setPersona('An operations lead');
+	builder.failEveryPage(pages, reason);
+
+	const report = builder.generateFinalReport();
+	t.deepEqual(report.metadata.failedPages, [
+		'https://example.com/dashboard',
+		'https://example.com/settings',
+	]);
+	t.deepEqual(report.metadata.analyzedPages, []);
+	t.true(
+		builder
+			.getCurrentState()
+			.completedAnalyses.every(
+				analysis =>
+					analysis.status === 'failed' &&
+					analysis.error === reason &&
+					analysis.snapshot === '' &&
+					analysis.findings.length === 0,
+			),
+	);
+});
+
+test('a page failed with the others was not measured, and says so', t => {
+	const {builder} = createBuilder();
+
+	builder.failEveryPage(
+		[{url: 'https://example.com/dashboard', features: 'usage'}],
+		'Sign-in did not finish within 30000 ms',
+	);
+
+	t.deepEqual(
+		builder.getCurrentState().completedAnalyses[0]?.measurement,
+		noMeasurement('page-not-loaded'),
+	);
+});

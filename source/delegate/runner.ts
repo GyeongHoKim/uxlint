@@ -30,7 +30,11 @@ import {
 	narrowBrowserTools,
 } from '../services/mcp-client.js';
 import {MeasurementService} from '../services/measurement.js';
-import {signRunIn} from '../services/sign-in.js';
+import {
+	checkSignInSecrets,
+	settleRunFailure,
+	signRunIn,
+} from '../services/sign-in.js';
 import type {ReportBuilder} from '../services/report-builder.js';
 import {assembleReport, captureAllPages, checkBrowser} from './capture-pass.js';
 import {buildEvidence} from './evidence.js';
@@ -278,6 +282,14 @@ export async function runDelegatedAnalysis(
 		totalPages: config.pages.length,
 	});
 
+	// Known without starting anything, so said before anything is looked for.
+	const secretProblem = checkSignInSecrets(config);
+	if (secretProblem !== undefined) {
+		logger.error('Sign-in secrets unusable', {message: secretProblem});
+		emitVerdict(`uxlint: ${secretProblem}`);
+		return 1;
+	}
+
 	// Availability first. A host agent discovered to be missing after the
 	// capture pass has already cost a full navigation and measurement sweep,
 	// which is the exact waste FR-016 exists to prevent.
@@ -298,7 +310,16 @@ export async function runDelegatedAnalysis(
 
 	let session: DelegationSession | undefined;
 	let run: Awaited<ReturnType<typeof createDelegatedRun>> | undefined;
-	let failure: string | undefined;
+	let failure = 'analysis failed — Unknown error';
+
+	const server = browserServerIdentity();
+	const provenance = {
+		browserServer: server.name,
+		browserServerVersion: server.version,
+		browserVersion: preflight.browser.version,
+		externalDataAllowed: config.browser?.allowExternalData ?? false,
+		hostAgent: adapter.id,
+	};
 
 	try {
 		run = await createDelegatedRun(config, preflight, {client, builder});
@@ -312,15 +333,7 @@ export async function runDelegatedAnalysis(
 		// Once, before any page is captured.
 		const signedIn = await signRunIn(run.session, config.signIn);
 
-		const server = browserServerIdentity();
-		reportBuilder.setProvenance({
-			browserServer: server.name,
-			browserServerVersion: server.version,
-			browserVersion: preflight.browser.version,
-			externalDataAllowed: config.browser?.allowExternalData ?? false,
-			hostAgent: adapter.id,
-			...(signedIn && {signedIn}),
-		});
+		reportBuilder.setProvenance({...provenance, ...(signedIn && {signedIn})});
 		reportBuilder.setPersona(config.persona);
 
 		const measurement = new MeasurementService(mcpClient);
@@ -394,11 +407,15 @@ export async function runDelegatedAnalysis(
 
 		return gate.passed ? 0 : 1;
 	} catch (error) {
-		failure = error instanceof Error ? error.message : 'Unknown error';
 		logger.error('Delegated analysis failed', {
-			error: failure,
+			error: error instanceof Error ? error.message : 'Unknown error',
 			stack: error instanceof Error ? error.stack : undefined,
 		});
+
+		// After a failed sign-in nothing was captured, so there is nothing
+		// for a host agent to judge: the report says which pages went
+		// unreviewed and why.
+		failure = await settleRunFailure(error, config, provenance, run);
 	} finally {
 		// Unconditional on every path, including the failing one: a session
 		// directory left behind is a delegated run that did not clean up after
@@ -419,6 +436,6 @@ export async function runDelegatedAnalysis(
 		}
 	}
 
-	emitVerdict(`uxlint: analysis failed — ${failure ?? 'Unknown error'}`);
+	emitVerdict(`uxlint: ${failure}`);
 	return 1;
 }

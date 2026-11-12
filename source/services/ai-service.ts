@@ -31,6 +31,7 @@ import {
 	type PageStage,
 } from '../models/analysis-stage.js';
 import type {PreflightVerdict} from '../models/browser-preflight.js';
+import {reachedUrlOf, sameAddress} from '../models/sign-in.js';
 import {readToolOutcome} from '../models/tool-output.js';
 import {
 	defaultPageTimeLimitMs,
@@ -419,7 +420,7 @@ export class AIService {
 					// the page's final status all read this one observation,
 					// which is what keeps them in step.
 					const observation = observeTool(event);
-					this.recordCapture(observation);
+					this.recordCapture(observation, page.url);
 					observed.push(observation);
 				},
 			});
@@ -799,8 +800,12 @@ export class AIService {
 	 * is skipped rather than stored as though the page had been read.
 	 *
 	 * @param observation - The tool result as the loop observed it
+	 * @param pageUrl - The configured address of the page being reviewed
 	 */
-	private recordCapture(observation: ObservedToolResult): void {
+	private recordCapture(
+		observation: ObservedToolResult,
+		pageUrl: string,
+	): void {
 		if (observation.toolName !== captureToolName) {
 			return;
 		}
@@ -813,6 +818,16 @@ export class AIService {
 		}
 
 		this.reportBuilder.setPageSnapshot(observation.output);
+
+		// A signed-in run is told where it landed by the session's admission.
+		// Every other run reads it here, so a forwarded page is reported as
+		// one whether or not the run signed in.
+		if (!this.session) {
+			const reachedUrl = reachedUrlOf(observation.output);
+			if (reachedUrl !== undefined && !sameAddress(reachedUrl, pageUrl)) {
+				this.reportBuilder.setReachedUrl(reachedUrl);
+			}
+		}
 	}
 
 	/**

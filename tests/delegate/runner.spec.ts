@@ -8,6 +8,10 @@ import {
 	type DelegateDependencies,
 } from '../../source/delegate/runner.js';
 import type {UxLintConfig} from '../../source/models/config.js';
+import {
+	describeSignInFailure,
+	missingSecretText,
+} from '../../source/models/sign-in.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
 import {
 	scriptedBrowser,
@@ -265,35 +269,69 @@ function gatedConfig(output: string, describesSignIn: boolean): UxLintConfig {
  */
 async function runAgainstLoginSite(
 	t: {teardown: (fn: () => void) => void},
-	options: {describesSignIn: boolean; withoutTools?: readonly string[]},
+	options: {
+		describesSignIn: boolean;
+		withoutTools?: readonly string[];
+		/** What the site's form accepts, when it is not what the configuration types */
+		sitePassword?: string;
+		/** A last change to the configuration before the run */
+		configure?: (config: UxLintConfig) => UxLintConfig;
+	},
 ) {
-	const {describesSignIn, withoutTools = []} = options;
+	const {
+		describesSignIn,
+		withoutTools = [],
+		sitePassword = password,
+		configure = (config: UxLintConfig) => config,
+	} = options;
 	const directory = temporaryDirectory(t.teardown);
+	const output = path.join(directory, 'report.md');
 	const builder = new ReportBuilder(fsPromises);
-	const site = simulatedLoginSite({origin, password});
+	const site = simulatedLoginSite({origin, password: sitePassword});
 	const browser = scriptedBrowser({...site.script, withoutTools});
 	const messages: string[] = [];
+	const host = scriptedHost([{complete: true}, {complete: true}]);
+	let preflightRuns = 0;
+	let launches = 0;
 
 	const exitCode = await runDelegatedAnalysis(
-		gatedConfig(path.join(directory, 'report.md'), describesSignIn),
+		configure(gatedConfig(output, describesSignIn)),
 		{
 			client: browser.client,
 			builder,
 			async runPreflight() {
+				preflightRuns++;
 				return readyVerdict;
 			},
 			emitVerdict(message: string) {
 				messages.push(message);
 			},
-			adapter: scriptedHost([{complete: true}, {complete: true}]),
+			// Counted at both ends: a launch that was built is a host agent the
+			// run meant to start, whether or not it got as far as running it.
+			adapter: {
+				...host,
+				buildLaunch(context) {
+					launches++;
+					return host.buildLaunch(context);
+				},
+				async run(launch, runOptions) {
+					launches++;
+					return host.run(launch, runOptions);
+				},
+			},
 		},
 	);
 
 	return {
 		exitCode,
 		builder,
+		output,
 		site,
 		messages,
+		calls: browser.calls,
+		closed: browser.closed(),
+		preflightRuns,
+		launches,
 		navigations: browser.calls
 			.filter(call => call.name === 'navigate_page')
 			.map(call => String(call.arguments['url'])),
@@ -359,4 +397,125 @@ test('a run that describes no sign-in does not need the sign-in tools', async t 
 	t.is(report.metadata.tooling.signedIn, undefined);
 	t.is(site.signInCount(), 0);
 	t.deepEqual(navigations, [`${origin}/dashboard`, `${origin}/settings`]);
+});
+
+// A failed sign-in (011, FR-009). Driven for real: the site accepts a password
+// the configuration does not type, so the form answers with its own error and
+// the signed-in sign never appears. Signing in then waits out its whole window
+// for the sign, which is why these tests are given longer than the default.
+const rejectedReason = describeSignInFailure(
+	{
+		kind: 'sign-absent',
+		shown: `"Sign in" at ${origin}/login?error=1 — alert: "Invalid email or password"`,
+	},
+	gatedConfig('report.md', true).signIn!,
+);
+
+test('a failed sign-in captures no page and launches no host agent', async t => {
+	t.timeout(30_000);
+
+	const {site, navigations, launches, closed} = await runAgainstLoginSite(t, {
+		describesSignIn: true,
+		sitePassword: 'the-real-one',
+	});
+
+	t.is(site.signInCount(), 0);
+	t.deepEqual(
+		navigations.filter(url => url !== `${origin}/login`),
+		[],
+		'a page must not be captured signed out',
+	);
+	t.is(launches, 0, 'a host agent has nothing to judge');
+	t.true(closed > 0, 'the browser is released on this path too');
+});
+
+test('a failed sign-in still writes a report, with every page failed for that reason', async t => {
+	t.timeout(30_000);
+
+	const {builder, output} = await runAgainstLoginSite(t, {
+		describesSignIn: true,
+		sitePassword: 'the-real-one',
+	});
+	const report = builder.generateFinalReport();
+
+	await t.notThrowsAsync(
+		fs.stat(output),
+		'the report is the only place the unreviewed pages are listed',
+	);
+	t.deepEqual(report.metadata.failedPages, [
+		`${origin}/dashboard`,
+		`${origin}/settings`,
+	]);
+	t.deepEqual(report.metadata.analyzedPages, []);
+	t.deepEqual(
+		report.pages.map(page => page.error),
+		[rejectedReason, rejectedReason],
+	);
+	// False rather than absent: a sign-in was described, attempted, and failed.
+	t.false(report.metadata.tooling.signedIn);
+	t.is(report.metadata.tooling.browserServer, 'chrome-devtools-mcp');
+});
+
+// Written for both because the gate must not be what decides it: a failed
+// sign-in fails a run that never configured a threshold, and a configured one
+// must not turn the message into a verdict about findings.
+for (const [label, thresholds] of [
+	['with no thresholds configured', undefined],
+	['with thresholds configured', {maxCritical: 10}],
+] as const) {
+	test(`a failed sign-in exits 1 and says why ${label}`, async t => {
+		t.timeout(30_000);
+
+		const {exitCode, messages} = await runAgainstLoginSite(t, {
+			describesSignIn: true,
+			sitePassword: 'the-real-one',
+			configure: config => ({...config, ...(thresholds && {thresholds})}),
+		});
+
+		t.is(exitCode, 1);
+		t.true(
+			messages.includes(`uxlint: sign-in failed — ${rejectedReason}`),
+			'the message names the sign-in, not a failed analysis',
+		);
+		t.is(
+			rejectedReason,
+			`Sign-in steps completed but the signed-in sign "Sign out" did not appear. The page showed: "Sign in" at ${origin}/login?error=1 — alert: "Invalid email or password"`,
+		);
+		t.false(messages.some(message => message.includes('analysis failed')));
+	});
+}
+
+// A missing secret (011, FR-010). Found out before anything is started, so a
+// developer who forgot to set one is told at once and has spent nothing.
+const neverSetSecret = 'UXLINT_TEST_SECRET_THAT_IS_NEVER_SET';
+
+test('a sign-in naming a secret that is not set stops the run before anything is started', async t => {
+	Reflect.deleteProperty(process.env, neverSetSecret);
+
+	const {exitCode, messages, output, calls, preflightRuns, launches} =
+		await runAgainstLoginSite(t, {
+			describesSignIn: true,
+			configure: config => ({
+				...config,
+				signIn: {
+					...config.signIn!,
+					steps: [
+						{fill: 'Email', value: 'qa@example.com'},
+						{fill: 'Password', secret: neverSetSecret},
+						{click: 'Sign in'},
+					],
+				},
+			}),
+		});
+
+	t.is(exitCode, 1);
+	t.deepEqual(messages, [`uxlint: ${missingSecretText([neverSetSecret])}`]);
+	t.is(
+		messages[0],
+		`uxlint: Sign-in needs ${neverSetSecret}, which is not set in the environment`,
+	);
+	t.is(preflightRuns, 0, 'no browser is probed for a run that cannot sign in');
+	t.deepEqual(calls, [], 'the browser is asked for nothing');
+	t.is(launches, 0);
+	await t.throwsAsync(fs.stat(output));
 });
