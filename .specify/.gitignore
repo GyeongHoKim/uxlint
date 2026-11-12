@@ -18,3 +18,12 @@ integrations/packages.json
 # `.registry` is deliberately not ignored: it pins which extension version is
 # installed, which the whole team needs to agree on.
 extensions/.cache/
+
+# Runtime state of the speckit-superpowers-bridge extension: the guard's
+# decision log, the handoff between Spec Kit and Superpowers, and its
+# snapshots. Upstream marks these "per-developer runtime state, never
+# committed"; its own ignore rules ship inside the extension directory, where
+# their paths do not match.
+bridge-events.jsonl
+bridge-snapshots/
+superpowers-handoff.json
