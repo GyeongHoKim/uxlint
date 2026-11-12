@@ -4,6 +4,7 @@
  */
 
 import {promises as fsPromises} from 'node:fs';
+import process from 'node:process';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {act, renderHook, type RenderHookResult} from '@testing-library/react';
 import {MockLanguageModelV4} from 'ai/test';
@@ -19,6 +20,11 @@ import type {
 } from '../../source/models/analysis.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import type {LLMResponseData} from '../../source/models/llm-response.js';
+import {
+	describeSignInFailure,
+	missingSecretText,
+	type SignInFailure,
+} from '../../source/models/sign-in.js';
 import {AIService} from '../../source/services/ai-service.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
 import type {SignedInSession} from '../../source/services/sign-in.js';
@@ -522,7 +528,7 @@ const signedInConfig: UxLintConfig = {
 const runWithSession = async (
 	sandbox: sinon.SinonSandbox,
 	config: UxLintConfig,
-	options: {signedIn: boolean},
+	options: {signedIn: boolean; failure?: SignInFailure},
 ) => {
 	const order: string[] = [];
 	const states: AnalysisState[] = [];
@@ -541,26 +547,32 @@ const runWithSession = async (
 		reportBuilder.initializePageAnalysis(page.url, page.features);
 		return reportBuilder.completePageAnalysis();
 	});
+	const close = sandbox.spy(aiService, 'close');
+	const saveReport = sandbox.spy(reportBuilder, 'saveReport');
 
 	const establish = sandbox.stub().callsFake(async () => {
 		order.push('establish');
-		return {kind: 'signed-in'};
+		return options.failure
+			? {kind: 'failed', failure: options.failure}
+			: {kind: 'signed-in'};
 	});
 	const session = {
 		establish,
 		redact: (text: string) => text,
 	} as unknown as SignedInSession;
 
+	// Counted, because a run that must not start is one that called neither.
+	const createRun = sandbox
+		.stub()
+		.callsFake(async () =>
+			options.signedIn
+				? {aiService, reportBuilder, session}
+				: {aiService, reportBuilder},
+		);
+	const preflight = sandbox.stub().callsFake(stubPreflight);
+
 	const {result}: RenderHookResult<UseAnalysisResult, unknown> = renderHook(
-		() =>
-			useAnalysis(
-				config,
-				async () =>
-					options.signedIn
-						? {aiService, reportBuilder, session}
-						: {aiService, reportBuilder},
-				stubPreflight,
-			),
+		() => useAnalysis(config, createRun, preflight),
 	);
 
 	// Subscribe to state changes - must be done before runAnalysis
@@ -574,7 +586,17 @@ const runWithSession = async (
 		await result.current.runAnalysis();
 	});
 
-	return {result, reportBuilder, establish, order, states};
+	return {
+		result,
+		reportBuilder,
+		establish,
+		order,
+		states,
+		close,
+		saveReport,
+		createRun,
+		preflight,
+	};
 };
 
 test.serial(
@@ -677,6 +699,134 @@ test.serial(
 		);
 		t.false('signedIn' in reportBuilder.generateFinalReport().metadata.tooling);
 		t.is(result.current.analysisState.currentStage, 'complete');
+
+		sandbox.restore();
+	},
+);
+
+/**
+ * A failed sign-in (011, FR-009). No page is reviewed, but the run still
+ * leaves a report: every configured page is recorded as failed with the
+ * reason. The hook has nothing to emit, so the reason reaches the person
+ * through the error state it already ends in.
+ */
+const rejected: SignInFailure = {
+	kind: 'sign-absent',
+	shown:
+		'"Sign in" at https://example.com/login?error=1 — alert: "Invalid email or password"',
+};
+
+test.serial(
+	'useAnalysis analyses no page after a failed sign-in, and saves a report with every page failed',
+	async t => {
+		const sandbox = sinon.createSandbox();
+		const reason = describeSignInFailure(rejected, signedInConfig.signIn!);
+
+		const {reportBuilder, order, saveReport} = await runWithSession(
+			sandbox,
+			signedInConfig,
+			{signedIn: true, failure: rejected},
+		);
+
+		t.deepEqual(order, ['establish'], 'a page must not be reviewed signed out');
+		t.true(
+			saveReport.calledOnceWith('./test-report.md'),
+			'the report is the only place the unreviewed pages are listed',
+		);
+
+		const report = reportBuilder.generateFinalReport();
+		t.deepEqual(report.metadata.failedPages, [
+			'https://example.com',
+			'https://example.com/billing',
+			'https://example.com/team',
+		]);
+		t.deepEqual(
+			report.pages.map(page => page.error),
+			[reason, reason, reason],
+		);
+		// False rather than absent: a sign-in was described, attempted, and
+		// failed.
+		t.false(report.metadata.tooling.signedIn);
+		// The failure adds to the provenance; it must not replace what was there.
+		t.is(report.metadata.tooling.browserServer, 'chrome-devtools-mcp');
+
+		sandbox.restore();
+	},
+);
+
+test.serial(
+	'useAnalysis ends a failed sign-in in the error state, with the reason and the service closed',
+	async t => {
+		const sandbox = sinon.createSandbox();
+		const reason = describeSignInFailure(rejected, signedInConfig.signIn!);
+
+		const {result, states, close} = await runWithSession(
+			sandbox,
+			signedInConfig,
+			{signedIn: true, failure: rejected},
+		);
+
+		const {currentStage, error} = result.current.analysisState;
+		t.is(currentStage, 'error');
+		t.true(
+			error?.message.includes(reason),
+			'the person watching is told why nothing was reviewed',
+		);
+		t.false(
+			states.some(state => state.currentStage === 'navigating'),
+			'no page may be shown as started',
+		);
+		t.true(close.calledOnce, 'the browser is released on this path too');
+
+		sandbox.restore();
+	},
+);
+
+/**
+ * A missing secret (011, FR-010). Found out before anything is started, so a
+ * person who forgot to set one is told at once and has spent nothing.
+ */
+const neverSetSecret = 'UXLINT_TEST_SECRET_THAT_IS_NEVER_SET';
+
+test.serial(
+	'useAnalysis stops before anything is started when a sign-in secret is not set',
+	async t => {
+		const sandbox = sinon.createSandbox();
+		Reflect.deleteProperty(process.env, neverSetSecret);
+
+		const {result, establish, order, saveReport, createRun, preflight} =
+			await runWithSession(
+				sandbox,
+				{
+					...signedInConfig,
+					signIn: {
+						...signedInConfig.signIn!,
+						steps: [
+							{fill: 'Email', value: 'reviewer@example.com'},
+							{fill: 'Password', secret: neverSetSecret},
+							{click: 'Sign in'},
+						],
+					},
+				},
+				{signedIn: true},
+			);
+
+		const {currentStage, error} = result.current.analysisState;
+		t.is(currentStage, 'error');
+		t.true(error?.message.includes(missingSecretText([neverSetSecret])));
+		t.true(
+			error?.message.includes(
+				`Sign-in needs ${neverSetSecret}, which is not set in the environment`,
+			),
+		);
+		t.false(
+			preflight.called,
+			'no browser is probed for a run that cannot sign in',
+		);
+		t.false(createRun.called, 'no run is assembled, so no model is reached');
+		t.false(establish.called);
+		t.deepEqual(order, []);
+		t.false(saveReport.called, 'nothing was reviewed, so nothing is reported');
 
 		sandbox.restore();
 	},

@@ -601,3 +601,110 @@ test('one site-wide defect can exhaust a threshold on its own', t => {
 		),
 	);
 });
+
+// --- pages a signed-in run could not reach (FR-013) ------------------------
+
+// The two reasons a signed-in run records on a page it refused to review. A
+// refused page is an ordinary failed page, so the gate needs no new rule for
+// it -- these tests pin that it stays that way.
+const sessionLostReason =
+	'The session was lost and signing in again failed: Sign-in did not finish within 30000 ms';
+const signMissingReason =
+	'Signed in, but this page did not show the signed-in sign "Sign out". The account may not have access to it, or the page may not carry the sign';
+
+test('a page refused by a signed-in run breaches failOnFailedPage', t => {
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{
+			url: 'https://example.com/account',
+			status: 'failed',
+			error: sessionLostReason,
+		},
+		{
+			url: 'https://example.com/editor',
+			status: 'failed',
+			error: signMissingReason,
+		},
+	]);
+
+	const result = evaluateGate(report, {failOnFailedPage: true});
+
+	t.false(result.passed);
+	t.deepEqual(result.breaches, [{kind: 'failed-pages'}]);
+	t.deepEqual(result.failedPages, [
+		{pageUrl: 'https://example.com/account', error: sessionLostReason},
+		{pageUrl: 'https://example.com/editor', error: signMissingReason},
+	]);
+	t.false(
+		result.analyzedNothing,
+		'one page was still reviewed, so the run observed something',
+	);
+});
+
+test('a refused page is named with its reason in the verdict', t => {
+	// The reason is the whole message: without it a page the account cannot
+	// open reads like a page that timed out, and the fix is different.
+	const report = buildReport([
+		{url: 'https://example.com/a'},
+		{
+			url: 'https://example.com/account',
+			status: 'failed',
+			error: sessionLostReason,
+		},
+		{
+			url: 'https://example.com/editor',
+			status: 'failed',
+			error: signMissingReason,
+		},
+	]);
+
+	const lines = renderGateVerdict(
+		evaluateGate(report, {failOnFailedPage: true}),
+	).split('\n');
+
+	t.is(lines[0], 'uxlint: gate failed');
+	t.true(
+		lines.some(line => /failed\s+2 pages could not be analysed$/.test(line)),
+	);
+	t.true(
+		lines.some(line =>
+			line.endsWith(`https://example.com/account — ${sessionLostReason}`),
+		),
+		'the lost-session page must carry its own reason',
+	);
+	t.true(
+		lines.some(line =>
+			line.endsWith(`https://example.com/editor — ${signMissingReason}`),
+		),
+		'the page without the signed-in sign must carry its own reason',
+	);
+});
+
+test('a gated run in which every page was refused analysed nothing', t => {
+	// Signing in and then reaching no page is not a clean run, whatever the
+	// coverage flags say.
+	const report = buildReport([
+		{
+			url: 'https://example.com/account',
+			status: 'failed',
+			error: sessionLostReason,
+		},
+		{
+			url: 'https://example.com/editor',
+			status: 'failed',
+			error: signMissingReason,
+		},
+	]);
+
+	const gated = evaluateGate(report, {failOnFailedPage: true});
+
+	t.true(gated.analyzedNothing);
+	t.false(gated.passed);
+	t.deepEqual(gated.breaches, [{kind: 'failed-pages'}]);
+
+	const ungated = evaluateGate(report, {failOnFailedPage: false});
+
+	t.true(ungated.analyzedNothing);
+	t.false(ungated.passed, 'switching coverage gating off must not rescue it');
+	t.regex(renderGateVerdict(ungated), /no page was analysed successfully/);
+});

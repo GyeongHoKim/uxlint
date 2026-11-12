@@ -17,6 +17,10 @@ import type {RunProvenance} from '../../../source/models/analysis.js';
 import type {PreflightVerdict} from '../../../source/models/browser-preflight.js';
 import type {UxLintConfig} from '../../../source/models/config.js';
 import {
+	describeSignInFailure,
+	missingSecretText,
+} from '../../../source/models/sign-in.js';
+import {
 	scriptedBrowser,
 	simulatedLoginSite,
 } from '../../fixtures/sign-in-browser.js';
@@ -298,32 +302,49 @@ function gatedConfig(describesSignIn: boolean): UxLintConfig {
  * @param options - What the configuration and the server carry
  * @param options.describesSignIn - Whether the configuration carries a `signIn` block
  * @param options.withoutTools - Tools the browser server does not offer
+ * @param options.sitePassword - What the site's form accepts, when it is not what the configuration types
+ * @param options.configure - A last change to the configuration before the command runs
  * @returns The command's result and what it left behind
  */
 async function captureAgainstLoginSite(
 	teardown: (fn: () => Promise<void>) => void,
-	options: {describesSignIn: boolean; withoutTools?: readonly string[]},
+	options: {
+		describesSignIn: boolean;
+		withoutTools?: readonly string[];
+		sitePassword?: string;
+		configure?: (config: UxLintConfig) => UxLintConfig;
+	},
 ) {
-	const {describesSignIn, withoutTools = []} = options;
+	const {
+		describesSignIn,
+		withoutTools = [],
+		sitePassword = password,
+		configure = (config: UxLintConfig) => config,
+	} = options;
 	const parent = await parentDirectory(teardown);
-	const site = simulatedLoginSite({origin, password});
+	const site = simulatedLoginSite({origin, password: sitePassword});
 	const browser = scriptedBrowser({...site.script, withoutTools});
 	const messages: string[] = [];
 	let payload: CapturePayload | undefined;
+	let preflightRuns = 0;
 
-	const exitCode = await captureForAgent(gatedConfig(describesSignIn), {
-		client: browser.client,
-		parentDirectory: parent,
-		async runPreflight() {
-			return readyVerdict;
+	const exitCode = await captureForAgent(
+		configure(gatedConfig(describesSignIn)),
+		{
+			client: browser.client,
+			parentDirectory: parent,
+			async runPreflight() {
+				preflightRuns++;
+				return readyVerdict;
+			},
+			emitMessage(message: string) {
+				messages.push(message);
+			},
+			emitPayload(value: unknown) {
+				payload = value as CapturePayload;
+			},
 		},
-		emitMessage(message: string) {
-			messages.push(message);
-		},
-		emitPayload(value: unknown) {
-			payload = value as CapturePayload;
-		},
-	});
+	);
 
 	return {
 		exitCode,
@@ -331,6 +352,9 @@ async function captureAgainstLoginSite(
 		site,
 		messages,
 		payload,
+		calls: browser.calls,
+		closed: browser.closed(),
+		preflightRuns,
 		navigations: browser.calls
 			.filter(call => call.name === 'navigate_page')
 			.map(call => String(call.arguments['url'])),
@@ -413,4 +437,131 @@ test('a configuration that describes no sign-in does not need the sign-in tools'
 	});
 	const {provenance}: {provenance?: Partial<RunProvenance>} = session.manifest;
 	t.is(provenance?.signedIn, undefined);
+});
+
+// A failed sign-in (011, FR-009). Driven for real: the site accepts a password
+// the configuration does not type, so the form answers with its own error and
+// the signed-in sign never appears. Signing in then waits out its whole window
+// for the sign, which is why these tests are given longer than the default.
+//
+// No agent comes back for a run that reviewed nothing, so this is the one case
+// where `capture` writes the report itself rather than leaving it to `report`.
+const rejectedReason = describeSignInFailure(
+	{
+		kind: 'sign-absent',
+		shown: `"Sign in" at ${origin}/login?error=1 — alert: "Invalid email or password"`,
+	},
+	gatedConfig(true).signIn!,
+);
+
+/**
+ * Run `capture` against a site that rejects the configured password, with the
+ * report pointed at a file of its own.
+ *
+ * @param teardown - Ava's teardown registrar
+ * @returns The command's result, and where its report would be
+ */
+async function captureRejectedSignIn(
+	teardown: (fn: () => Promise<void>) => void,
+) {
+	// Apart from the run directories, so an empty parent still means no run.
+	const output = path.join(await parentDirectory(teardown), 'report.md');
+	const result = await captureAgainstLoginSite(teardown, {
+		describesSignIn: true,
+		sitePassword: 'the-real-one',
+		configure: config => ({...config, report: {output}}),
+	});
+
+	return {...result, output};
+}
+
+test('a failed sign-in captures no page and leaves no run behind', async t => {
+	t.timeout(30_000);
+
+	const {parent, site, navigations, payload, closed} =
+		await captureRejectedSignIn(t.teardown);
+
+	t.is(site.signInCount(), 0);
+	t.deepEqual(
+		navigations.filter(url => url !== `${origin}/login`),
+		[],
+		'a page must not be captured signed out',
+	);
+	t.is(payload, undefined, 'nothing may be printed when nothing was captured');
+	t.deepEqual(
+		await fsPromises.readdir(parent),
+		[],
+		'there is no evidence for an agent to come back for',
+	);
+	t.true(closed > 0, 'the browser is released on this path too');
+});
+
+test('a failed sign-in writes the report itself, with the reason and no page reviewed', async t => {
+	t.timeout(30_000);
+
+	const {output} = await captureRejectedSignIn(t.teardown);
+
+	await t.notThrowsAsync(
+		fsPromises.stat(output),
+		'the report is the only place the unreviewed pages are listed',
+	);
+	const report = await fsPromises.readFile(output, 'utf8');
+
+	t.true(report.includes(rejectedReason));
+	t.true(
+		report.includes('**Signed in**: no — sign-in failed; no page was reviewed'),
+	);
+	t.true(report.includes(`${origin}/dashboard`));
+	t.true(report.includes(`${origin}/settings`));
+});
+
+test('a failed sign-in exits 1 and says why', async t => {
+	t.timeout(30_000);
+
+	const {exitCode, messages} = await captureRejectedSignIn(t.teardown);
+
+	t.is(exitCode, 1);
+	t.deepEqual(messages, [`uxlint: sign-in failed — ${rejectedReason}`]);
+	t.is(
+		rejectedReason,
+		`Sign-in steps completed but the signed-in sign "Sign out" did not appear. The page showed: "Sign in" at ${origin}/login?error=1 — alert: "Invalid email or password"`,
+	);
+});
+
+// A missing secret (011, FR-010). Found out before anything is started, so an
+// agent that was not given one is told at once and has spent nothing.
+const neverSetSecret = 'UXLINT_TEST_SECRET_THAT_IS_NEVER_SET';
+
+test('a sign-in naming a secret that is not set stops the command before anything is started', async t => {
+	Reflect.deleteProperty(process.env, neverSetSecret);
+	const output = path.join(await parentDirectory(t.teardown), 'report.md');
+
+	const {exitCode, parent, messages, payload, calls, preflightRuns} =
+		await captureAgainstLoginSite(t.teardown, {
+			describesSignIn: true,
+			configure: config => ({
+				...config,
+				report: {output},
+				signIn: {
+					...config.signIn!,
+					steps: [
+						{fill: 'Email', value: 'qa@example.com'},
+						{fill: 'Password', secret: neverSetSecret},
+						{click: 'Sign in'},
+					],
+				},
+			}),
+		});
+
+	t.is(exitCode, 1);
+	t.deepEqual(messages, [`uxlint: ${missingSecretText([neverSetSecret])}`]);
+	t.is(
+		messages[0],
+		`uxlint: Sign-in needs ${neverSetSecret}, which is not set in the environment`,
+	);
+	t.is(preflightRuns, 0, 'no browser is probed for a run that cannot sign in');
+	t.deepEqual(calls, [], 'the browser is asked for nothing');
+	t.is(payload, undefined, 'nothing may be printed when nothing was captured');
+	t.deepEqual(await fsPromises.readdir(parent), []);
+	await t.throwsAsync(fsPromises.stat(output));
 });

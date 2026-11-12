@@ -75,7 +75,14 @@ const twoScreens = (site: LoginSite): SignInDescription => ({
 /**
  * A fixture site and a real browser, torn down with the test.
  */
-async function startRun(t: {teardown(fn: () => Promise<void>): void}) {
+async function startRun(t: {
+	teardown(fn: () => Promise<void>): void;
+	timeout(ms: number): void;
+}) {
+	// A real browser, and waits measured in seconds: the suite's idle limit is
+	// sized for tests that spawn nothing.
+	t.timeout(120_000);
+
 	const site = await startLoginSite({password});
 	const verdict = await runPreflight(undefined);
 	if (verdict.kind === 'unmet') {
@@ -199,3 +206,77 @@ realBrowser('a real browser reports a rejected password', async t => {
 
 	t.is(site.signInCount(), 0);
 });
+
+// --- a session that does not last (011 T041) --------------------------------
+
+realBrowser(
+	'a session that expires between two pages is re-established once',
+	async t => {
+		const {site, client} = await startRun(t);
+		const session = sessionFor(client, oneScreen(site));
+		await session.establish();
+
+		const first = `${site.baseUrl}/dashboard`;
+		const before = await session.admit(first, await capture(client, first));
+		t.is(before.kind, 'admitted');
+
+		site.expireSessions();
+		const second = `${site.baseUrl}/settings`;
+		const admission = await session.admit(
+			second,
+			await capture(client, second),
+		);
+
+		t.is(admission.kind, 'admitted');
+		if (admission.kind === 'admitted') {
+			t.true(admission.snapshot.includes(`url="${second}"`));
+		}
+
+		t.is(site.signInCount(), 2, 'exactly one further sign-in');
+	},
+);
+
+realBrowser(
+	'a session that cannot be re-established fails its page, and the next is still attempted',
+	async t => {
+		const {site, client} = await startRun(t);
+		const session = sessionFor(client, oneScreen(site));
+		await session.establish();
+
+		site.expireSessions();
+		site.setPassword('changed-since-the-run-began');
+
+		const first = `${site.baseUrl}/settings`;
+		const lost = await session.admit(first, await capture(client, first));
+		const second = `${site.baseUrl}/billing`;
+		const next = await session.admit(second, await capture(client, second));
+
+		t.is(lost.kind, 'refused');
+		if (lost.kind === 'refused') {
+			t.is(lost.reason, 'session-lost');
+			t.regex(lost.detail, /Invalid email or password/);
+			t.false(lost.detail.includes(password));
+		}
+
+		// Attempted, and answered: one page's failure does not end the run.
+		t.is(next.kind, 'refused');
+		t.is(site.signInCount(), 1);
+	},
+);
+
+realBrowser(
+	'a page that does not carry the sign is refused as such, not as a lost session',
+	async t => {
+		const {site, client} = await startRun(t);
+		const session = sessionFor(client, oneScreen(site));
+		await session.establish();
+
+		const url = `${site.baseUrl}/no-sign`;
+		const admission = await session.admit(url, await capture(client, url));
+
+		t.is(admission.kind, 'refused');
+		if (admission.kind === 'refused') {
+			t.is(admission.reason, 'sign-missing');
+		}
+	},
+);

@@ -59,7 +59,7 @@ const config = (urls: string[] = [`${origin}/dashboard`]): UxLintConfig => ({
  * A browser server offering everything the real one offers that matters here,
  * including the two tools only sign-in may use.
  */
-const browser = (): MCPClient => {
+const browser = (capture: string = rawCapture): MCPClient => {
 	const answering = (text: string) =>
 		tool({
 			description: text,
@@ -73,7 +73,7 @@ const browser = (): MCPClient => {
 		async tools() {
 			return {
 				navigate_page: answering('navigated'),
-				take_snapshot: answering(rawCapture),
+				take_snapshot: answering(capture),
 				fill: answering('filled'),
 				click: answering('clicked'),
 			};
@@ -390,6 +390,44 @@ test.serial(
 		t.is(analysis.status, 'complete');
 		t.is(analysis.snapshot, rawCapture);
 		t.true(requests[2]!.prompt.includes('RAW-CAPTURE-MARKER'));
+		await service.close();
+	},
+);
+
+test.serial(
+	'without a session a page that forwards elsewhere records where it was reviewed',
+	async t => {
+		// FR-014: applies to every run. A redirect is not a failure and not
+		// something uxlint may second-guess; it is something a reader of the
+		// report needs to be told.
+		const {model} = recordingModel();
+		const forwarded = `uid=1_0 RootWebArea "Dashboard" url="${origin}/dashboard"`;
+		const service = new AIService(model, browser(forwarded), builder());
+		const cfg = config([`${origin}/home`]);
+
+		const analysis = await service.analyzePage(cfg, cfg.pages[0]!);
+
+		t.is(analysis.reachedUrl, `${origin}/dashboard`);
+		t.is(analysis.status, 'complete');
+		t.is(analysis.snapshot, forwarded);
+		t.is(analysis.findings.length, 0);
+		await service.close();
+	},
+);
+
+test.serial(
+	'without a session a page reviewed at its own address records no other',
+	async t => {
+		const {model} = recordingModel();
+		// Differs from the configured address only by a trailing slash.
+		const direct = `uid=1_0 RootWebArea "Dashboard" url="${origin}/dashboard/"`;
+		const service = new AIService(model, browser(direct), builder());
+		const cfg = config([`${origin}/dashboard`]);
+
+		const analysis = await service.analyzePage(cfg, cfg.pages[0]!);
+
+		t.is(analysis.status, 'complete');
+		t.false(Object.hasOwn(analysis, 'reachedUrl'));
 		await service.close();
 	},
 );

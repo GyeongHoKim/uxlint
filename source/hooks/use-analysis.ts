@@ -7,7 +7,11 @@
 
 import {useCallback, useRef, useState} from 'react';
 import {logger} from '../infrastructure/logger.js';
-import type {AnalysisStage, AnalysisState} from '../models/analysis.js';
+import type {
+	AnalysisStage,
+	AnalysisState,
+	RunProvenance,
+} from '../models/analysis.js';
 import {
 	describeSandboxRelaxation,
 	describeUnmetRequirement,
@@ -20,7 +24,12 @@ import {evaluateGate} from '../models/gate-result.js';
 import type {UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
 import {createAIService, type AnalysisRun} from '../services/ai-service.js';
-import {signRunIn} from '../services/sign-in.js';
+import {
+	checkSignInSecrets,
+	reportFailedSignIn,
+	SignInFailed,
+	signRunIn,
+} from '../services/sign-in.js';
 
 /**
  * State change callback type
@@ -124,8 +133,16 @@ export function useAnalysis(
 	const runAnalysis = useCallback(async () => {
 		// Held outside the try so the finally can close the same instance.
 		let run: AnalysisRun | undefined;
+		let provenance: RunProvenance | undefined;
 
 		try {
+			// Known without starting anything, so said before a browser is
+			// looked for.
+			const secretProblem = checkSignInSecrets(config);
+			if (secretProblem !== undefined) {
+				throw new Error(secretProblem);
+			}
+
 			// Preflight before the service exists, so an environment that cannot
 			// run a browser costs no model usage here either -- SC-003 applies to
 			// the interactive path as much as to CI.
@@ -150,7 +167,7 @@ export function useAnalysis(
 			const {reportBuilder} = run;
 
 			const server = browserServerIdentity();
-			const provenance = {
+			provenance = {
 				browserServer: server.name,
 				browserServerVersion: server.version,
 				browserVersion: preflight.browser.version,
@@ -316,6 +333,16 @@ export function useAnalysis(
 				stack: analysisError.stack,
 				reportOutput: config.report.output,
 			});
+
+			if (analysisError instanceof SignInFailed && run && provenance) {
+				// No page was reviewed; the report says which pages that leaves.
+				await reportFailedSignIn(
+					run.reportBuilder,
+					config,
+					provenance,
+					analysisError.message,
+				);
+			}
 
 			updateAnalysisState(previous => ({
 				...previous,

@@ -13,7 +13,12 @@ import {runCIAnalysis} from '../source/ci-runner.js';
 import type {PageAnalysis} from '../source/models/analysis.js';
 import type {PreflightVerdict} from '../source/models/browser-preflight.js';
 import type {UxLintConfig} from '../source/models/config.js';
-import type {SignInDescription} from '../source/models/sign-in.js';
+import {
+	describeSignInFailure,
+	missingSecretText,
+	type SignInDescription,
+	type SignInFailure,
+} from '../source/models/sign-in.js';
 import {ReportBuilder} from '../source/services/report-builder.js';
 import type {SignedInSession} from '../source/services/sign-in.js';
 
@@ -676,5 +681,179 @@ test('a run with no session records nothing about signing in', async t => {
 	t.is(code, 0);
 	t.false('signedIn' in metadata.tooling);
 	t.is(metadata.analyzedPages.length, 3);
+	sandbox.restore();
+});
+
+/**
+ * A failed sign-in (011, FR-009). No page is reviewed, but the run still
+ * leaves a report: every configured page is recorded as failed with the
+ * reason, so a reader is not left with a pipeline that failed and nothing
+ * that says which pages went unreviewed or why.
+ */
+const rejected: SignInFailure = {
+	kind: 'sign-absent',
+	shown:
+		'"Sign in" at https://example.com/login?error=1 — alert: "Invalid email or password"',
+};
+
+const rejectedReason = describeSignInFailure(rejected, signIn);
+
+/**
+ * `createDeps` with a session whose sign-in fails. Everything the run did
+ * afterwards is recorded, because what is being asserted is mostly what it
+ * must not do.
+ */
+const createFailedSignInDeps = () => {
+	const {sandbox, builder, deps} = createDeps();
+	const analysed: string[] = [];
+	const emitted: string[] = [];
+	let closeCalls = 0;
+	const saveReport = sandbox.spy(builder, 'saveReport');
+	const session = {
+		establish: sandbox.stub().resolves({kind: 'failed', failure: rejected}),
+		redact: (text: string) => text,
+	} as unknown as SignedInSession;
+
+	return {
+		sandbox,
+		builder,
+		saveReport,
+		analysed,
+		emitted,
+		closeCalls: () => closeCalls,
+		deps: {
+			...deps,
+			async createRun() {
+				const service = {
+					async analyzePage(
+						_config: UxLintConfig,
+						page: {url: string; features: string},
+					) {
+						analysed.push(page.url);
+						return completed(builder)(page);
+					},
+					async close() {
+						closeCalls++;
+					},
+				};
+
+				return {
+					aiService: service as never,
+					reportBuilder: builder,
+					session,
+				};
+			},
+			emitVerdict(verdict: string) {
+				emitted.push(verdict);
+			},
+		},
+	};
+};
+
+test('a failed sign-in analyses no page and records every page as failed for that reason', async t => {
+	const {sandbox, builder, saveReport, analysed, deps} =
+		createFailedSignInDeps();
+
+	await runCIAnalysis(threePages({signIn}), deps);
+
+	t.deepEqual(analysed, [], 'a page must not be reviewed signed out');
+	t.true(
+		saveReport.calledOnceWith('./test-report.md'),
+		'the report is the only place the unreviewed pages are listed',
+	);
+
+	const report = builder.generateFinalReport();
+	t.deepEqual(report.metadata.failedPages, [
+		'https://example.com',
+		'https://example.com/billing',
+		'https://example.com/team',
+	]);
+	t.deepEqual(report.metadata.analyzedPages, []);
+	t.deepEqual(
+		report.pages.map(page => page.error),
+		[rejectedReason, rejectedReason, rejectedReason],
+	);
+	// False rather than absent: a sign-in was described, attempted, and failed.
+	t.false(report.metadata.tooling.signedIn);
+	// The failure adds to the provenance; it must not replace what was there.
+	t.is(report.metadata.tooling.browserServer, 'chrome-devtools-mcp');
+	sandbox.restore();
+});
+
+// Written for both because the gate must not be what decides it: a failed
+// sign-in fails a pipeline that never configured a threshold, and a configured
+// one must not turn the message into a verdict about findings.
+for (const [label, thresholds] of [
+	['with no thresholds configured', undefined],
+	['with thresholds configured', {maxCritical: 10}],
+] as const) {
+	test(`a failed sign-in exits 1 and says why ${label}`, async t => {
+		const {sandbox, emitted, closeCalls, deps} = createFailedSignInDeps();
+
+		const code = await runCIAnalysis(
+			threePages({signIn, ...(thresholds && {thresholds})}),
+			deps,
+		);
+
+		t.is(code, 1);
+		t.true(
+			emitted.includes(`uxlint: sign-in failed — ${rejectedReason}`),
+			'the message names the sign-in, not a failed analysis',
+		);
+		t.false(emitted.some(message => message.includes('analysis failed')));
+		t.is(closeCalls(), 1, 'the browser is released on this path too');
+		sandbox.restore();
+	});
+}
+
+/**
+ * A missing secret (011, FR-010). Found out before anything is started, so a
+ * pipeline that forgot to set one is told at once and has spent nothing.
+ */
+const neverSetSecret = 'UXLINT_TEST_SECRET_THAT_IS_NEVER_SET';
+
+test('a sign-in naming a secret that is not set stops the run before anything is started', async t => {
+	Reflect.deleteProperty(process.env, neverSetSecret);
+	const {sandbox, builder, deps} = createSignedInDeps();
+	const saveReport = sandbox.spy(builder, 'saveReport');
+	const emitted: string[] = [];
+	let preflightCalls = 0;
+	let runsCreated = 0;
+
+	const code = await runCIAnalysis(
+		baseConfig({
+			signIn: {
+				...signIn,
+				steps: [
+					{fill: 'Email', value: 'reviewer@example.com'},
+					{fill: 'Password', secret: neverSetSecret},
+					{click: 'Sign in'},
+				],
+			},
+		}),
+		{
+			async createRun() {
+				runsCreated++;
+				return deps.createRun();
+			},
+			async runPreflight() {
+				preflightCalls++;
+				return readyVerdict;
+			},
+			emitVerdict(verdict) {
+				emitted.push(verdict);
+			},
+		},
+	);
+
+	t.is(code, 1);
+	t.deepEqual(emitted, [`uxlint: ${missingSecretText([neverSetSecret])}`]);
+	t.is(
+		emitted[0],
+		`uxlint: Sign-in needs ${neverSetSecret}, which is not set in the environment`,
+	);
+	t.is(preflightCalls, 0, 'no browser is probed for a run that cannot sign in');
+	t.is(runsCreated, 0, 'no run is assembled, so no model is reached');
+	t.false(saveReport.called, 'nothing was reviewed, so nothing is reported');
 	sandbox.restore();
 });
