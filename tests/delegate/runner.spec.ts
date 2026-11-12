@@ -7,7 +7,12 @@ import {
 	runDelegatedAnalysis,
 	type DelegateDependencies,
 } from '../../source/delegate/runner.js';
+import type {UxLintConfig} from '../../source/models/config.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
+import {
+	scriptedBrowser,
+	simulatedLoginSite,
+} from '../fixtures/sign-in-browser.js';
 import {
 	configFor,
 	fakeBrowser,
@@ -209,4 +214,149 @@ test('a host agent that cannot run stops the analysis before a browser opens', a
 	t.is(exitCode, 1);
 	t.false(preflightRan, 'availability is settled before a browser is started');
 	t.regex(messages.join(' '), /login/);
+});
+
+// Signing in (011). The browser is the scripted login site rather than
+// `fakeBrowser`, because what is being asserted is the order of the calls the
+// run made and whether the site let it in. That client answers the measurement
+// tools with an error, so every page here is captured and left unmeasured.
+const origin = 'https://app.example.com';
+const password = 'correct-horse-battery';
+
+/**
+ * A configuration over two pages behind the login site's form.
+ *
+ * Literal values only, so no environment variable has to exist for the
+ * description to be usable.
+ *
+ * @param output - Where the report is written
+ * @param describesSignIn - Whether the configuration carries a `signIn` block
+ * @returns The configuration
+ */
+function gatedConfig(output: string, describesSignIn: boolean): UxLintConfig {
+	const urls = [`${origin}/dashboard`, `${origin}/settings`];
+
+	return {
+		mainPageUrl: urls[0]!,
+		subPageUrls: urls.slice(1),
+		pages: urls.map((url, index) => ({
+			url,
+			features: `Features of page ${index + 1}`,
+		})),
+		persona: 'A first-time visitor on a phone',
+		report: {output},
+		...(describesSignIn && {
+			signIn: {
+				url: `${origin}/login`,
+				steps: [
+					{fill: 'Email', value: 'qa@example.com'},
+					{fill: 'Password', value: password},
+					{click: 'Sign in'},
+				],
+				signedIn: {name: 'Sign out', role: 'button'},
+			},
+		}),
+	};
+}
+
+/**
+ * Run a delegated analysis against the login site, keeping what the browser
+ * was asked so the order of it can be read back.
+ */
+async function runAgainstLoginSite(
+	t: {teardown: (fn: () => void) => void},
+	options: {describesSignIn: boolean; withoutTools?: readonly string[]},
+) {
+	const {describesSignIn, withoutTools = []} = options;
+	const directory = temporaryDirectory(t.teardown);
+	const builder = new ReportBuilder(fsPromises);
+	const site = simulatedLoginSite({origin, password});
+	const browser = scriptedBrowser({...site.script, withoutTools});
+	const messages: string[] = [];
+
+	const exitCode = await runDelegatedAnalysis(
+		gatedConfig(path.join(directory, 'report.md'), describesSignIn),
+		{
+			client: browser.client,
+			builder,
+			async runPreflight() {
+				return readyVerdict;
+			},
+			emitVerdict(message: string) {
+				messages.push(message);
+			},
+			adapter: scriptedHost([{complete: true}, {complete: true}]),
+		},
+	);
+
+	return {
+		exitCode,
+		builder,
+		site,
+		messages,
+		navigations: browser.calls
+			.filter(call => call.name === 'navigate_page')
+			.map(call => String(call.arguments['url'])),
+	};
+}
+
+test('a run whose configuration describes a sign-in signs in once, before any page is captured', async t => {
+	const {site, navigations} = await runAgainstLoginSite(t, {
+		describesSignIn: true,
+	});
+
+	t.is(site.signInCount(), 1);
+	t.is(
+		navigations[0],
+		`${origin}/login`,
+		'the form is the first address the browser is sent to',
+	);
+	t.is(
+		navigations.filter(url => url === `${origin}/login`).length,
+		1,
+		'one sign-in covers both pages',
+	);
+
+	// Both pages follow it, so neither was captured as a signed-out visitor.
+	const afterSignIn = navigations.slice(1);
+	t.true(afterSignIn.includes(`${origin}/dashboard`));
+	t.true(afterSignIn.includes(`${origin}/settings`));
+});
+
+test('the report records that the run signed in', async t => {
+	const {builder} = await runAgainstLoginSite(t, {describesSignIn: true});
+
+	t.true(builder.generateFinalReport().metadata.tooling.signedIn);
+});
+
+// The same startup guarantee `narrowBrowserTools` makes for the analysis: a
+// server that cannot fill a field is found out before a browser is sent
+// anywhere, not at the first step of the form.
+test('a browser server that cannot fill a field stops a signed-in run at startup', async t => {
+	const {exitCode, messages, navigations} = await runAgainstLoginSite(t, {
+		describesSignIn: true,
+		withoutTools: ['fill'],
+	});
+
+	t.is(exitCode, 1);
+	t.regex(messages.join(' '), /sign-in requires/);
+	t.regex(messages.join(' '), /fill/);
+	t.deepEqual(navigations, [], 'nothing is opened on a server that cannot run');
+});
+
+test('a run that describes no sign-in does not need the sign-in tools', async t => {
+	const {exitCode, builder, site, navigations} = await runAgainstLoginSite(t, {
+		describesSignIn: false,
+		withoutTools: ['fill', 'click'],
+	});
+	const report = builder.generateFinalReport();
+
+	t.is(exitCode, 0);
+	t.deepEqual(report.metadata.analyzedPages, [
+		`${origin}/dashboard`,
+		`${origin}/settings`,
+	]);
+	t.is(report.metadata.tooling.signedIn, undefined);
+	t.is(site.signInCount(), 0);
+	t.deepEqual(navigations, [`${origin}/dashboard`, `${origin}/settings`]);
 });

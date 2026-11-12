@@ -145,6 +145,25 @@ export class ReportBuilder {
 	}
 
 	/**
+	 * Record the address the current page was actually reviewed at.
+	 *
+	 * Called only when it differs from the configured one, so that a page
+	 * reviewed where it was asked for carries no second address at all.
+	 *
+	 * @param url - The address the browser reached
+	 * @throws Error if no page analysis is initialized
+	 */
+	setReachedUrl(url: string): void {
+		if (!this.currentPageAnalysis) {
+			throw new Error(
+				'No page analysis initialized. Call initializePageAnalysis first.',
+			);
+		}
+
+		this.currentPageAnalysis.reachedUrl = url;
+	}
+
+	/**
 	 * Complete the current page analysis and add it to collection
 	 *
 	 * `'partial'` is for a run that ended without the model signalling
@@ -187,6 +206,9 @@ export class ReportBuilder {
 			// an exhausted budget or an expired time bound -- through the same
 			// channel a failure names its cause.
 			...(error !== undefined && {error}),
+			...(this.currentPageAnalysis.reachedUrl !== undefined && {
+				reachedUrl: this.currentPageAnalysis.reachedUrl,
+			}),
 			// A page that reached this point without a measurement being
 			// recorded was never measured, and says so. Defaulting to an empty
 			// success would let a page that was never audited render as one
@@ -265,6 +287,9 @@ export class ReportBuilder {
 				noMeasurement('page-not-loaded'),
 			...(this.currentPageAnalysis?.measurementNote !== undefined && {
 				measurementNote: this.currentPageAnalysis.measurementNote,
+			}),
+			...(this.currentPageAnalysis?.reachedUrl !== undefined && {
+				reachedUrl: this.currentPageAnalysis.reachedUrl,
 			}),
 			error,
 		};

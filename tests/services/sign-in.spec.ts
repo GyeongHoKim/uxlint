@@ -318,6 +318,22 @@ test('a sign-in that does not finish in time fails as timed-out', async t => {
 	});
 });
 
+test('a visitor the sign-in address already shows as signed in is signed in', async t => {
+	// Many products send a signed-in visitor away from their login page. The
+	// form is then not there to fill, and looking for it would report a
+	// session that is perfectly alive as one that could not be established.
+	const {session, calls} = sessionOver({
+		snapshot: () =>
+			structure('Dashboard', `${origin}/dashboard`, [
+				'navigation',
+				'  button "Sign out"',
+			]),
+	});
+
+	t.deepEqual(await session.establish(), {kind: 'signed-in'});
+	t.deepEqual(names(calls), ['navigate_page', 'take_snapshot']);
+});
+
 test('sign-in is bounded at thirty seconds unless the description says otherwise', t => {
 	t.is(defaultSignInTimeoutMs, 30_000);
 });

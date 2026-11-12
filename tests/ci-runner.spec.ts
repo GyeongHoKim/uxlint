@@ -13,7 +13,9 @@ import {runCIAnalysis} from '../source/ci-runner.js';
 import type {PageAnalysis} from '../source/models/analysis.js';
 import type {PreflightVerdict} from '../source/models/browser-preflight.js';
 import type {UxLintConfig} from '../source/models/config.js';
+import type {SignInDescription} from '../source/models/sign-in.js';
 import {ReportBuilder} from '../source/services/report-builder.js';
+import type {SignedInSession} from '../source/services/sign-in.js';
 
 const baseConfig = (overrides: Partial<UxLintConfig> = {}): UxLintConfig => ({
 	mainPageUrl: 'https://example.com',
@@ -569,5 +571,110 @@ test('a preflight that throws exits 1 with a message about the environment', asy
 	t.is(aiServiceCalls, 0, 'a failed preflight must still cost no model usage');
 	t.true(emitted.some(message => message.includes('preflight')));
 	t.true(emitted.some(message => message.includes('EROFS')));
+	sandbox.restore();
+});
+
+/**
+ * Signing in (011). A run whose configuration describes a sign-in carries a
+ * session, and the runner establishes it once before any page is analysed.
+ * A run without one must be left exactly as it was.
+ */
+const signIn: SignInDescription = {
+	url: 'https://example.com/login',
+	steps: [{fill: 'Email', value: 'reviewer@example.com'}, {click: 'Sign in'}],
+	signedIn: {name: 'Account menu', role: 'button'},
+};
+
+const threePages = (overrides: Partial<UxLintConfig> = {}): UxLintConfig =>
+	baseConfig({
+		subPageUrls: ['https://example.com/billing', 'https://example.com/team'],
+		pages: [
+			{url: 'https://example.com', features: 'Overview'},
+			{url: 'https://example.com/billing', features: 'Invoices'},
+			{url: 'https://example.com/team', features: 'Members'},
+		],
+		...overrides,
+	});
+
+/**
+ * `createDeps` with a session on the run. The session signs in without a
+ * browser, and `order` records it against each page analysis so a test can
+ * assert which came first.
+ */
+const createSignedInDeps = () => {
+	const order: string[] = [];
+	const {sandbox, builder, deps} = createDeps(b => page => {
+		order.push(`analyse ${page.url}`);
+		return completed(b)(page);
+	});
+	const establish = sandbox.stub().callsFake(async () => {
+		order.push('establish');
+		return {kind: 'signed-in'};
+	});
+	const session = {
+		establish,
+		redact: (text: string) => text,
+	} as unknown as SignedInSession;
+
+	return {
+		sandbox,
+		builder,
+		establish,
+		order,
+		deps: {
+			...deps,
+			async createRun() {
+				const run = await deps.createRun();
+				return {...run, session};
+			},
+		},
+	};
+};
+
+test('a run with a session signs in once, before the first page is analysed', async t => {
+	// One sign-in serves the whole run: the pages share a browser, so signing
+	// in again per page would only repeat work the first one already did.
+	const {sandbox, establish, order, deps} = createSignedInDeps();
+
+	const code = await runCIAnalysis(threePages({signIn}), deps);
+
+	t.is(code, 0);
+	t.is(establish.callCount, 1, 'three pages must cost exactly one sign-in');
+	t.deepEqual(order, [
+		'establish',
+		'analyse https://example.com',
+		'analyse https://example.com/billing',
+		'analyse https://example.com/team',
+	]);
+	sandbox.restore();
+});
+
+test('a run that signed in says so in its report', async t => {
+	const {sandbox, builder, deps} = createSignedInDeps();
+
+	await runCIAnalysis(baseConfig({signIn}), deps);
+
+	const {tooling} = builder.generateFinalReport().metadata;
+	t.true(
+		tooling.signedIn,
+		'a reader of the report must be able to tell the pages were reviewed signed in',
+	);
+	// Signing in adds to the provenance; it must not replace what was there.
+	t.is(tooling.browserServer, 'chrome-devtools-mcp');
+	sandbox.restore();
+});
+
+test('a run with no session records nothing about signing in', async t => {
+	// A configuration without `signIn` is every configuration that existed
+	// before this feature. `signedIn: false` would claim a sign-in was
+	// attempted and failed, so the key has to be absent, not falsy.
+	const {sandbox, builder, deps} = createDeps();
+
+	const code = await runCIAnalysis(threePages(), deps);
+
+	const {metadata} = builder.generateFinalReport();
+	t.is(code, 0);
+	t.false('signedIn' in metadata.tooling);
+	t.is(metadata.analyzedPages.length, 3);
 	sandbox.restore();
 });
