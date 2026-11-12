@@ -108,22 +108,55 @@ export type PreflightDependencies = {
 	platform: NodeJS.Platform;
 };
 
-const defaultDependencies: PreflightDependencies = {
-	async runProcess(executablePath, args) {
+/** How long a probe may run before preflight stops waiting for it. */
+export const probeTimeoutMs = 20_000;
+
+/**
+ * Build the runner that really spawns the browser.
+ *
+ * @param timeoutMs - How long the process may run
+ * @returns A runner that answers with a probe result and never throws
+ */
+export function createProcessRunner(timeoutMs: number): ProcessRunner {
+	return async (executablePath, args) => {
 		try {
+			// SIGKILL rather than the default SIGTERM: a browser stuck in its
+			// own start-up can ignore the polite signal, and the process is then
+			// waited on for as long as it cares to live, which makes the time
+			// limit no limit at all.
 			const {stdout, stderr} = await execFileAsync(executablePath, args, {
-				timeout: 20_000,
+				timeout: timeoutMs,
+				killSignal: 'SIGKILL',
 			});
 			return {ok: true, stdout, stderr};
 		} catch (error) {
-			const failure = error as {stdout?: string; stderr?: string};
+			const failure = error as {
+				stdout?: string;
+				stderr?: string;
+				killed?: boolean;
+			};
+
+			// Whatever a browser wrote before it was stopped is start-up noise,
+			// and reporting a line of it as the cause would name the wrong thing.
+			if (failure.killed) {
+				return {
+					ok: false,
+					stdout: failure.stdout ?? '',
+					stderr: `the browser did not exit within ${timeoutMs} ms`,
+				};
+			}
+
 			return {
 				ok: false,
 				stdout: failure.stdout ?? '',
 				stderr: failure.stderr ?? String(error),
 			};
 		}
-	},
+	};
+}
+
+const defaultDependencies: PreflightDependencies = {
+	runProcess: createProcessRunner(probeTimeoutMs),
 	isExecutable(candidate) {
 		try {
 			fs.accessSync(candidate, fs.constants.X_OK);
