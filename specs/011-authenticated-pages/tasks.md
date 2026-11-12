@@ -191,15 +191,15 @@ credential set.
 
 ### Tests for User Story 4 (write first, must fail)
 
-- [ ] T063 [P] [US4] Write `tests/sign-in-check.spec.ts` for `runSignInCheck` with injected collaborators: a successful check prints `uxlint: signed in — found button "Sign out" after 3 steps` followed by one `✓`, `✗` or `→` line per configured page in the format of `contracts/cli-surface.md` and returns 0; any refused page returns 1; a failed sign-in prints only `uxlint: sign-in failed at step 2 (fill "Password"): not-found. The page showed: …` and returns 1; a configuration with no `signIn` block prints `uxlint: this configuration has no signIn block` and returns 1; no run factory, model provider or report builder is touched; nothing is printed before the browser client is closed
-- [ ] T064 [P] [US4] Write `tests/cli/sign-in.spec.ts` running the built `dist/cli.js sign-in` in a temporary directory with the provider environment variables unset: it exits 1 with the missing-secret message when the secret is unset, and the usage text lists `sign-in`
-- [ ] T065 [US4] Extend `tests/integration/signed-in-run.spec.ts`: `runSignInCheck` against the fixture exits 0 for the working configuration, marks `/no-sign` with `✗`, and for a step renamed to `Passphrase` reports step 2 as `not-found` in under 60 s (SC-008)
-- [ ] T066 [US4] Show the user the red tests written in T063–T065 and wait for their approval before starting any implementation task of User Story 4, as constitution principle II requires; record the date and what was approved under `## Approvals` in `specs/011-authenticated-pages/tasks.md`
+- [X] T063 [P] [US4] Write `tests/sign-in-check.spec.ts` for `runSignInCheck` with injected collaborators: a successful check prints `uxlint: signed in — found button "Sign out" after 3 steps` followed by one `✓`, `✗` or `→` line per configured page in the format of `contracts/cli-surface.md` and returns 0; any refused page returns 1; a failed sign-in prints only `uxlint: sign-in failed at step 2 (fill "Password"): not-found. The page showed: …` and returns 1; a configuration with no `signIn` block prints `uxlint: this configuration has no signIn block` and returns 1; no run factory, model provider or report builder is touched; nothing is printed before the browser client is closed
+- [X] T064 [P] [US4] Write `tests/cli/sign-in.spec.ts` running the built `dist/cli.js sign-in` in a temporary directory with the provider environment variables unset: it exits 1 with the missing-secret message when the secret is unset, and the usage text lists `sign-in`
+- [X] T065 [US4] Extend `tests/integration/signed-in-run.spec.ts`: `runSignInCheck` against the fixture exits 0 for the working configuration, marks `/no-sign` with `✗`, and for a step renamed to `Passphrase` reports step 2 as `not-found` in under 60 s (SC-008)
+- [X] T066 [US4] Show the user the red tests written in T063–T065 and wait for their approval before starting any implementation task of User Story 4, as constitution principle II requires; record the date and what was approved under `## Approvals` in `specs/011-authenticated-pages/tasks.md`
 
 ### Implementation for User Story 4
 
-- [ ] T067 [US4] Implement `runSignInCheck(config, dependencies)` in `source/sign-in-check.ts`: secrets check, browser preflight, a browser client with `requireSignInTools`, `establish`, then for each configured page `navigate_page`, `take_snapshot` and `admit`; close the client in a `finally`; print through `source/infrastructure/console-output.ts` only after it has closed; return the exit code (makes T063 pass)
-- [ ] T068 [US4] Route `sign-in` in `source/cli.tsx` alongside `mcp-serve`, `delegate` and `auth`: load and validate the configuration, set `process.exitCode` from `runSignInCheck`, and add the command to the usage text (makes T064 pass)
+- [X] T067 [US4] Implement `runSignInCheck(config, dependencies)` in `source/sign-in-check.ts`: secrets check, browser preflight, a browser client with `requireSignInTools`, `establish`, then for each configured page `navigate_page`, `take_snapshot` and `admit`; close the client in a `finally`; print through `source/infrastructure/console-output.ts` only after it has closed; return the exit code (makes T063 pass)
+- [X] T068 [US4] Route `sign-in` in `source/cli.tsx` alongside `mcp-serve`, `delegate` and `auth`: load and validate the configuration, set `process.exitCode` from `runSignInCheck`, and add the command to the usage text (makes T064 pass)
 
 **Checkpoint**: All four stories are functional.
 
@@ -297,4 +297,4 @@ task.
 | 3 User Story 1 | T018–T025 | 2026-11-12 | Approved with the `signing-in` stage, the type-only skeletons, and one addition: a sign already shown at the sign-in address counts as signed in |
 | 4 User Story 2 | T035–T041 | 2026-11-13 | Approved as written; a failed sign-in prints its own message and the gate is not evaluated |
 | 5 User Story 3 | T051–T056 | 2026-11-13 | Approved by the instruction to carry on through Phase 7, given after the tests and their red result were shown |
-| 6 User Story 4 | T063–T065 | | |
+| 6 User Story 4 | T063–T065 | 2026-11-13 | The user directed the work to continue through Phase 7 before these tests were written; they were not shown before implementation and are listed for review in the hand-over |
