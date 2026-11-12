@@ -564,3 +564,90 @@ for (const [label, analysis, expectedField] of [
 		t.is(error?.configField, expectedField);
 	});
 }
+
+// --- signIn (011) -----------------------------------------------------------
+
+const wellFormedSignIn = {
+	url: 'https://example.com/login',
+	steps: [
+		{fill: 'Email', value: 'qa@example.com'},
+		{fill: 'Password', secret: 'UXLINT_QA_PASSWORD'},
+		{click: 'Sign in'},
+	],
+	signedIn: {name: 'Sign out', role: 'button'},
+};
+
+const validateWithSignIn = (signIn: unknown) =>
+	new ConfigIO().validateConfig(
+		{...validConfigObject, signIn},
+		'.uxlintrc.yml',
+	);
+
+test('validateConfig leaves an absent signIn block absent', t => {
+	// FR-023: a configuration that says nothing about signing in must not
+	// quietly acquire a description.
+	t.is(validateWith().signIn, undefined);
+});
+
+test('validateConfig accepts a well-formed signIn block', t => {
+	t.deepEqual(validateWithSignIn(wellFormedSignIn).signIn, wellFormedSignIn);
+});
+
+for (const [label, signIn, expectedField] of [
+	['a signIn block that is not an object', 'yes', 'signIn'],
+	[
+		'a signIn block with no signed-in sign',
+		{url: wellFormedSignIn.url, steps: wellFormedSignIn.steps},
+		'signIn.signedIn',
+	],
+	[
+		'a signIn step that is neither fill nor click',
+		{...wellFormedSignIn, steps: [{press: 'Enter'}]},
+		'signIn.steps[0].press',
+	],
+	[
+		'an unrecognised signIn key',
+		{...wellFormedSignIn, cookie: 'sid=1'},
+		'signIn.cookie',
+	],
+] as const) {
+	test(`validateConfig rejects ${label}`, t => {
+		// FR-024: stopped before any page is opened, naming the offending part.
+		const error = t.throws(
+			() => {
+				validateWithSignIn(signIn);
+			},
+			{instanceOf: ConfigurationError},
+		);
+
+		t.is(error?.configField, expectedField);
+	});
+}
+
+test('validateConfig rejects a signIn key on a page (FR-016)', t => {
+	// One session per run. A per-page setting that was silently ignored would
+	// leave the developer believing a page was reviewed signed out.
+	const error = t.throws(
+		() =>
+			new ConfigIO().validateConfig(
+				{
+					...validConfigObject,
+					pages: [
+						{url: 'https://example.com', features: 'features'},
+						{
+							url: 'https://example.com/login',
+							features: 'The login form',
+							signIn: false,
+						},
+					],
+					subPageUrls: ['https://example.com/login'],
+					signIn: wellFormedSignIn,
+				},
+				'.uxlintrc.yml',
+			),
+		{instanceOf: ConfigurationError},
+	);
+
+	t.is(error?.configField, 'pages[1].signIn');
+	t.regex(error?.message ?? '', /set once for the whole run/);
+});

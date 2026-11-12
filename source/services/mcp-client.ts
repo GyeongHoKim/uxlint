@@ -16,6 +16,7 @@ import {
 } from '../models/browser.js';
 import {requiredBrowserTools} from '../models/analysis-stage.js';
 import type {PreflightVerdict} from '../models/browser-preflight.js';
+import {requiredSignInTools} from '../models/sign-in.js';
 
 /**
  * Package that provides the browser server.
@@ -394,4 +395,27 @@ export function resetMCPClient(client?: MCPClient): void {
 
 	mcpClientInstance = undefined;
 	logger.debug('MCP client instance reset');
+}
+
+/**
+ * Fail at startup when the browser server cannot carry out a sign-in.
+ *
+ * Checked only for a run that signs in, so that a server without these tools
+ * goes on serving every run that never needed them.
+ *
+ * @param tools - Everything the browser server offers
+ * @throws When `fill` or `click` is missing, naming each one that is
+ */
+export function requireSignInTools(tools: Record<string, unknown>): void {
+	const missing = requiredSignInTools.filter(
+		name => !Object.hasOwn(tools, name),
+	);
+
+	if (missing.length > 0) {
+		throw new Error(
+			`The browser server does not offer ${missing.join(
+				' or ',
+			)}, which sign-in requires. The server may be a different version than expected.`,
+		);
+	}
 }

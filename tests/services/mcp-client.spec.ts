@@ -5,6 +5,7 @@ import {
 	buildLaunchSpec,
 	entryPointPath,
 	narrowBrowserTools,
+	requireSignInTools,
 	resetMCPClient,
 	resolveBrowserSettings,
 	type BrowserLaunchSettings,
@@ -281,4 +282,42 @@ test('narrowing happens before any provider request could be issued', t => {
 	t.notThrows(() => {
 		narrowBrowserTools({navigate_page: 'nav', take_snapshot: 'cap'});
 	});
+});
+
+// --- sign-in tools (011) ----------------------------------------------------
+
+test('a browser server offering fill and click satisfies sign-in', t => {
+	t.notThrows(() => {
+		requireSignInTools({
+			navigate_page: 'nav',
+			take_snapshot: 'cap',
+			fill: 'fill',
+			click: 'click',
+		});
+	});
+});
+
+test('a browser server without fill fails before sign-in, naming it', t => {
+	const error = t.throws(() => {
+		requireSignInTools({
+			navigate_page: 'nav',
+			take_snapshot: 'cap',
+			click: 'c',
+		});
+	});
+
+	// Found at startup, not at the first step of signing in: by then the run
+	// has opened the login page and has nothing it can do there.
+	t.true(error?.message.includes('fill'), 'the message must name it');
+	t.false(error?.message.includes('click'));
+	t.regex(error?.message ?? '', /sign-in requires/);
+});
+
+test('both missing sign-in tools are named rather than only the first', t => {
+	const error = t.throws(() => {
+		requireSignInTools({navigate_page: 'nav', take_snapshot: 'cap'});
+	});
+
+	t.true(error?.message.includes('fill'));
+	t.true(error?.message.includes('click'));
 });
