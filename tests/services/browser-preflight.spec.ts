@@ -1,10 +1,16 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as nodePath from 'node:path';
+import process from 'node:process';
 import test from 'ava';
 import {
 	namespaceSandboxSignature,
 	rootSandboxSignature,
 } from '../../source/models/browser-preflight.js';
 import {
+	createProcessRunner,
 	defaultChromePaths,
+	probeTimeoutMs,
 	runPreflight,
 	type ProbeResult,
 } from '../../source/services/browser-preflight.js';
@@ -266,4 +272,80 @@ test('windows searches every prefix the server searches, including other drives'
 	// D:, blocking a run the server would have completed.
 	t.true(paths.some(path => path.startsWith('D:')));
 	t.true(paths.every(path => path.endsWith('chrome.exe')));
+});
+
+// --- a browser that does not exit -------------------------------------------
+
+/**
+ * Write an executable that ignores the polite request to stop.
+ *
+ * A browser stuck in its own start-up behaves this way: it neither finishes
+ * nor answers a termination signal, so only a signal it cannot ignore ends it.
+ */
+const deafExecutable = (t: {teardown(fn: () => void): void}): string => {
+	const directory = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'uxlint-deaf-'));
+	t.teardown(() => {
+		fs.rmSync(directory, {recursive: true, force: true});
+	});
+
+	const file = nodePath.join(directory, 'browser');
+	fs.writeFileSync(file, '#!/bin/sh\ntrap "" TERM\nexec sleep 5\n', {
+		mode: 0o755,
+	});
+	return file;
+};
+
+const posixOnly = process.platform === 'win32' ? test.skip : test;
+
+posixOnly(
+	'a browser that will not exit is stopped at the time limit',
+	async t => {
+		const run = createProcessRunner(300);
+		const startedAt = Date.now();
+
+		const result = await run(deafExecutable(t), []);
+
+		t.false(result.ok);
+		t.true(
+			Date.now() - startedAt < 3000,
+			'the runner waited for the process instead of ending it',
+		);
+	},
+);
+
+posixOnly(
+	'a browser stopped at the time limit is reported as not having exited',
+	async t => {
+		const result = await createProcessRunner(300)(deafExecutable(t), []);
+
+		t.is(result.stderr, 'the browser did not exit within 300 ms');
+	},
+);
+
+posixOnly(
+	'a browser that will not exit is unmet, with the time limit as the cause',
+	async t => {
+		const verdict = await runPreflight(
+			{executablePath: deafExecutable(t)},
+			{
+				async runProcess(executablePath, args) {
+					return args.includes('--version')
+						? {ok: true, stdout: chromeVersion, stderr: ''}
+						: createProcessRunner(300)(executablePath, args);
+				},
+			},
+		);
+
+		t.deepEqual(verdict, {
+			kind: 'unmet',
+			requirement: {
+				kind: 'browser-unstartable',
+				cause: 'the browser did not exit within 300 ms',
+			},
+		});
+	},
+);
+
+test('the real probes are given twenty seconds', t => {
+	t.is(probeTimeoutMs, 20_000);
 });
