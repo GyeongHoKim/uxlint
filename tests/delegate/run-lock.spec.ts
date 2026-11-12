@@ -7,6 +7,7 @@
  * the run with it.
  */
 
+import {once} from 'node:events';
 import {promises as fs} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -73,13 +74,19 @@ test('the lock is released when the work fails', async t => {
 test('a holder that will not let go is reported rather than waited on forever', async t => {
 	const directory = await runDirectory(t.teardown);
 
-	// Held for longer than the second caller is prepared to wait, and nowhere
-	// near old enough to count as abandoned.
+	// Held until the second caller has given up, and nowhere near old enough
+	// to count as abandoned. The two ends are signalled rather than timed: on
+	// a loaded machine a timer can run out before the second caller's wait
+	// does, or the second caller can reach the lock first, and either way the
+	// lock is then free for it to take.
+	const gate = new EventTarget();
+	const holding = once(gate, 'holding');
+	const released = once(gate, 'release');
 	const holder = withRunLock(directory, async () => {
-		await new Promise(resolve => {
-			setTimeout(resolve, 300);
-		});
+		gate.dispatchEvent(new Event('holding'));
+		await released;
 	});
+	await holding;
 
 	const error = await t.throwsAsync<RunBusy>(
 		withRunLock(directory, async () => undefined, {
@@ -91,6 +98,7 @@ test('a holder that will not let go is reported rather than waited on forever', 
 
 	t.regex(error.message, /still writing to this run/);
 
+	gate.dispatchEvent(new Event('release'));
 	await holder;
 });
 
