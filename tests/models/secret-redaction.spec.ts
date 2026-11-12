@@ -183,3 +183,15 @@ test('an empty value is ignored rather than matching everywhere', t => {
 
 	t.is(redact('a real-secret b'), 'a [redacted] b');
 });
+
+test('a secret is replaced as markup spells it', t => {
+	// A page's source, and the snippets an audit quotes from it, escape the
+	// characters markup gives meaning to.
+	const redact = createRedactor(['p&ss"w<o>rd\'s']);
+
+	t.is(
+		redact('value="p&amp;ss&quot;w&lt;o&gt;rd&#39;s"'),
+		`value="${redactedMarker}"`,
+	);
+	t.is(redact('p&amp;ss"w&lt;o&gt;rd\'s'), redactedMarker);
+});

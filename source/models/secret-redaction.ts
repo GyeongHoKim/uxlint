@@ -25,7 +25,13 @@ export const redactedMarker = '[redacted]';
 /** A shorter value could not be redacted without mangling ordinary text. */
 export const minimumSecretLength = 4;
 
-function secretNames(description: SignInDescription): string[] {
+/**
+ * The environment variables a description reads its secrets from.
+ *
+ * @param description - A sign-in description
+ * @returns Each name once, in the order the steps give them
+ */
+export function secretNames(description: SignInDescription): string[] {
 	const names = description.steps.flatMap(step =>
 		'secret' in step ? [step.secret] : [],
 	);
@@ -78,6 +84,12 @@ export function resolveSecrets(
 const lowerCaseEscapes = (encoded: string): string =>
 	encoded.replaceAll(/%[\dA-F]{2}/g, escape => escape.toLowerCase());
 
+const asMarkupText = (value: string): string =>
+	value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;');
+
 /**
  * Every spelling of a value a page, an address or a submitted form may carry.
  */
@@ -94,6 +106,10 @@ function spellingsOf(value: string): string[] {
 		// As it appears inside a JSON string, which is how the audit report
 		// and a page's embedded data quote it.
 		JSON.stringify(value).slice(1, -1),
+		// As markup spells it: in text, and inside an attribute, which is how
+		// the snippets an audit quotes from a page carry a field's value.
+		asMarkupText(value),
+		asMarkupText(value).replaceAll('"', '&quot;').replaceAll("'", '&#39;'),
 	];
 }
 

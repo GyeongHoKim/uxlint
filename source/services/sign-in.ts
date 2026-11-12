@@ -242,11 +242,26 @@ export class SignedInSession {
 	 * @returns The capture that shows it, or undefined when it never appeared
 	 */
 	private async awaitSign(first: string): Promise<string | undefined> {
-		const shows = (snapshot: string) =>
-			hasSignedInSign(snapshot, this.description.signedIn);
+		const shows = (snapshot: string) => this.showsSign(snapshot);
 		const snapshot = await this.recheck(first, shows);
 
 		return shows(snapshot) ? snapshot : undefined;
+	}
+
+	/**
+	 * Whether a capture shows the signed-in sign.
+	 *
+	 * A capture a run hands over has already been redacted, so a sign that
+	 * spells a secret -- an account name supplied as one -- is looked for in
+	 * its redacted spelling as well.
+	 */
+	private showsSign(snapshot: string): boolean {
+		const sign = this.description.signedIn;
+
+		return (
+			hasSignedInSign(snapshot, sign) ||
+			hasSignedInSign(snapshot, {...sign, name: this.redact(sign.name)})
+		);
 	}
 
 	private failed(failure: SignInFailure): SignInOutcome {
@@ -264,8 +279,7 @@ export class SignedInSession {
 			});
 		}
 
-		const shows = (snapshot: string) =>
-			hasSignedInSign(snapshot, this.description.signedIn);
+		const shows = (snapshot: string) => this.showsSign(snapshot);
 
 		// A product may send a visitor who is already signed in away from its
 		// login page. There is then no form to fill, and nothing to do.

@@ -9,6 +9,9 @@ import {envIO} from './config/env-io.js';
 // Type definitions for fs dependency injection
 type FsSyncMethods = Pick<typeof fs, 'existsSync' | 'mkdirSync'>;
 
+/** Where a Winston format leaves the line a transport writes (triple-beam's MESSAGE). */
+const serialisedEntry = Symbol.for('message');
+
 /**
  * Logger type for dependency injection
  * IMPORTANT: All implementations ONLY write to files, never to stdout/stderr
@@ -19,6 +22,13 @@ export type ILogger = {
 	info(message: string, meta?: Record<string, unknown>): void;
 	warn(message: string, meta?: Record<string, unknown>): void;
 	error(message: string, meta?: Record<string, unknown>): void;
+
+	/**
+	 * Keep secret values out of every entry written from now on.
+	 *
+	 * @param redact - Replaces every secret value in a text; undefined removes it
+	 */
+	setRedactor(redact: ((text: string) => string) | undefined): void;
 };
 
 /**
@@ -26,6 +36,7 @@ export type ILogger = {
  */
 export class WinstonLogger implements ILogger {
 	private readonly logger: winston.Logger;
+	private redact: ((text: string) => string) | undefined;
 
 	constructor(
 		logDirectory: string,
@@ -48,6 +59,18 @@ export class WinstonLogger implements ILogger {
 				winston.format.timestamp({format: 'YYYY-MM-DD HH:mm:ss'}),
 				winston.format.errors({stack: true}),
 				winston.format.json(),
+				// Last, on the entry exactly as it will be written: a secret
+				// is then caught wherever it sat -- the message, a metadata
+				// value, a stack -- and no call site has to remember to.
+				winston.format(info => {
+					const entry = info as unknown as Record<symbol, unknown>;
+					const line = entry[serialisedEntry];
+					if (this.redact && typeof line === 'string') {
+						entry[serialisedEntry] = this.redact(line);
+					}
+
+					return info;
+				})(),
 			),
 			transports: [
 				new DailyRotateFile({
@@ -77,6 +100,10 @@ export class WinstonLogger implements ILogger {
 
 	error(message: string, meta?: Record<string, unknown>): void {
 		this.logger.error(message, meta);
+	}
+
+	setRedactor(redact: ((text: string) => string) | undefined): void {
+		this.redact = redact;
 	}
 }
 

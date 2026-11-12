@@ -7,8 +7,10 @@
  * seconds.
  */
 
-import test from 'ava';
+import test, {type ExecutionContext} from 'ava';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
+import sinon from 'sinon';
+import {logger} from '../../source/infrastructure/logger.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import {createRedactor} from '../../source/models/secret-redaction.js';
 import type {SignInDescription} from '../../source/models/sign-in.js';
@@ -24,6 +26,7 @@ import {
 	simulatedLoginSite,
 	structure,
 	type BrowserScript,
+	type RecordedCall,
 } from '../fixtures/sign-in-browser.js';
 
 const origin = 'https://app.example.com';
@@ -534,5 +537,214 @@ test('a secret too short to redact is reported without its value', t => {
 	t.is(
 		checkSignInSecrets(config, {QA_PASSWORD: 'abc'}),
 		'Sign-in cannot use QA_PASSWORD: its value is shorter than 4 characters',
+	);
+});
+
+// --- where the secret goes (011) --------------------------------------------
+
+/**
+ * Record everything the module logger is told for the length of a test.
+ *
+ * The logger is one object for the whole process, which is why the tests
+ * using this run one at a time.
+ */
+function watchLogger(t: ExecutionContext) {
+	const sandbox = sinon.createSandbox();
+	const spies = [
+		sandbox.spy(logger, 'debug'),
+		sandbox.spy(logger, 'info'),
+		sandbox.spy(logger, 'warn'),
+		sandbox.spy(logger, 'error'),
+	];
+
+	t.teardown(() => {
+		sandbox.restore();
+	});
+
+	return {
+		/** Every call's arguments, as the log would have serialised them */
+		logged: () =>
+			spies.flatMap(spy => spy.args.map(args => JSON.stringify(args))),
+	};
+}
+
+/**
+ * Assert that a secret reached the browser only as what a `fill` typed.
+ *
+ * Stricter than counting the calls that carry it: a `fill` that also named
+ * the secret in another argument would pass a count and fail this.
+ */
+function assertOnlyTyped(
+	t: ExecutionContext,
+	calls: readonly RecordedCall[],
+	secret: string,
+	expectedFills: number,
+) {
+	const carrying = calls.filter(call => JSON.stringify(call).includes(secret));
+
+	t.is(carrying.length, expectedFills);
+	for (const call of carrying) {
+		const {value, ...others} = call.arguments;
+
+		t.is(call.name, 'fill');
+		t.is(value, secret);
+		t.false(JSON.stringify(others).includes(secret));
+	}
+}
+
+test.serial(
+	'a successful sign-in names the secret to the browser alone',
+	async t => {
+		const watched = watchLogger(t);
+		const site = simulatedLoginSite({origin, password});
+		const {session, calls} = sessionOver(site.script);
+
+		const outcome = await session.establish();
+
+		t.deepEqual(outcome, {kind: 'signed-in'});
+		assertOnlyTyped(t, calls, password, 1);
+		t.true(watched.logged().length > 0, 'the sign-in must have been logged');
+		t.false(watched.logged().join('\n').includes(password));
+		t.false(JSON.stringify(outcome).includes(password));
+	},
+);
+
+test.serial(
+	'a failed sign-in names the secret to the browser alone',
+	async t => {
+		const watched = watchLogger(t);
+		const site = simulatedLoginSite({origin, password: 'a-different-password'});
+		const {session, calls} = sessionOver({
+			...site.script,
+			// A product that echoes the rejected password back in its error.
+			snapshot: () =>
+				structure('Sign in', `${origin}/login?error=1`, [
+					`alert "The password ${password} is not valid"`,
+					'textbox "Email "',
+					'textbox "Password "',
+					'button "Sign in"',
+				]),
+		});
+
+		const outcome = await session.establish();
+
+		t.is(outcome.kind, 'failed');
+		t.is(site.signInCount(), 0);
+		assertOnlyTyped(t, calls, password, 1);
+		t.true(watched.logged().length > 0, 'the failure must have been logged');
+		t.false(watched.logged().join('\n').includes(password));
+		t.false(JSON.stringify(outcome).includes(password));
+	},
+);
+
+test.serial(
+	'a sign-in step the browser refuses does not put the secret in the log',
+	async t => {
+		const watched = watchLogger(t);
+		const site = simulatedLoginSite({origin, password});
+		const {session, calls} = sessionOver({
+			...site.script,
+			onFill: (_uid, value) =>
+				value === password
+					? mcpError(`Could not type "${value}" into the element`)
+					: undefined,
+		});
+
+		const outcome = await session.establish();
+
+		t.is(outcome.kind, 'failed');
+		assertOnlyTyped(t, calls, password, 1);
+		t.false(watched.logged().join('\n').includes(password));
+		t.false(JSON.stringify(outcome).includes(password));
+	},
+);
+
+test.serial(
+	'recovering a lost session names the secret to the browser alone',
+	async t => {
+		const watched = watchLogger(t);
+		const site = simulatedLoginSite({
+			origin,
+			password,
+			// The page being recovered prints the password, so the capture the
+			// recovery ends on carries it too.
+			printsPasswordOn: ['/billing'],
+		});
+		const {session, calls} = sessionOver(site.script);
+
+		const outcome = await session.establish();
+		site.expire();
+		const admission = await session.admit(
+			`${origin}/billing`,
+			site.script.snapshot(),
+		);
+
+		t.is(admission.kind, 'admitted');
+		t.is(site.signInCount(), 2, 'the page was admitted by signing in again');
+		if (admission.kind === 'admitted') {
+			t.true(admission.snapshot.includes('Your key: [redacted]'));
+		}
+
+		// Typed once to sign in and once more to recover, and nowhere else.
+		assertOnlyTyped(t, calls, password, 2);
+		t.true(
+			watched.logged().some(entry => entry.includes('signing in again')),
+			'the recovery must have been logged',
+		);
+		t.false(watched.logged().join('\n').includes(password));
+		t.false(JSON.stringify([outcome, admission]).includes(password));
+	},
+);
+
+test.serial(
+	'a recovery that fails names the secret to the browser alone',
+	async t => {
+		const watched = watchLogger(t);
+		const {session, site, calls} = await signedInTo({origin, password});
+		site.expire();
+		site.setPassword('changed-since-the-run-began');
+
+		const admission = await session.admit(
+			`${origin}/billing`,
+			site.script.snapshot(),
+		);
+
+		t.is(admission.kind, 'refused');
+		assertOnlyTyped(t, calls, password, 2);
+		t.false(watched.logged().join('\n').includes(password));
+		t.false(JSON.stringify(admission).includes(password));
+	},
+);
+
+test('a sign that spells a secret is still recognised in a capture already redacted', async t => {
+	// An account name supplied as a secret is a natural thing to recognise a
+	// signed-in page by, and every capture a run hands the session has been
+	// redacted before it gets there.
+	const account = 'qa-account-7731';
+	const redact = createRedactor([account]);
+	const browser = scriptedBrowser({snapshot: () => ''});
+	const session = new SignedInSession({
+		client: browser.client,
+		description: {
+			...description,
+			signedIn: {name: `Account ${account}`, role: 'button'},
+		},
+		secrets: new Map([['QA_PASSWORD', account]]),
+		redact,
+	});
+	const capture = redact(
+		structure('Settings', `${origin}/settings`, [
+			`button "Account ${account}"`,
+			'heading "Settings" level="1"',
+		]),
+	);
+
+	const admission = await session.admit(`${origin}/settings`, capture);
+
+	t.is(admission.kind, 'admitted');
+	t.deepEqual(
+		browser.calls,
+		[],
+		'no second sign-in for a page that was reached',
 	);
 });

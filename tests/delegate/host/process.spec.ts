@@ -150,3 +150,23 @@ test('the sign-in probe reports what the probe command reported', t => {
 	t.false(probeAuthenticated(process.execPath, ['-e', 'process.exit(1)']));
 	t.false(probeAuthenticated('uxlint-no-such-agent', ['status']));
 });
+
+// A signed-in run reads its password from the environment, and a host agent
+// started from that environment would be handed it without ever being told.
+test('a variable the launch withholds does not reach the agent, and the rest do', async t => {
+	process.env['UXLINT_TEST_WITHHELD'] = 'correct-horse-battery-staple';
+	process.env['UXLINT_TEST_KEPT'] = 'kept';
+	t.teardown(() => {
+		Reflect.deleteProperty(process.env, 'UXLINT_TEST_WITHHELD');
+		Reflect.deleteProperty(process.env, 'UXLINT_TEST_KEPT');
+	});
+
+	const outcome = await runLaunch({
+		...nodeLaunch(
+			'process.exit((process.env.UXLINT_TEST_WITHHELD === undefined ? 0 : 1) + (process.env.UXLINT_TEST_KEPT === "kept" ? 0 : 2))',
+		),
+		withheldEnvironment: ['UXLINT_TEST_WITHHELD'],
+	});
+
+	t.is(outcome.exitCode, 0);
+});
