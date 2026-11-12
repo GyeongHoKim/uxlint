@@ -44,6 +44,7 @@ import {
 	SignedInSession,
 	type SignInBrowser,
 } from '../../source/services/sign-in.js';
+import {runSignInCheck} from '../../source/sign-in-check.js';
 import {runSequentially} from '../../source/utils/run-sequentially.js';
 import {installFakeHosts} from '../delegate/host/fake-hosts.js';
 import {
@@ -689,5 +690,111 @@ realBrowser(
 			{label: 'log file', text: await settledLog(sweep.logFile)},
 			...(await filesUnder(sweep.work)),
 		]);
+	},
+);
+
+// --- the sign-in check (011 T065 · SC-008) -----------------------------------
+
+/**
+ * Run `uxlint sign-in` against the fixture site with a real browser of its own.
+ */
+async function checkSignIn(
+	t: ExecutionContext,
+	configure: (site: LoginSite) => {
+		paths: string[];
+		signIn: SignInDescription;
+	},
+) {
+	t.timeout(120_000);
+
+	const site = await startLoginSite({password});
+	t.teardown(async () => {
+		resetMCPClient();
+		await site.close();
+	});
+
+	const {paths, signIn} = configure(site);
+	const urls = paths.map(item => `${site.baseUrl}${item}`);
+	const messages: string[] = [];
+	const startedAt = Date.now();
+
+	const exitCode = await runSignInCheck(
+		{
+			mainPageUrl: urls[0]!,
+			subPageUrls: urls.slice(1),
+			pages: urls.map(url => ({url, features: 'A signed-in page'})),
+			persona: 'An operations lead',
+			report: {output: nodePath.join(os.tmpdir(), 'uxlint-never-written.md')},
+			signIn,
+		},
+		{
+			environment: {QA_PASSWORD: password},
+			emitMessage(message) {
+				messages.push(message);
+			},
+		},
+	);
+
+	return {exitCode, messages, site, elapsedMs: Date.now() - startedAt};
+}
+
+realBrowser(
+	'the sign-in check passes a working configuration in a real browser',
+	async t => {
+		const {exitCode, messages, site} = await checkSignIn(t, target => ({
+			paths: ['/dashboard', '/settings'],
+			signIn: oneScreen(target),
+		}));
+
+		t.is(exitCode, 0);
+		t.regex(
+			messages[0] ?? '',
+			/^uxlint: signed in — found button "Sign out" after 3 steps \(\d+\.\d s\)$/,
+		);
+		t.deepEqual(messages.slice(1), [
+			`  ✓ ${site.baseUrl}/dashboard`,
+			`  ✓ ${site.baseUrl}/settings`,
+		]);
+	},
+);
+
+realBrowser(
+	'the sign-in check marks a page that does not show the sign',
+	async t => {
+		const {exitCode, messages, site} = await checkSignIn(t, target => ({
+			paths: ['/dashboard', '/no-sign'],
+			signIn: oneScreen(target),
+		}));
+
+		t.is(exitCode, 1);
+		t.deepEqual(messages.slice(1), [
+			`  ✓ ${site.baseUrl}/dashboard`,
+			`  ✗ ${site.baseUrl}/no-sign — signed in, but this page did not show the signed-in sign "Sign out"`,
+		]);
+	},
+);
+
+realBrowser(
+	'the sign-in check names a step whose field is not there, within a minute',
+	async t => {
+		const {exitCode, messages, elapsedMs} = await checkSignIn(t, target => ({
+			paths: ['/dashboard'],
+			signIn: {
+				...oneScreen(target),
+				steps: [
+					{fill: 'Email', value: loginSiteEmail},
+					{fill: 'Passphrase', secret: 'QA_PASSWORD'},
+					{click: 'Sign in'},
+				],
+			},
+		}));
+
+		t.is(exitCode, 1);
+		t.is(messages.length, 1);
+		t.regex(
+			messages[0] ?? '',
+			/^uxlint: sign-in failed at step 2 \(fill "Passphrase"\): not-found\. The page showed: "Sign in" at /,
+		);
+		t.true(elapsedMs < 60_000, `the check took ${elapsedMs} ms`);
 	},
 );

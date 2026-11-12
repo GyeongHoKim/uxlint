@@ -16,6 +16,7 @@ import {runDelegatedAnalysis} from './delegate/runner.js';
 import {selectHostAgent} from './delegate/host/index.js';
 import {logger} from './infrastructure/logger.js';
 import type {UxLintConfig} from './models/config.js';
+import {runSignInCheck} from './sign-in-check.js';
 import {getConfigFormat} from './utils/get-config-format.js';
 
 const cli = meow(
@@ -38,6 +39,11 @@ const cli = meow(
 	  delegate runs      List runs that exist and how far each got
 	  delegate discard   Delete one run
 
+	Diagnostic Commands
+	  sign-in            Check that the configured sign-in works and which
+	                     configured pages show the signed-in sign. Reviews
+	                     nothing and needs no model API key
+
 	Internal Commands
 	  mcp-serve          Serve judgement tools to a host agent during a
 	                     delegated run. Started by uxlint, not by hand.
@@ -59,6 +65,7 @@ const cli = meow(
 	  $ uxlint
 	  $ uxlint --delegate
 	  $ uxlint delegate capture
+	  $ uxlint sign-in
 	  $ uxlint auth login
 	  $ uxlint auth status
 	  $ uxlint auth logout
@@ -266,6 +273,27 @@ switch (authCommand ?? '') {
 				file: cli.flags.file,
 				loadConfig,
 			});
+		}
+
+		break;
+	}
+
+	case 'sign-in': {
+		// Signs in and reviews nothing: no model is resolved, so no provider
+		// credential is read. No Ink either -- the result is a few lines, and
+		// it is as likely to be read in a pipeline's output as at a prompt.
+		try {
+			process.exitCode = await runSignInCheck(loadConfig());
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : 'Unknown error';
+			logger.error('Sign-in check could not start', {
+				error: errorMessage,
+				stack: error instanceof Error ? error.stack : undefined,
+				configPath,
+			});
+			writeTerminalMessage(`uxlint: ${errorMessage}`);
+			process.exitCode = 1;
 		}
 
 		break;
