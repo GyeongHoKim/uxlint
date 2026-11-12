@@ -33,7 +33,11 @@ import {
 	SignInFailed,
 	signRunIn,
 } from '../../services/sign-in.js';
-import {captureAllPages, checkBrowser} from '../capture-pass.js';
+import {
+	captureAllPages,
+	checkBrowser,
+	releaseBrowser,
+} from '../capture-pass.js';
 import {buildEvidence} from '../evidence.js';
 import {DelegationSession} from '../session.js';
 import {pruneRuns} from './runs.js';
@@ -112,6 +116,7 @@ export async function captureForAgent(
 	}
 
 	let run: Awaited<ReturnType<typeof createDelegatedRun>> | undefined;
+	let failure: string;
 
 	const server = browserServerIdentity();
 	const provenance = {
@@ -133,13 +138,17 @@ export async function captureForAgent(
 		// Once, before any page is captured.
 		const signedIn = await signRunIn(run.session, config.signIn);
 
-		const measurement = new MeasurementService(mcpClient);
+		const measurement = new MeasurementService(
+			mcpClient,
+			undefined,
+			undefined,
+			run.session?.redact,
+		);
 		const captured = await captureAllPages(
 			mcpClient,
 			measurement,
 			config.pages,
-			undefined,
-			run.session,
+			{session: run.session},
 		);
 
 		const evidence: PageEvidence[] = captured.map(item =>
@@ -171,8 +180,13 @@ export async function captureForAgent(
 
 		// Closed before anything is printed, so nothing else owns stdout when the
 		// payload goes out -- which is the condition console-output.ts requires.
-		await mcpClient.close();
-		run = undefined;
+		// Cleared even when close() throws, so the finally below does not close
+		// a torn-down client a second time.
+		try {
+			await mcpClient.close();
+		} finally {
+			run = undefined;
+		}
 
 		const payload: CapturePayload = {
 			run: session.id,
@@ -204,15 +218,16 @@ export async function captureForAgent(
 				{...provenance, hostAgent: agentDrivenRoute},
 				reason,
 			);
-			emitMessage(`uxlint: sign-in failed — ${reason}`);
-			return 1;
+			failure = `uxlint: sign-in failed — ${reason}`;
+		} else {
+			failure = `uxlint: ${reason}`;
 		}
-
-		emitMessage(`uxlint: ${reason}`);
-		return 1;
 	} finally {
-		if (run) {
-			await run.mcpClient.close();
-		}
+		await releaseBrowser(run?.mcpClient);
 	}
+
+	// Reached only on failure, and only once the browser has been released:
+	// until then the terminal's streams are its transport's.
+	emitMessage(failure);
+	return 1;
 }

@@ -72,6 +72,7 @@ const createDeps = (
 	return {
 		sandbox,
 		builder,
+		aiService,
 		deps: {
 			async createRun() {
 				return {aiService: aiService as never, reportBuilder: builder};
@@ -606,12 +607,17 @@ const threePages = (overrides: Partial<UxLintConfig> = {}): UxLintConfig =>
  * browser, and `order` records it against each page analysis so a test can
  * assert which came first.
  */
-const createSignedInDeps = () => {
+const createSignedInDeps = (
+	behaviour: (
+		builder: ReportBuilder,
+	) => (page: {url: string; features: string}) => PageAnalysis = completed,
+) => {
 	const order: string[] = [];
-	const {sandbox, builder, deps} = createDeps(b => page => {
+	const {sandbox, builder, aiService, deps} = createDeps(b => page => {
 		order.push(`analyse ${page.url}`);
-		return completed(b)(page);
+		return behaviour(b)(page);
 	});
+	const close = sandbox.spy(aiService, 'close');
 	const establish = sandbox.stub().callsFake(async () => {
 		order.push('establish');
 		return {kind: 'signed-in'};
@@ -626,6 +632,7 @@ const createSignedInDeps = () => {
 		builder,
 		establish,
 		order,
+		closeCalls: () => close.callCount,
 		deps: {
 			...deps,
 			async createRun() {
@@ -857,3 +864,64 @@ test('a sign-in naming a secret that is not set stops the run before anything is
 	t.false(saveReport.called, 'nothing was reviewed, so nothing is reported');
 	sandbox.restore();
 });
+
+/**
+ * Releasing the browser (011, FR-022). The signed-in session lives only in the
+ * browser's throwaway profile, which is discarded when the browser closes, so
+ * a run that signed in must close it exactly once however it ends: not at all
+ * leaves a signed-in browser behind, and twice closes a torn-down instance.
+ *
+ * A failed sign-in is the fourth ending, and "a failed sign-in exits 1 and
+ * says why" above already counts its closes.
+ */
+const billingUrl = 'https://example.com/billing';
+
+// The session admitted the first page and refused this one. `analyzePage`
+// settles that as a failed page and returns; the run carries on.
+const refusedAtBilling =
+	(builder: ReportBuilder) => (page: {url: string; features: string}) => {
+		builder.initializePageAnalysis(page.url, page.features);
+		return page.url === billingUrl
+			? builder.failCurrentPage(
+					`${billingUrl} was not reached signed in: the session was lost and signing in again failed`,
+					page,
+				)
+			: builder.completePageAnalysis();
+	};
+
+const throwingAtBilling =
+	(builder: ReportBuilder) => (page: {url: string; features: string}) => {
+		if (page.url === billingUrl) {
+			throw new Error('transport died mid-run');
+		}
+
+		return completed(builder)(page);
+	};
+
+for (const [label, behaviour, expectedCode, pagesAttempted] of [
+	['completes', completed, 0, 3],
+	['has a page refused part-way through', refusedAtBilling, 0, 3],
+	['throws after signing in', throwingAtBilling, 1, 2],
+] as const) {
+	test(`a signed-in run that ${label} closes the browser exactly once`, async t => {
+		const {sandbox, establish, order, closeCalls, deps} =
+			createSignedInDeps(behaviour);
+
+		const code = await runCIAnalysis(threePages({signIn}), {
+			...deps,
+			emitVerdict() {
+				// Swallowed: the assertion is about close(), not the message.
+			},
+		});
+
+		t.is(code, expectedCode);
+		t.is(establish.callCount, 1, 'the run did sign in');
+		t.is(
+			order.length - 1,
+			pagesAttempted,
+			'the ending under test is the one that was reached',
+		);
+		t.is(closeCalls(), 1, 'the signed-in browser is released once, not twice');
+		sandbox.restore();
+	});
+}

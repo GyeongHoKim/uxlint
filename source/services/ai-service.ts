@@ -46,6 +46,7 @@ import {
 	getMCPClient,
 	narrowBrowserTools,
 	requireSignInTools,
+	redactingClient,
 	resetMCPClient,
 } from './mcp-client.js';
 import {
@@ -80,6 +81,18 @@ class PageNotReached extends Error {
 	constructor(reason: string) {
 		super(reason);
 		this.name = 'PageNotReached';
+	}
+}
+
+/**
+ * Stop a page the session refused.
+ *
+ * @param reason - Why the page was refused, when it was
+ * @throws PageNotReached when there is a reason
+ */
+function assertReached(reason: string | undefined): void {
+	if (reason !== undefined) {
+		throw new PageNotReached(reason);
 	}
 }
 
@@ -192,7 +205,9 @@ export class AIService {
 		// Built from the same client the browser tools come from. Injectable so
 		// a test can drive the measurement paths without a browser, which is
 		// most of what makes this feature testable at all.
-		this.measurement = measurement ?? new MeasurementService(mcpClient);
+		this.measurement =
+			measurement ??
+			new MeasurementService(mcpClient, undefined, undefined, session?.redact);
 	}
 
 	/**
@@ -277,19 +292,17 @@ export class AIService {
 			// wherever the loop could otherwise carry on, so that a refused
 			// page stops at the refusal.
 			let notReached: string | undefined;
-			const mcpTools = this.session
-				? {
-						...browserTools,
-						[captureToolName]: this.admittingCapture(
-							browserTools[captureToolName],
-							page,
-							() => !pageSettled && epoch === this.pageEpoch,
-							reason => {
-								notReached = reason;
-							},
-						),
-					}
-				: browserTools;
+			const mcpTools = {
+				...browserTools,
+				[captureToolName]: this.admittingCapture(
+					browserTools[captureToolName],
+					page,
+					() => !pageSettled && epoch === this.pageEpoch,
+					reason => {
+						notReached = reason;
+					},
+				),
+			};
 
 			// Build system prompt
 			const systemPrompt = this.buildSystemPrompt(config);
@@ -369,11 +382,9 @@ export class AIService {
 						throw new PageBoundExceeded(boundMs);
 					}
 
-					if (notReached !== undefined) {
-						// Nothing was captured that the model may see, so there
-						// is nothing to ask it. Its rejection is handled below.
-						throw new PageNotReached(notReached);
-					}
+					// Nothing was captured that the model may see, so there is
+					// nothing to ask it. The rejection is handled below.
+					assertReached(notReached);
 
 					for (const observation of drainObservations()) {
 						stage = advanceStage(stage, observation);
@@ -495,6 +506,11 @@ export class AIService {
 						return new PageBoundExceeded(boundMs);
 					},
 				});
+
+				// The model may have captured and stopped in one turn, so that
+				// no further step was prepared to stop the page. It is refused
+				// all the same.
+				assertReached(notReached);
 			} catch (error) {
 				if (notReached !== undefined) {
 					// Asked of the flag rather than of the error: the engine is
@@ -517,26 +533,10 @@ export class AIService {
 					this.finalisePage(false, stage, error.message);
 					pageSettled = true;
 
-					const expiredState = this.reportBuilder.getCurrentState();
-					const expiredAnalysis = expiredState.completedAnalyses.at(-1);
-
-					if (!expiredAnalysis) {
-						throw new Error('Failed to complete page analysis', {
-							cause: error,
-						});
-					}
-
-					return expiredAnalysis;
+					return this.lastSettledPage(error);
 				}
 
 				throw error;
-			}
-
-			if (notReached !== undefined) {
-				// The model captured and stopped in one turn, so no further
-				// step was prepared to stop the page. It is refused all the same.
-				pageSettled = true;
-				return this.reportBuilder.failCurrentPage(notReached, page);
 			}
 
 			// Observations from the final step (the one whose completion tool
@@ -600,6 +600,25 @@ export class AIService {
 	}
 
 	/**
+	 * The page the report builder closed most recently.
+	 *
+	 * @param cause - What ended the page, when it did not end by itself
+	 * @returns The settled analysis
+	 * @throws Error when nothing was settled
+	 */
+	private lastSettledPage(cause: unknown): PageAnalysis {
+		const settled = this.reportBuilder
+			.getCurrentState()
+			.completedAnalyses.at(-1);
+
+		if (!settled) {
+			throw new Error('Failed to complete page analysis', {cause});
+		}
+
+		return settled;
+	}
+
+	/**
 	 * Wrap the capture tool so its reply passes through the session first.
 	 *
 	 * On this route the model asks for the page structure itself, so this is
@@ -611,7 +630,8 @@ export class AIService {
 	 * @param page - The page under analysis
 	 * @param stillOurs - Whether the page is still the one open
 	 * @param refuse - Told the reason when the session refuses the page
-	 * @returns A tool the model cannot tell from the original
+	 * @returns A tool the model cannot tell from the original; the original
+	 * itself on a run that does not sign in
 	 */
 	private admittingCapture<T extends Record<string, unknown>>(
 		capture: T,
@@ -619,6 +639,10 @@ export class AIService {
 		stillOurs: () => boolean,
 		refuse: (reason: string) => void,
 	): T {
+		if (!this.session) {
+			return capture;
+		}
+
 		const {execute: original} = capture as {
 			execute?: (input: unknown, options: unknown) => Promise<unknown>;
 		};
@@ -1117,14 +1141,40 @@ async function assembleBrowserRun(
 	// extra tools are demanded only then: a run that never signs in must go on
 	// working against a server that could not have signed it in.
 	if (!session && config.signIn) {
-		requireSignInTools(await mcpClient.tools());
-		session = createSignedInSession(config.signIn, mcpClient);
+		try {
+			requireSignInTools(await mcpClient.tools());
+			session = createSignedInSession(config.signIn, mcpClient);
+		} catch (error) {
+			// No run exists yet for a caller to close, so the browser is
+			// released here: left open, it would hold the terminal's streams
+			// and keep the process alive after the failure was reported.
+			await mcpClient.close().catch((closeError: unknown) => {
+				logger.error('Failed to close the browser client', {
+					error:
+						closeError instanceof Error
+							? closeError.message
+							: String(closeError),
+				});
+			});
+			resetMCPClient(mcpClient);
+			throw error;
+		}
 	}
 
+	if (!session) {
+		return {mcpClient, reportBuilder: builder ?? new ReportBuilder(fsPromises)};
+	}
+
+	// From here on nothing the browser returns, and nothing written to the
+	// log, carries a secret: the model-facing tools, the capture pass and the
+	// measurements all read through this client. The session keeps the plain
+	// one, and redacts everything it hands out itself.
+	logger.setRedactor(session.redact);
+
 	return {
-		mcpClient,
+		mcpClient: redactingClient(mcpClient, session.redact),
 		reportBuilder: builder ?? new ReportBuilder(fsPromises),
-		...(session && {session}),
+		session,
 	};
 }
 

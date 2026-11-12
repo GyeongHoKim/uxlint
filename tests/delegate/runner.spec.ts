@@ -7,6 +7,7 @@ import {
 	runDelegatedAnalysis,
 	type DelegateDependencies,
 } from '../../source/delegate/runner.js';
+import type {HostLaunch} from '../../source/delegate/host/types.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import {
 	describeSignInFailure,
@@ -16,6 +17,7 @@ import {ReportBuilder} from '../../source/services/report-builder.js';
 import {
 	scriptedBrowser,
 	simulatedLoginSite,
+	type SimulatedSite,
 } from '../fixtures/sign-in-browser.js';
 import {
 	configFor,
@@ -276,6 +278,10 @@ async function runAgainstLoginSite(
 		sitePassword?: string;
 		/** A last change to the configuration before the run */
 		configure?: (config: UxLintConfig) => UxLintConfig;
+		/** Runs before the site answers a navigation; throwing rejects the call */
+		onNavigate?: (url: string, site: SimulatedSite) => void;
+		/** What the host agent's session rejects with, when it does not run */
+		hostFailure?: Error;
 	},
 ) {
 	const {
@@ -283,16 +289,26 @@ async function runAgainstLoginSite(
 		withoutTools = [],
 		sitePassword = password,
 		configure = (config: UxLintConfig) => config,
+		onNavigate,
+		hostFailure,
 	} = options;
 	const directory = temporaryDirectory(t.teardown);
 	const output = path.join(directory, 'report.md');
 	const builder = new ReportBuilder(fsPromises);
 	const site = simulatedLoginSite({origin, password: sitePassword});
-	const browser = scriptedBrowser({...site.script, withoutTools});
+	const browser = scriptedBrowser({
+		...site.script,
+		withoutTools,
+		onNavigate(url) {
+			onNavigate?.(url, site);
+			return site.script.onNavigate?.(url);
+		},
+	});
 	const messages: string[] = [];
 	const host = scriptedHost([{complete: true}, {complete: true}]);
 	let preflightRuns = 0;
 	let launches = 0;
+	const launched: HostLaunch[] = [];
 
 	const exitCode = await runDelegatedAnalysis(
 		configure(gatedConfig(output, describesSignIn)),
@@ -316,6 +332,11 @@ async function runAgainstLoginSite(
 				},
 				async run(launch, runOptions) {
 					launches++;
+					launched.push(launch);
+					if (hostFailure) {
+						throw hostFailure;
+					}
+
 					return host.run(launch, runOptions);
 				},
 			},
@@ -332,6 +353,7 @@ async function runAgainstLoginSite(
 		closed: browser.closed(),
 		preflightRuns,
 		launches,
+		launched,
 		navigations: browser.calls
 			.filter(call => call.name === 'navigate_page')
 			.map(call => String(call.arguments['url'])),
@@ -518,4 +540,130 @@ test('a sign-in naming a secret that is not set stops the run before anything is
 	t.deepEqual(calls, [], 'the browser is asked for nothing');
 	t.is(launches, 0);
 	await t.throwsAsync(fs.stat(output));
+});
+
+// Releasing the browser (011, FR-022). The signed-in session lives only in the
+// browser's throwaway profile, which is discarded when the browser closes, so
+// a run that describes a sign-in must close it exactly once however it ends:
+// not at all leaves a signed-in browser behind, and twice closes a client that
+// is already torn down.
+const settingsUrl = `${origin}/settings`;
+
+// The session ends once the first page has been captured, and the password the
+// configuration types has stopped working, so signing in again fails and the
+// second page is refused. Both waits for the sign run their whole window, which
+// is why that ending is given longer than the others.
+const sessionLostAtSettings = (url: string, site: SimulatedSite) => {
+	if (url !== settingsUrl) {
+		return;
+	}
+
+	site.expire();
+	site.setPassword('changed-since-the-run-began');
+};
+
+// Signing in swallows a browser call that rejects and reads it as a failed
+// step; the capture pass does not, so this ends the run after it signed in.
+const rejectingAtSettings = (url: string) => {
+	if (url === settingsUrl) {
+		throw new Error('browser transport died mid-run');
+	}
+};
+
+for (const [label, ending, expected] of [
+	['a completed signed-in run', {}, {exitCode: 0, signIns: 1, launches: 2}],
+	[
+		'a failed sign-in',
+		{sitePassword: 'the-real-one'},
+		{exitCode: 1, signIns: 0, launches: 0},
+	],
+	[
+		'a signed-in run with a page refused part-way through',
+		{onNavigate: sessionLostAtSettings},
+		{exitCode: 0, signIns: 1, launches: 2},
+	],
+	[
+		'a browser call that rejects after signing in',
+		{onNavigate: rejectingAtSettings},
+		{exitCode: 1, signIns: 1, launches: 0},
+	],
+	[
+		'a host agent that fails after signing in',
+		{hostFailure: new Error('the host agent could not be started')},
+		{exitCode: 1, signIns: 1, launches: 2},
+	],
+] as const) {
+	test(`${label} closes the browser exactly once`, async t => {
+		t.timeout(60_000);
+
+		const {exitCode, site, launches, navigations, closed} =
+			await runAgainstLoginSite(t, {describesSignIn: true, ...ending});
+
+		// What shows the ending under test is the one that was reached.
+		t.is(exitCode, expected.exitCode);
+		t.is(site.signInCount(), expected.signIns);
+		t.is(launches, expected.launches);
+		t.is(
+			navigations.includes(settingsUrl),
+			expected.signIns === 1,
+			'only a run that signed in gets as far as its second page',
+		);
+		t.is(closed, 1, 'the signed-in browser is released once, not twice');
+	});
+}
+
+test('a page refused part-way through is failed in a report the run still writes', async t => {
+	t.timeout(60_000);
+
+	const {builder, output, closed} = await runAgainstLoginSite(t, {
+		describesSignIn: true,
+		onNavigate: sessionLostAtSettings,
+	});
+	const {metadata} = builder.generateFinalReport();
+
+	await t.notThrowsAsync(fs.stat(output));
+	t.deepEqual(metadata.analyzedPages, [`${origin}/dashboard`]);
+	t.deepEqual(metadata.failedPages, [settingsUrl]);
+	t.is(closed, 1);
+});
+
+// The password is in this process's environment, which a host agent would
+// otherwise inherit whole.
+test('the host agent is launched without the secrets the sign-in names', async t => {
+	t.timeout(30_000);
+	process.env['UXLINT_TEST_QA_PASSWORD'] = password;
+	t.teardown(() => {
+		Reflect.deleteProperty(process.env, 'UXLINT_TEST_QA_PASSWORD');
+	});
+
+	const {exitCode, launched} = await runAgainstLoginSite(t, {
+		describesSignIn: true,
+		configure: config => ({
+			...config,
+			signIn: {
+				...config.signIn!,
+				steps: [
+					{fill: 'Email', value: 'qa@example.com'},
+					{fill: 'Password', secret: 'UXLINT_TEST_QA_PASSWORD'},
+					{click: 'Sign in'},
+				],
+			},
+		}),
+	});
+
+	t.is(exitCode, 0);
+	t.deepEqual(
+		launched.map(launch => launch.withheldEnvironment),
+		[['UXLINT_TEST_QA_PASSWORD']],
+	);
+});
+
+test('a browser server that cannot sign a run in is still released', async t => {
+	const {exitCode, closed} = await runAgainstLoginSite(t, {
+		describesSignIn: true,
+		withoutTools: ['fill'],
+	});
+
+	t.is(exitCode, 1);
+	t.is(closed, 1);
 });
