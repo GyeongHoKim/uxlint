@@ -202,17 +202,22 @@ export function shortfallReason(
  * @param client - Connected browser client
  * @param measurement - The measurement service bound to that client
  * @param pages - The pages to cover, in configuration order
- * @param onPageCaptured - Called as each page finishes
- * @param session - The run's signed-in session, when it has one
+ * @param options - What varies between runs
+ * @param options.onPageCaptured - Called as each page finishes
+ * @param options.session - The run's signed-in session, when it has one
  * @returns What each page yielded, in configuration order
  */
 export async function captureAllPages(
 	client: MCPClient,
 	measurement: MeasurementService,
 	pages: readonly Page[],
-	onPageCaptured?: (pageUrl: string) => void,
-	session?: SignedInSession,
+	options: {
+		onPageCaptured?: (pageUrl: string) => void;
+		session?: SignedInSession;
+	} = {},
 ): Promise<CapturedPage[]> {
+	const {onPageCaptured, session} = options;
+
 	// One browser, one page at a time, and measurement follows its own page.
 	return runSequentially(pages, async (page): Promise<CapturedPage> => {
 		const opened = await capturePage(client, page, session);
@@ -344,5 +349,29 @@ export function assembleReport(
 			judged && item.stage === 'analysable' ? 'complete' : 'partial',
 			reason,
 		);
+	}
+}
+
+/**
+ * Close a run's browser client on the way out of a failed run.
+ *
+ * A failing teardown is logged and settled: the failure that brought the run
+ * here has already been reported, and this must not replace it.
+ *
+ * @param client - The client still open, if any
+ */
+export async function releaseBrowser(
+	client: MCPClient | undefined,
+): Promise<void> {
+	if (!client) {
+		return;
+	}
+
+	try {
+		await client.close();
+	} catch (error) {
+		logger.error('Failed to close the browser client', {
+			error: error instanceof Error ? error.message : String(error),
+		});
 	}
 }

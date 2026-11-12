@@ -29,6 +29,7 @@ import {
 	browserServerIdentity,
 	narrowBrowserTools,
 } from '../services/mcp-client.js';
+import {secretNames} from '../models/secret-redaction.js';
 import {MeasurementService} from '../services/measurement.js';
 import {
 	checkSignInSecrets,
@@ -36,7 +37,12 @@ import {
 	signRunIn,
 } from '../services/sign-in.js';
 import type {ReportBuilder} from '../services/report-builder.js';
-import {assembleReport, captureAllPages, checkBrowser} from './capture-pass.js';
+import {
+	assembleReport,
+	captureAllPages,
+	checkBrowser,
+	releaseBrowser,
+} from './capture-pass.js';
 import {buildEvidence} from './evidence.js';
 import {collect} from './ingest.js';
 import {DelegationSession} from './session.js';
@@ -336,14 +342,18 @@ export async function runDelegatedAnalysis(
 		reportBuilder.setProvenance({...provenance, ...(signedIn && {signedIn})});
 		reportBuilder.setPersona(config.persona);
 
-		const measurement = new MeasurementService(mcpClient);
+		const measurement = new MeasurementService(
+			mcpClient,
+			undefined,
+			undefined,
+			run.session?.redact,
+		);
 
 		const captured = await captureAllPages(
 			mcpClient,
 			measurement,
 			config.pages,
-			onPageCaptured,
-			run.session,
+			{onPageCaptured, session: run.session},
 		);
 
 		const evidence: PageEvidence[] = captured.map(item =>
@@ -365,11 +375,16 @@ export async function runDelegatedAnalysis(
 				: {parentDirectory: sessionParentDirectory},
 		);
 
-		const launch = adapter.buildLaunch({
-			sessionDirectory: session.directory,
-			prompt: buildPrompt(config, evidence.length),
-			server: judgementServerCommand(),
-		});
+		const launch: HostLaunch = {
+			...adapter.buildLaunch({
+				sessionDirectory: session.directory,
+				prompt: buildPrompt(config, evidence.length),
+				server: judgementServerCommand(),
+			}),
+			// The agent, and the judgement server it starts, are handed the
+			// evidence and nothing the run signed in with.
+			...(config.signIn && {withheldEnvironment: secretNames(config.signIn)}),
+		};
 
 		// Checked here rather than trusted from the adapter. An adapter edited
 		// to drop its read-only flag would otherwise hand a developer's whole
@@ -395,8 +410,13 @@ export async function runDelegatedAnalysis(
 		const report = reportBuilder.generateFinalReport();
 		await reportBuilder.saveReport(config.report.output);
 
-		await mcpClient.close();
-		run = undefined;
+		// Cleared even when close() throws, so the finally below does not
+		// close a torn-down client a second time.
+		try {
+			await mcpClient.close();
+		} finally {
+			run = undefined;
+		}
 
 		const gate = evaluateGate(report, config.thresholds);
 		const verdict = renderGateVerdict(gate);
@@ -422,18 +442,7 @@ export async function runDelegatedAnalysis(
 		// itself on the developer's own machine.
 		await session?.dispose();
 
-		if (run) {
-			try {
-				await run.mcpClient.close();
-			} catch (closeError) {
-				logger.error('Failed to close the browser client', {
-					error:
-						closeError instanceof Error
-							? closeError.message
-							: String(closeError),
-				});
-			}
-		}
+		await releaseBrowser(run?.mcpClient);
 	}
 
 	emitVerdict(`uxlint: ${failure}`);

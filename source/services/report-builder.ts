@@ -37,6 +37,23 @@ const unknownProvenance: RunProvenance = {
 	externalDataAllowed: false,
 };
 
+/**
+ * The optional facts a page keeps whatever status it ends with.
+ *
+ * @param page - The page in flight, if there is one
+ * @returns Only the fields that were set
+ */
+function carriedOver(
+	page: Partial<PageAnalysis> | undefined,
+): Pick<PageAnalysis, 'measurementNote' | 'reachedUrl'> {
+	return {
+		...(page?.measurementNote !== undefined && {
+			measurementNote: page.measurementNote,
+		}),
+		...(page?.reachedUrl !== undefined && {reachedUrl: page.reachedUrl}),
+	};
+}
+
 export class ReportBuilder {
 	// Incremental building state
 	private currentPageAnalysis: Partial<PageAnalysis> | undefined;
@@ -285,12 +302,7 @@ export class ReportBuilder {
 			measurement:
 				this.currentPageAnalysis?.measurement ??
 				noMeasurement('page-not-loaded'),
-			...(this.currentPageAnalysis?.measurementNote !== undefined && {
-				measurementNote: this.currentPageAnalysis.measurementNote,
-			}),
-			...(this.currentPageAnalysis?.reachedUrl !== undefined && {
-				reachedUrl: this.currentPageAnalysis.reachedUrl,
-			}),
+			...carriedOver(this.currentPageAnalysis),
 			error,
 		};
 

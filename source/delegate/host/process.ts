@@ -109,8 +109,15 @@ export async function runLaunch(
 		// judges the developer's own project. It is settable because at least one
 		// host refuses to start depending on what the directory is, and that
 		// refusal has to be exercisable.
+		// Inherited, less whatever the run says the agent must not be handed:
+		// a signed-in run's secrets live in this environment.
+		const environment = {...process.env, ...launch.env};
+		for (const name of launch.withheldEnvironment ?? []) {
+			Reflect.deleteProperty(environment, name);
+		}
+
 		const child = spawn(launch.command, launch.args, {
-			env: {...process.env, ...launch.env},
+			env: environment,
 			stdio: ['pipe', 'pipe', 'pipe'],
 			...(cwd !== undefined && {cwd}),
 		});

@@ -23,6 +23,7 @@ import {
 import {
 	scriptedBrowser,
 	simulatedLoginSite,
+	type SimulatedSite,
 } from '../../fixtures/sign-in-browser.js';
 import {configFor, fakeBrowser, readyVerdict} from '../helpers.js';
 
@@ -304,6 +305,7 @@ function gatedConfig(describesSignIn: boolean): UxLintConfig {
  * @param options.withoutTools - Tools the browser server does not offer
  * @param options.sitePassword - What the site's form accepts, when it is not what the configuration types
  * @param options.configure - A last change to the configuration before the command runs
+ * @param options.onNavigate - Runs before the site answers a navigation; throwing rejects the call
  * @returns The command's result and what it left behind
  */
 async function captureAgainstLoginSite(
@@ -313,6 +315,7 @@ async function captureAgainstLoginSite(
 		withoutTools?: readonly string[];
 		sitePassword?: string;
 		configure?: (config: UxLintConfig) => UxLintConfig;
+		onNavigate?: (url: string, site: SimulatedSite) => void;
 	},
 ) {
 	const {
@@ -320,10 +323,18 @@ async function captureAgainstLoginSite(
 		withoutTools = [],
 		sitePassword = password,
 		configure = (config: UxLintConfig) => config,
+		onNavigate,
 	} = options;
 	const parent = await parentDirectory(teardown);
 	const site = simulatedLoginSite({origin, password: sitePassword});
-	const browser = scriptedBrowser({...site.script, withoutTools});
+	const browser = scriptedBrowser({
+		...site.script,
+		withoutTools,
+		onNavigate(url) {
+			onNavigate?.(url, site);
+			return site.script.onNavigate?.(url);
+		},
+	});
 	const messages: string[] = [];
 	let payload: CapturePayload | undefined;
 	let preflightRuns = 0;
@@ -564,4 +575,93 @@ test('a sign-in naming a secret that is not set stops the command before anythin
 	t.is(payload, undefined, 'nothing may be printed when nothing was captured');
 	t.deepEqual(await fsPromises.readdir(parent), []);
 	await t.throwsAsync(fsPromises.stat(output));
+});
+
+// Releasing the browser (011, FR-022). The signed-in session lives only in the
+// browser's throwaway profile, which is discarded when the browser closes, so
+// a capture that describes a sign-in must close it exactly once however it
+// ends: not at all leaves a signed-in browser behind, and twice closes a client
+// that is already torn down.
+const settingsUrl = `${origin}/settings`;
+
+// The session ends once the first page has been captured, and the password the
+// configuration types has stopped working, so signing in again fails and the
+// second page is refused. Both waits for the sign run their whole window, which
+// is why that ending is given longer than the others.
+const sessionLostAtSettings = (url: string, site: SimulatedSite) => {
+	if (url !== settingsUrl) {
+		return;
+	}
+
+	site.expire();
+	site.setPassword('changed-since-the-run-began');
+};
+
+// Signing in swallows a browser call that rejects and reads it as a failed
+// step; the capture pass does not, so this ends the command after it signed in.
+const rejectingAtSettings = (url: string) => {
+	if (url === settingsUrl) {
+		throw new Error('browser transport died mid-run');
+	}
+};
+
+for (const [label, ending, expected] of [
+	[
+		'a completed signed-in capture',
+		{},
+		{exitCode: 0, signIns: 1, captured: [true, true]},
+	],
+	[
+		'a failed sign-in',
+		{sitePassword: 'the-real-one'},
+		{exitCode: 1, signIns: 0, captured: undefined},
+	],
+	[
+		'a signed-in capture with a page refused part-way through',
+		{onNavigate: sessionLostAtSettings},
+		{exitCode: 0, signIns: 1, captured: [true, false]},
+	],
+	[
+		'a browser call that rejects after signing in',
+		{onNavigate: rejectingAtSettings},
+		{exitCode: 1, signIns: 1, captured: undefined},
+	],
+] as const) {
+	test(`${label} closes the browser exactly once`, async t => {
+		t.timeout(60_000);
+		// Apart from the run directories, so a failed sign-in's report does not
+		// land in the repository.
+		const output = path.join(await parentDirectory(t.teardown), 'report.md');
+
+		const {exitCode, site, payload, navigations, closed} =
+			await captureAgainstLoginSite(t.teardown, {
+				describesSignIn: true,
+				configure: config => ({...config, report: {output}}),
+				...ending,
+			});
+
+		// What shows the ending under test is the one that was reached.
+		t.is(exitCode, expected.exitCode);
+		t.is(site.signInCount(), expected.signIns);
+		t.deepEqual(
+			payload?.pages.map(page => page.captured),
+			expected.captured,
+		);
+		t.is(
+			navigations.includes(settingsUrl),
+			expected.signIns === 1,
+			'only a capture that signed in gets as far as its second page',
+		);
+		t.is(closed, 1, 'the signed-in browser is released once, not twice');
+	});
+}
+
+test('a browser server that cannot sign a capture in is still released', async t => {
+	const {exitCode, closed} = await captureAgainstLoginSite(t.teardown, {
+		describesSignIn: true,
+		withoutTools: ['fill'],
+	});
+
+	t.is(exitCode, 1);
+	t.is(closed, 1);
 });

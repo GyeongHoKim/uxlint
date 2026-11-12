@@ -17,6 +17,7 @@ import {
 import type {
 	AnalysisStage,
 	AnalysisState,
+	PageAnalysis,
 } from '../../source/models/analysis.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import type {LLMResponseData} from '../../source/models/llm-response.js';
@@ -528,7 +529,15 @@ const signedInConfig: UxLintConfig = {
 const runWithSession = async (
 	sandbox: sinon.SinonSandbox,
 	config: UxLintConfig,
-	options: {signedIn: boolean; failure?: SignInFailure},
+	options: {
+		signedIn: boolean;
+		failure?: SignInFailure;
+		/** How a page's analysis ends, when it is not by completing */
+		analysePage?: (
+			page: UxLintConfig['pages'][number],
+			builder: ReportBuilder,
+		) => PageAnalysis;
+	},
 ) => {
 	const order: string[] = [];
 	const states: AnalysisState[] = [];
@@ -544,6 +553,10 @@ const runWithSession = async (
 	);
 	sandbox.stub(aiService, 'analyzePage').callsFake(async (_config, page) => {
 		order.push(`analyse ${page.url}`);
+		if (options.analysePage) {
+			return options.analysePage(page, reportBuilder);
+		}
+
 		reportBuilder.initializePageAnalysis(page.url, page.features);
 		return reportBuilder.completePageAnalysis();
 	});
@@ -831,3 +844,82 @@ test.serial(
 		sandbox.restore();
 	},
 );
+
+/**
+ * Releasing the browser (011, FR-022). The signed-in session lives only in the
+ * browser's throwaway profile, which is discarded when the browser closes, so
+ * a run that signed in must close it exactly once however it ends: not at all
+ * leaves a signed-in browser behind, and twice closes a torn-down instance.
+ *
+ * A failed sign-in is the fourth ending, and "useAnalysis ends a failed
+ * sign-in in the error state" above already holds it to one close.
+ */
+const billingUrl = 'https://example.com/billing';
+
+const completePage = (
+	page: UxLintConfig['pages'][number],
+	builder: ReportBuilder,
+): PageAnalysis => {
+	builder.initializePageAnalysis(page.url, page.features);
+	return builder.completePageAnalysis();
+};
+
+// The session admitted the first page and refused this one. `analyzePage`
+// settles that as a failed page and returns; the run carries on.
+const refusedAtBilling = (
+	page: UxLintConfig['pages'][number],
+	builder: ReportBuilder,
+): PageAnalysis => {
+	builder.initializePageAnalysis(page.url, page.features);
+	return page.url === billingUrl
+		? builder.failCurrentPage(
+				`${billingUrl} was not reached signed in: the session was lost and signing in again failed`,
+				page,
+			)
+		: builder.completePageAnalysis();
+};
+
+const throwingAtBilling = (
+	page: UxLintConfig['pages'][number],
+	builder: ReportBuilder,
+): PageAnalysis => {
+	if (page.url === billingUrl) {
+		throw new Error('transport died mid-run');
+	}
+
+	return completePage(page, builder);
+};
+
+for (const [label, analysePage, expectedStage, pagesAttempted] of [
+	['completes', completePage, 'complete', 3],
+	['has a page refused part-way through', refusedAtBilling, 'complete', 3],
+	['throws after signing in', throwingAtBilling, 'error', 2],
+] as const) {
+	test.serial(
+		`useAnalysis closes the browser exactly once when a signed-in run ${label}`,
+		async t => {
+			const sandbox = sinon.createSandbox();
+
+			const {result, establish, order, close} = await runWithSession(
+				sandbox,
+				signedInConfig,
+				{signedIn: true, analysePage},
+			);
+
+			t.is(result.current.analysisState.currentStage, expectedStage);
+			t.is(establish.callCount, 1, 'the run did sign in');
+			t.is(
+				order.length - 1,
+				pagesAttempted,
+				'the ending under test is the one that was reached',
+			);
+			t.is(
+				close.callCount,
+				1,
+				'the signed-in browser is released once, not twice',
+			);
+
+			sandbox.restore();
+		},
+	);
+}

@@ -186,8 +186,7 @@ test('a refused page is not measured, and the pages around it are', async t => {
 		client,
 		{measure} as unknown as MeasurementService,
 		[page('/dashboard'), page('/billing'), page('/settings')],
-		undefined,
-		session,
+		{session},
 	);
 
 	t.deepEqual(
