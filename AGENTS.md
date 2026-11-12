@@ -256,6 +256,6 @@ Uses semantic-release configured in `.releaserc.json`. Release workflow runs on 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/010-inverted-delegation/plan.md
+at specs/011-authenticated-pages/plan.md
 <!-- SPECKIT END -->
 <!-- prettier-ignore-end -->
