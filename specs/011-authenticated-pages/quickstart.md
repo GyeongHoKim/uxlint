@@ -8,6 +8,31 @@ site this feature adds; scenario 8 is the one that needs a real product.
 Shapes and messages referred to here are defined in
 [contracts/](./contracts/) and [data-model.md](./data-model.md).
 
+## Results
+
+Walked through on 2026-11-13 against the built CLI (`dist/source/cli.js`) and
+the fixture site, with Chrome 157.0.8103.52, chrome-devtools-mcp 1.7.0 and
+every model provider variable unset.
+
+| Scenario | Status | Evidence |
+| --- | --- | --- |
+| 1 — sign-in checked on its own | **Passed, run for real** | `uxlint: signed in — found button "Sign out" after 3 steps (1.1 s)`, a `✓` line per page, exit 0, no report file. With `fill: Passphrase`: `uxlint: sign-in failed at step 2 (fill "Passphrase"): not-found. The page showed: "Sign in" at …/login`, exit 1, 7.0 s wall clock |
+| 2 — a headless run reviews the pages | **Passed through the agent-driven route; provider route covered automatically** | `delegate capture` → `evidence` → `submit` by hand: `/dashboard` and `/settings` captured, the evidence holds no sign-in form, the report header says `**Signed in**: yes — reviewed as a signed-in visitor`, and the log shows one `Sign-in finished` for the capture. No model was called here; the provider route is exercised with a mock model by `tests/integration/signed-in-run.spec.ts` |
+| 3 — a rejected account reviews nothing | **Passed, run for real** | `delegate capture` with a wrong password: `uxlint: sign-in failed — Sign-in steps completed but the signed-in sign "Sign out" did not appear. The page showed: "Sign in" at …/login?error=1 — alert: "Invalid email or password"`, exit 1, no run left behind, and a report with every page under _Failed Pages_ and `**Signed in**: no — sign-in failed; no page was reviewed`. With the secret unset, `uxlint` printed `uxlint: Sign-in needs LOGIN_SITE_PASSWORD, which is not set in the environment`, exit 1, no report |
+| 4 — a page that does not show the sign | **Passed, run for real** | `capture` reported `/no-sign` as `captured: false` with the sign-missing reason; the report lists it under _Failed Pages_ and the other pages are reviewed. `uxlint sign-in` marks it `✗` and exits 1 |
+| 5 — a session lost partway | **Covered automatically** | `tests/integration/signed-in-run.spec.ts`, in a real browser: one further sign-in after an expiry, `session-lost` when signing in again fails, and the next page still attempted |
+| 6 — the secret goes nowhere | **Passed, run for real** | With `/secret` configured, the evidence shows `Your key: [redacted]`, and a recursive search for the password over the report, the evidence, the capture payload, the temporary directory's `uxlint-*` entries and the log directory found nothing. The provider and launcher routes are swept the same way, automatically, by the integration suite |
+| 7 — nothing changes without `signIn` | **Passed, run for real** | With no `signIn` block and `/dashboard` configured, the run completes, the header has no `**Signed in**` line, and the page's section gains `**Reviewed page**: …/login (the configured address forwarded here)` with the page still complete |
+| 8 — a real product | **Not run** | Needs a staging product and a test account |
+
+**Performance baseline** (constitution principle IV): signing in to the fixture
+site takes 1.1 s through the CLI and 1.2–2.1 s in the integration suite, once
+per run. A sign-in that cannot find a field gives up after the 5 s window and
+the whole check returns in 7 s.
+
+**Corrected while walking through**: the commands here said `node dist/cli.js`;
+the build writes `dist/source/cli.js`.
+
 ## Prerequisites
 
 - Chrome stable installed (the existing browser requirement).
@@ -59,7 +84,7 @@ signIn:
 ## Scenario 1 — Sign-in can be checked on its own (US4, FR-025, SC-008)
 
 ```bash
-node dist/cli.js sign-in
+node dist/source/cli.js sign-in
 ```
 
 **Expect**: `signed in — found button "Sign out" after 3 steps`, a `✓` line per
@@ -74,7 +99,7 @@ by what the page showed; exit 1; well under a minute.
 ## Scenario 2 — A headless run reviews the pages, not the login form (US1, SC-001)
 
 ```bash
-node dist/cli.js; echo "exit $?"
+node dist/source/cli.js; echo "exit $?"
 ```
 
 **Expect**: the report's header says `**Signed in**: yes`; both pages appear
@@ -85,7 +110,7 @@ mentions a sign-in form. The log shows exactly one sign-in for the run
 ## Scenario 3 — A rejected account reviews nothing (US2, FR-009, SC-003)
 
 ```bash
-LOGIN_SITE_PASSWORD='wrong-password-123' node dist/cli.js; echo "exit $?"
+LOGIN_SITE_PASSWORD='wrong-password-123' node dist/source/cli.js; echo "exit $?"
 ```
 
 **Expect**: exit 1 although the configuration has no `thresholds` block; the
@@ -94,19 +119,19 @@ lists both pages under _Failed Pages_ with that reason and says
 `**Signed in**: no`; the log shows no model request.
 
 ```bash
-env -u LOGIN_SITE_PASSWORD node dist/cli.js; echo "exit $?"
+env -u LOGIN_SITE_PASSWORD node dist/source/cli.js; echo "exit $?"
 ```
 
-**Expect**: `sign-in needs LOGIN_SITE_PASSWORD, which is not set in the
+**Expect**: `Sign-in needs LOGIN_SITE_PASSWORD, which is not set in the
 environment`; exit 1; no browser started, no report written.
 
 ## Scenario 4 — A page that does not show the sign is not reviewed (FR-008, FR-012)
 
-Add `/no-sign` to the configured pages and run `node dist/cli.js`.
+Add `/no-sign` to the configured pages and run `node dist/source/cli.js`.
 
 **Expect**: the other pages are reviewed; `/no-sign` is under _Failed Pages_
 with `Signed in, but this page did not show the signed-in sign "Sign out"`.
-`node dist/cli.js sign-in` marks the same page with `✗`.
+`node dist/source/cli.js sign-in` marks the same page with `✗`.
 
 ## Scenario 5 — A session lost partway (FR-011)
 
