@@ -175,6 +175,7 @@ export type SessionManifest = {
 		browserServerVersion: string;
 		browserVersion: string;
 		externalDataAllowed: boolean;
+		signedIn?: boolean;
 	};
 
 	/** The run's persona, so the later command need not re-derive it */

@@ -30,6 +30,7 @@ import {
 	narrowBrowserTools,
 } from '../services/mcp-client.js';
 import {MeasurementService} from '../services/measurement.js';
+import {signRunIn} from '../services/sign-in.js';
 import type {ReportBuilder} from '../services/report-builder.js';
 import {assembleReport, captureAllPages, checkBrowser} from './capture-pass.js';
 import {buildEvidence} from './evidence.js';
@@ -308,6 +309,9 @@ export async function runDelegatedAnalysis(
 		// a surprise partway through a page.
 		narrowBrowserTools(await mcpClient.tools());
 
+		// Once, before any page is captured.
+		const signedIn = await signRunIn(run.session, config.signIn);
+
 		const server = browserServerIdentity();
 		reportBuilder.setProvenance({
 			browserServer: server.name,
@@ -315,6 +319,7 @@ export async function runDelegatedAnalysis(
 			browserVersion: preflight.browser.version,
 			externalDataAllowed: config.browser?.allowExternalData ?? false,
 			hostAgent: adapter.id,
+			...(signedIn && {signedIn}),
 		});
 		reportBuilder.setPersona(config.persona);
 
@@ -325,6 +330,7 @@ export async function runDelegatedAnalysis(
 			measurement,
 			config.pages,
 			onPageCaptured,
+			run.session,
 		);
 
 		const evidence: PageEvidence[] = captured.map(item =>

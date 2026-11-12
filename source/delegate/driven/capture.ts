@@ -27,6 +27,7 @@ import {
 	narrowBrowserTools,
 } from '../../services/mcp-client.js';
 import {MeasurementService} from '../../services/measurement.js';
+import {signRunIn} from '../../services/sign-in.js';
 import {captureAllPages, checkBrowser} from '../capture-pass.js';
 import {buildEvidence} from '../evidence.js';
 import {DelegationSession} from '../session.js';
@@ -108,11 +109,16 @@ export async function captureForAgent(
 		// surprise partway through a page.
 		narrowBrowserTools(await mcpClient.tools());
 
+		// Once, before any page is captured.
+		const signedIn = await signRunIn(run.session, config.signIn);
+
 		const measurement = new MeasurementService(mcpClient);
 		const captured = await captureAllPages(
 			mcpClient,
 			measurement,
 			config.pages,
+			undefined,
+			run.session,
 		);
 
 		const evidence: PageEvidence[] = captured.map(item =>
@@ -143,6 +149,7 @@ export async function captureForAgent(
 					browserServerVersion: server.version,
 					browserVersion: preflight.browser.version,
 					externalDataAllowed: config.browser?.allowExternalData ?? false,
+					...(signedIn && {signedIn}),
 				},
 			},
 			parentDirectory === undefined ? {} : {parentDirectory},

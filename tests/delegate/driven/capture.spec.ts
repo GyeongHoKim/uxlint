@@ -13,7 +13,13 @@ import process from 'node:process';
 import test from 'ava';
 import {captureForAgent} from '../../../source/delegate/driven/capture.js';
 import {DelegationSession} from '../../../source/delegate/session.js';
+import type {RunProvenance} from '../../../source/models/analysis.js';
 import type {PreflightVerdict} from '../../../source/models/browser-preflight.js';
+import type {UxLintConfig} from '../../../source/models/config.js';
+import {
+	scriptedBrowser,
+	simulatedLoginSite,
+} from '../../fixtures/sign-in-browser.js';
 import {configFor, fakeBrowser, readyVerdict} from '../helpers.js';
 
 /**
@@ -239,4 +245,172 @@ test('capture sweeps runs nobody came back for', async t => {
 		DelegationSession.loadById(abandoned.id, {parentDirectory: parent}),
 		{message: /No delegation session/},
 	);
+});
+
+// Signing in (011). The browser is the scripted login site rather than
+// `fakeBrowser`, because what is being asserted is the order of the calls the
+// command made and whether the site let it in. That client answers the
+// measurement tools with an error, so every page here is captured and left
+// unmeasured.
+const origin = 'https://app.example.com';
+const password = 'correct-horse-battery';
+
+/**
+ * A configuration over two pages behind the login site's form.
+ *
+ * Literal values only, so no environment variable has to exist for the
+ * description to be usable.
+ *
+ * @param describesSignIn - Whether the configuration carries a `signIn` block
+ * @returns The configuration
+ */
+function gatedConfig(describesSignIn: boolean): UxLintConfig {
+	const urls = [`${origin}/dashboard`, `${origin}/settings`];
+
+	return {
+		mainPageUrl: urls[0]!,
+		subPageUrls: urls.slice(1),
+		pages: urls.map((url, index) => ({
+			url,
+			features: `Features of page ${index + 1}`,
+		})),
+		persona: 'A first-time visitor on a phone',
+		report: {output: 'report.md'},
+		...(describesSignIn && {
+			signIn: {
+				url: `${origin}/login`,
+				steps: [
+					{fill: 'Email', value: 'qa@example.com'},
+					{fill: 'Password', value: password},
+					{click: 'Sign in'},
+				],
+				signedIn: {name: 'Sign out', role: 'button'},
+			},
+		}),
+	};
+}
+
+/**
+ * Run `capture` against the login site, keeping what the browser was asked so
+ * the order of it can be read back.
+ *
+ * @param teardown - Ava's teardown registrar
+ * @param options - What the configuration and the server carry
+ * @param options.describesSignIn - Whether the configuration carries a `signIn` block
+ * @param options.withoutTools - Tools the browser server does not offer
+ * @returns The command's result and what it left behind
+ */
+async function captureAgainstLoginSite(
+	teardown: (fn: () => Promise<void>) => void,
+	options: {describesSignIn: boolean; withoutTools?: readonly string[]},
+) {
+	const {describesSignIn, withoutTools = []} = options;
+	const parent = await parentDirectory(teardown);
+	const site = simulatedLoginSite({origin, password});
+	const browser = scriptedBrowser({...site.script, withoutTools});
+	const messages: string[] = [];
+	let payload: CapturePayload | undefined;
+
+	const exitCode = await captureForAgent(gatedConfig(describesSignIn), {
+		client: browser.client,
+		parentDirectory: parent,
+		async runPreflight() {
+			return readyVerdict;
+		},
+		emitMessage(message: string) {
+			messages.push(message);
+		},
+		emitPayload(value: unknown) {
+			payload = value as CapturePayload;
+		},
+	});
+
+	return {
+		exitCode,
+		parent,
+		site,
+		messages,
+		payload,
+		navigations: browser.calls
+			.filter(call => call.name === 'navigate_page')
+			.map(call => String(call.arguments['url'])),
+	};
+}
+
+test('a configuration that describes a sign-in is signed in once, before any page is captured', async t => {
+	const {site, navigations} = await captureAgainstLoginSite(t.teardown, {
+		describesSignIn: true,
+	});
+
+	t.is(site.signInCount(), 1);
+	t.is(
+		navigations[0],
+		`${origin}/login`,
+		'the form is the first address the browser is sent to',
+	);
+	t.is(
+		navigations.filter(url => url === `${origin}/login`).length,
+		1,
+		'one sign-in covers both pages',
+	);
+
+	// Both pages follow it, so neither was captured as a signed-out visitor.
+	const afterSignIn = navigations.slice(1);
+	t.true(afterSignIn.includes(`${origin}/dashboard`));
+	t.true(afterSignIn.includes(`${origin}/settings`));
+});
+
+test('the run records that it signed in', async t => {
+	const {parent, payload} = await captureAgainstLoginSite(t.teardown, {
+		describesSignIn: true,
+	});
+
+	const session = await DelegationSession.loadById(payload!.run, {
+		parentDirectory: parent,
+	});
+
+	// Read from the run directory because that is all `report` will have: the
+	// command that writes the report never saw the browser sign in.
+	const {provenance}: {provenance?: Partial<RunProvenance>} = session.manifest;
+	t.true(provenance?.signedIn);
+});
+
+// The same startup guarantee `narrowBrowserTools` makes for the analysis: a
+// server that cannot fill a field is found out before a browser is sent
+// anywhere, not at the first step of the form.
+test('a browser server that cannot fill a field stops a signed-in capture at startup', async t => {
+	const {exitCode, messages, navigations, payload} =
+		await captureAgainstLoginSite(t.teardown, {
+			describesSignIn: true,
+			withoutTools: ['fill'],
+		});
+
+	t.is(exitCode, 1);
+	t.regex(messages.join(' '), /sign-in requires/);
+	t.regex(messages.join(' '), /fill/);
+	t.deepEqual(navigations, [], 'nothing is opened on a server that cannot run');
+	t.is(payload, undefined, 'nothing may be printed when nothing was captured');
+});
+
+test('a configuration that describes no sign-in does not need the sign-in tools', async t => {
+	const {exitCode, parent, site, navigations, payload} =
+		await captureAgainstLoginSite(t.teardown, {
+			describesSignIn: false,
+			withoutTools: ['fill', 'click'],
+		});
+
+	t.is(exitCode, 0);
+	t.deepEqual(
+		payload!.pages.map(page => page.pageUrl),
+		[`${origin}/dashboard`, `${origin}/settings`],
+	);
+	t.true(payload!.pages.every(page => page.captured));
+	t.is(site.signInCount(), 0);
+	t.deepEqual(navigations, [`${origin}/dashboard`, `${origin}/settings`]);
+
+	const session = await DelegationSession.loadById(payload!.run, {
+		parentDirectory: parent,
+	});
+	const {provenance}: {provenance?: Partial<RunProvenance>} = session.manifest;
+	t.is(provenance?.signedIn, undefined);
 });

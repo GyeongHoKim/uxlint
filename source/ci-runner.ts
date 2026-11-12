@@ -18,6 +18,7 @@ import {evaluateGate, renderGateVerdict} from './models/gate-result.js';
 import {createAIService, type AnalysisRun} from './services/ai-service.js';
 import {runPreflight as defaultRunPreflight} from './services/browser-preflight.js';
 import {browserServerIdentity} from './services/mcp-client.js';
+import {signRunIn} from './services/sign-in.js';
 
 /**
  * Create a progress callback for page analysis
@@ -198,12 +199,19 @@ export async function runCIAnalysis(
 		logger.debug('AI service initialized');
 
 		const server = browserServerIdentity();
-		reportBuilder.setProvenance({
+		const provenance = {
 			browserServer: server.name,
 			browserServerVersion: server.version,
 			browserVersion: preflight.browser.version,
 			externalDataAllowed: config.browser?.allowExternalData ?? false,
-		});
+		};
+		reportBuilder.setProvenance(provenance);
+
+		// Once, before the first page: every page of the run is reviewed
+		// as the same signed-in visitor.
+		if (await signRunIn(run.session, config.signIn)) {
+			reportBuilder.setProvenance({...provenance, signedIn: true});
+		}
 
 		// Process each page sequentially (not in parallel)
 		// Sequential processing is required because:
