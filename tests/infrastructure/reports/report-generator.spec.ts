@@ -486,3 +486,237 @@ test('a genuine zero score is still reported as zero', t => {
 	t.true(markdown.includes('0/100'));
 	t.false(markdown.includes('not measured (no score reported)'));
 });
+
+// --- a signed-in run in the rendered report --------------------------------
+
+const signedInLine = '**Signed in**: yes — reviewed as a signed-in visitor';
+const signInFailedLine =
+	'**Signed in**: no — sign-in failed; no page was reviewed';
+
+// The reasons a signed-in run records on a page it refused to review.
+const sessionLostReason =
+	'The session was lost and signing in again failed: Sign-in did not finish within 30000 ms';
+const signMissingReason =
+	'Signed in, but this page did not show the signed-in sign "Sign out". The account may not have access to it, or the page may not carry the sign';
+
+const reviewedPageLine = (reachedUrl: string): string =>
+	`**Reviewed page**: ${reachedUrl} (the configured address forwarded here)`;
+
+/** Everything before the first section, which is where provenance lives. */
+const headerOf = (markdown: string): string[] =>
+	markdown.slice(0, markdown.indexOf('## Executive Summary')).split('\n');
+
+/** One page's own section: from its heading to the next heading. */
+const pageSectionOf = (markdown: string, pageUrl: string): string => {
+	const lines = markdown.split('\n');
+	const start = lines.findIndex(
+		line => line.startsWith('### ') && line.endsWith(pageUrl),
+	);
+
+	if (start === -1) {
+		return '';
+	}
+
+	const length = lines.slice(start + 1).findIndex(line => line.startsWith('#'));
+
+	return lines
+		.slice(start, length === -1 ? undefined : start + 1 + length)
+		.join('\n');
+};
+
+/**
+ * A report with a bit of everything in it, so "nothing else changed" is
+ * asserted against more than an empty document.
+ */
+const mixedReport = (): UxReport => {
+	const findings = [measuredFinding(), judgedFinding()];
+	const report = buildReport([
+		buildPage({
+			pageUrl: 'https://example.com/login',
+			findings,
+			measurement: measuredPage(),
+		}),
+		buildPage({pageUrl: 'https://example.com/cut', status: 'partial'}),
+		buildPage({
+			pageUrl: 'https://example.com/broken',
+			status: 'failed',
+			error: 'navigation timed out',
+		}),
+	]);
+	report.prioritizedFindings = findings;
+	report.metadata.totalFindings = findings.length;
+	return report;
+};
+
+test('a signed-in run says so in the header', t => {
+	const report = buildReport([buildPage({})]);
+	report.metadata.tooling.signedIn = true;
+
+	const header = headerOf(generateMarkdownReport(report));
+
+	t.true(
+		header.includes(signedInLine),
+		'the header must carry the signed-in line on a line of its own',
+	);
+	t.false(header.includes(signInFailedLine));
+});
+
+test('a run whose sign-in failed says no page was reviewed', t => {
+	const report = buildReport([]);
+	report.metadata.tooling.signedIn = false;
+
+	const header = headerOf(generateMarkdownReport(report));
+
+	t.true(
+		header.includes(signInFailedLine),
+		'a failed sign-in is a different fact from no sign-in configured',
+	);
+	t.false(header.includes(signedInLine));
+});
+
+test('a run with no sign-in configured says nothing about signing in', t => {
+	// Absent is not false: a report from a configuration without a signIn block
+	// must not start claiming a sign-in was attempted.
+	const markdown = generateMarkdownReport(buildReport([buildPage({})]));
+
+	t.false(markdown.includes('**Signed in**'));
+});
+
+test('the signed-in line never names the account', t => {
+	// The generator is never handed the account, but it is handed the persona,
+	// and a persona can mention one. The line states a fact about the run and
+	// borrows nothing from the text around it.
+	const report = buildReport([buildPage({})]);
+	report.metadata.persona = 'A QA engineer who signs in as qa@example.com';
+	report.metadata.tooling.signedIn = true;
+
+	const lines = generateMarkdownReport(report)
+		.split('\n')
+		.filter(line => line.startsWith('**Signed in**'));
+
+	t.deepEqual(lines, [signedInLine]);
+	t.notRegex(lines.join('\n'), /@/);
+});
+
+test('a forwarded page names the address actually reviewed', t => {
+	// FR-014. The line belongs to the page it describes: a reader of one
+	// section must not have to guess which page was forwarded.
+	const markdown = generateMarkdownReport(
+		buildReport([
+			buildPage({
+				pageUrl: 'https://example.com/start',
+				reachedUrl: 'https://example.com/dashboard',
+			}),
+			buildPage({pageUrl: 'https://example.com/settings'}),
+		]),
+	);
+
+	t.true(
+		pageSectionOf(markdown, 'https://example.com/start')
+			.split('\n')
+			.includes(reviewedPageLine('https://example.com/dashboard')),
+	);
+	t.false(
+		pageSectionOf(markdown, 'https://example.com/settings').includes(
+			'**Reviewed page**',
+		),
+		'a page reviewed where it was configured carries no such line',
+	);
+	t.is(markdown.match(/\*\*Reviewed page\*\*/g)?.length, 1);
+});
+
+test('a page reviewed at its configured address has no reviewed-page line', t => {
+	const markdown = generateMarkdownReport(
+		buildReport([buildPage({pageUrl: 'https://example.com/settings'})]),
+	);
+
+	t.false(markdown.includes('**Reviewed page**'));
+});
+
+test('a refused page is listed under failed pages with its reason', t => {
+	// A refused page is an ordinary failed page, so the existing section
+	// carries it. Asserted as whole lines so a truncated reason cannot pass.
+	const markdown = generateMarkdownReport(
+		buildReport([
+			buildPage({pageUrl: 'https://example.com/ok'}),
+			buildPage({
+				pageUrl: 'https://example.com/account',
+				status: 'failed',
+				error: sessionLostReason,
+			}),
+			buildPage({
+				pageUrl: 'https://example.com/editor',
+				status: 'failed',
+				error: signMissingReason,
+			}),
+		]),
+	);
+
+	const failedSection = markdown
+		.slice(
+			markdown.indexOf('### Failed Pages'),
+			markdown.indexOf('## Prioritized Findings'),
+		)
+		.split('\n');
+
+	t.is(failedSection[0], '### Failed Pages');
+	t.true(
+		failedSection.includes(
+			`- ❌ https://example.com/account — ${sessionLostReason}`,
+		),
+	);
+	t.true(
+		failedSection.includes(
+			`- ❌ https://example.com/editor — ${signMissingReason}`,
+		),
+	);
+	t.regex(markdown, /\*\*Failed Pages\*\*: 2/);
+});
+
+test('a report with neither field mentions neither', t => {
+	// Existing reports must not change. No snapshot is stored for this: the two
+	// tests below pin that each field adds its one line and nothing else, so a
+	// report without the fields is the report from before the feature.
+	const markdown = generateMarkdownReport(mixedReport());
+
+	t.false(markdown.includes('**Signed in**'));
+	t.false(markdown.includes('**Reviewed page**'));
+});
+
+test('signing in adds one header line and changes nothing else', t => {
+	const plain = generateMarkdownReport(mixedReport()).split('\n');
+
+	const report = mixedReport();
+	report.metadata.tooling.signedIn = true;
+	const signedIn = generateMarkdownReport(report).split('\n');
+
+	t.is(signedIn.length, plain.length + 1, 'exactly one line is added');
+	t.deepEqual(
+		signedIn.filter(line => line !== signedInLine),
+		plain,
+		'with the signed-in line removed the report is the one without sign-in',
+	);
+});
+
+test('a forwarded page adds one line and changes nothing else', t => {
+	// Blank lines are set aside: the lines of a page section are separated by
+	// one, so the new line may bring its own separator. Every line that says
+	// something must be untouched.
+	const said = (markdown: string): string[] =>
+		markdown.split('\n').filter(line => line.trim() !== '');
+
+	const plain = said(generateMarkdownReport(mixedReport()));
+
+	const report = mixedReport();
+	report.pages[0]!.reachedUrl = 'https://example.com/dashboard';
+	const forwarded = said(generateMarkdownReport(report));
+
+	const added = reviewedPageLine('https://example.com/dashboard');
+
+	t.is(forwarded.length, plain.length + 1, 'exactly one line is added');
+	t.deepEqual(
+		forwarded.filter(line => line !== added),
+		plain,
+		'with the reviewed-page line removed the report is the one without it',
+	);
+});

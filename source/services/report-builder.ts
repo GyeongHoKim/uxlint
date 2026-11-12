@@ -301,6 +301,39 @@ export class ReportBuilder {
 	}
 
 	/**
+	 * Record every configured page as failed for one shared reason.
+	 *
+	 * For a run that could not sign in: no page was reached, and a report that
+	 * listed none of them would read as a run with nothing to review.
+	 *
+	 * Written directly rather than through `failCurrentPage`, which treats a
+	 * URL it has already settled as the same page and would record a page
+	 * configured twice only once.
+	 *
+	 * @param pages - The configured pages, in order
+	 * @param reason - Why none of them was reviewed
+	 */
+	failEveryPage(
+		pages: ReadonlyArray<{url: string; features: string}>,
+		reason: string,
+	): void {
+		this.currentPageAnalysis = undefined;
+
+		for (const page of pages) {
+			this.allAnalyses.push({
+				pageUrl: page.url,
+				features: page.features,
+				snapshot: '',
+				findings: [],
+				analysisTimestamp: Date.now(),
+				status: 'failed',
+				measurement: noMeasurement('page-not-loaded'),
+				error: reason,
+			});
+		}
+	}
+
+	/**
 	 * Set persona for the report
 	 *
 	 * @param persona - Target persona

@@ -153,6 +153,28 @@ test('without a session a capture is returned as the browser gave it', async t =
 	t.deepEqual(result, {snapshot: loginForm, stage: 'analysable'});
 });
 
+test('without a session a page that forwards elsewhere says where it was captured', async t => {
+	// FR-014: every run reports a redirect, signed in or not, and changes
+	// nothing else about the page because of it.
+	const {client} = scriptedBrowser({snapshot: () => dashboard});
+
+	const result = await capturePage(client, page('/home'));
+
+	t.deepEqual(result, {
+		snapshot: dashboard,
+		stage: 'analysable',
+		reachedUrl: `${origin}/dashboard`,
+	});
+});
+
+test('without a session a trailing slash is not a different address', async t => {
+	const {client} = scriptedBrowser({snapshot: () => dashboard});
+
+	const result = await capturePage(client, page('/dashboard/'));
+
+	t.false(Object.hasOwn(result, 'reachedUrl'));
+});
+
 // --- captureAllPages --------------------------------------------------------
 
 test('a refused page is not measured, and the pages around it are', async t => {

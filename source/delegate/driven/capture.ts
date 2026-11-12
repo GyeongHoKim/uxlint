@@ -27,7 +27,12 @@ import {
 	narrowBrowserTools,
 } from '../../services/mcp-client.js';
 import {MeasurementService} from '../../services/measurement.js';
-import {signRunIn} from '../../services/sign-in.js';
+import {
+	checkSignInSecrets,
+	reportFailedSignIn,
+	SignInFailed,
+	signRunIn,
+} from '../../services/sign-in.js';
 import {captureAllPages, checkBrowser} from '../capture-pass.js';
 import {buildEvidence} from '../evidence.js';
 import {DelegationSession} from '../session.js';
@@ -88,6 +93,14 @@ export async function captureForAgent(
 		totalPages: config.pages.length,
 	});
 
+	// Known without starting anything, so said before anything is looked for.
+	const secretProblem = checkSignInSecrets(config);
+	if (secretProblem !== undefined) {
+		logger.error('Sign-in secrets unusable', {message: secretProblem});
+		emitMessage(`uxlint: ${secretProblem}`);
+		return 1;
+	}
+
 	// Swept here and nowhere else. This is the one command always run before a
 	// review and never during one, which makes it the only safe moment to delete
 	// a run somebody else may still be working through.
@@ -99,6 +112,14 @@ export async function captureForAgent(
 	}
 
 	let run: Awaited<ReturnType<typeof createDelegatedRun>> | undefined;
+
+	const server = browserServerIdentity();
+	const provenance = {
+		browserServer: server.name,
+		browserServerVersion: server.version,
+		browserVersion: preflight.browser.version,
+		externalDataAllowed: config.browser?.allowExternalData ?? false,
+	};
 
 	try {
 		run = await createDelegatedRun(config, preflight, {client});
@@ -133,7 +154,6 @@ export async function captureForAgent(
 			}),
 		);
 
-		const server = browserServerIdentity();
 		const session = await DelegationSession.create(
 			{
 				// No agent launched this, and none will be. The field records the
@@ -144,13 +164,7 @@ export async function captureForAgent(
 				pages: evidence,
 				captured,
 				persona: config.persona,
-				provenance: {
-					browserServer: server.name,
-					browserServerVersion: server.version,
-					browserVersion: preflight.browser.version,
-					externalDataAllowed: config.browser?.allowExternalData ?? false,
-					...(signedIn && {signedIn}),
-				},
+				provenance: {...provenance, ...(signedIn && {signedIn})},
 			},
 			parentDirectory === undefined ? {} : {parentDirectory},
 		);
@@ -179,6 +193,21 @@ export async function captureForAgent(
 			error: reason,
 			stack: error instanceof Error ? error.stack : undefined,
 		});
+
+		if (error instanceof SignInFailed && run) {
+			// There is no evidence to come back for, so no run is left behind
+			// and no later command will write a report: this one does, so the
+			// pages that went unreviewed are listed somewhere.
+			await reportFailedSignIn(
+				run.reportBuilder,
+				config,
+				{...provenance, hostAgent: agentDrivenRoute},
+				reason,
+			);
+			emitMessage(`uxlint: sign-in failed — ${reason}`);
+			return 1;
+		}
+
 		emitMessage(`uxlint: ${reason}`);
 		return 1;
 	} finally {

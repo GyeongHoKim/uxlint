@@ -30,7 +30,11 @@ import {
 } from '../models/browser-preflight.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import type {PageMeasurement} from '../models/measurement.js';
-import type {NotReachedReason} from '../models/sign-in.js';
+import {
+	reachedUrlOf,
+	sameAddress,
+	type NotReachedReason,
+} from '../models/sign-in.js';
 import {readToolOutcome} from '../models/tool-output.js';
 import type {runPreflight as defaultRunPreflight} from '../services/browser-preflight.js';
 import {
@@ -129,7 +133,15 @@ export async function capturePage(
 	}
 
 	if (!session) {
-		return {snapshot: capture.text, stage};
+		// A page that forwards is reported as one on every run, not only on
+		// those that sign in.
+		const reachedUrl = reachedUrlOf(capture.text);
+		return {
+			snapshot: capture.text,
+			stage,
+			...(reachedUrl !== undefined &&
+				!sameAddress(reachedUrl, page.url) && {reachedUrl}),
+		};
 	}
 
 	// A signed-in run reviews only what the session says a signed-in visitor

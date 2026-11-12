@@ -18,7 +18,11 @@ import {evaluateGate, renderGateVerdict} from './models/gate-result.js';
 import {createAIService, type AnalysisRun} from './services/ai-service.js';
 import {runPreflight as defaultRunPreflight} from './services/browser-preflight.js';
 import {browserServerIdentity} from './services/mcp-client.js';
-import {signRunIn} from './services/sign-in.js';
+import {
+	checkSignInSecrets,
+	settleRunFailure,
+	signRunIn,
+} from './services/sign-in.js';
 
 /**
  * Create a progress callback for page analysis
@@ -179,6 +183,15 @@ export async function runCIAnalysis(
 		reportOutput: config.report.output,
 	});
 
+	// A secret the sign-in names but the environment lacks is known without
+	// starting anything, so it is said before a browser is even looked for.
+	const secretProblem = checkSignInSecrets(config);
+	if (secretProblem !== undefined) {
+		logger.error('Sign-in secrets unusable', {message: secretProblem});
+		emitVerdict(`uxlint: ${secretProblem}`);
+		return 1;
+	}
+
 	// Preflight runs before the AI service is created, so a failure here costs
 	// no model usage at all (SC-003).
 	const preflight = await checkBrowser(config, runPreflight, emitVerdict);
@@ -188,7 +201,15 @@ export async function runCIAnalysis(
 
 	// Held outside the try so the finally closes it on every path.
 	let run: AnalysisRun | undefined;
-	let failure: string | undefined;
+	let failure = 'analysis failed — Unknown error';
+
+	const server = browserServerIdentity();
+	const provenance = {
+		browserServer: server.name,
+		browserServerVersion: server.version,
+		browserVersion: preflight.browser.version,
+		externalDataAllowed: config.browser?.allowExternalData ?? false,
+	};
 
 	try {
 		// Assemble the run. Provenance lands on THIS run's builder -- there is
@@ -198,13 +219,6 @@ export async function runCIAnalysis(
 		const {aiService, reportBuilder} = run;
 		logger.debug('AI service initialized');
 
-		const server = browserServerIdentity();
-		const provenance = {
-			browserServer: server.name,
-			browserServerVersion: server.version,
-			browserVersion: preflight.browser.version,
-			externalDataAllowed: config.browser?.allowExternalData ?? false,
-		};
 		reportBuilder.setProvenance(provenance);
 
 		// Once, before the first page: every page of the run is reviewed
@@ -308,7 +322,10 @@ export async function runCIAnalysis(
 			elapsedMs: Date.now() - startTime,
 		});
 
-		failure = errorMessage;
+		// After a failed sign-in no page was reviewed and none will be, with
+		// or without thresholds: the report says which pages that leaves, and
+		// the gate has nothing to evaluate.
+		failure = await settleRunFailure(error, config, provenance, run);
 	} finally {
 		// Only reached when the happy path did not already close it.
 		if (run) {
@@ -329,6 +346,6 @@ export async function runCIAnalysis(
 	// Reached only on failure; the success path returns from inside the try.
 	// Emitted here rather than in the catch so the transport is already down.
 	// See console-output.ts.
-	emitVerdict(`uxlint: analysis failed — ${failure ?? 'Unknown error'}`);
+	emitVerdict(`uxlint: ${failure}`);
 	return 1;
 }

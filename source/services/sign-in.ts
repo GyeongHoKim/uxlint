@@ -10,6 +10,7 @@
 
 import process from 'node:process';
 import {logger} from '../infrastructure/logger.js';
+import type {RunProvenance} from '../models/analysis.js';
 import type {UxLintConfig} from '../models/config.js';
 import {
 	createRedactor,
@@ -38,6 +39,7 @@ import {
 } from '../models/sign-in.js';
 import {readToolOutcome, type ToolOutcome} from '../models/tool-output.js';
 import {DeadlineExpired, withDeadline} from './deadline.js';
+import type {ReportBuilder} from './report-builder.js';
 
 /** Bound on one sign-in when the description gives none. */
 export const defaultSignInTimeoutMs = 30_000;
@@ -417,12 +419,25 @@ export function createSignedInSession(
 }
 
 /**
+ * Raised when a run could not sign in.
+ *
+ * Its own class because every entry point answers it differently from any
+ * other failure: no page is attempted, and the report still gets written.
+ */
+export class SignInFailed extends Error {
+	constructor(reason: string) {
+		super(reason);
+		this.name = 'SignInFailed';
+	}
+}
+
+/**
  * Sign a run in before its first page, when it has a session.
  *
  * @param session - The run's session, if its configuration describes a sign-in
  * @param description - That description, for wording a failure
  * @returns True when the run signed in, false when it has no session
- * @throws With the failure's reason when signing in failed
+ * @throws SignInFailed with the failure's reason when signing in failed
  */
 export async function signRunIn(
 	session: SignedInSession | undefined,
@@ -434,7 +449,7 @@ export async function signRunIn(
 
 	const outcome = await session.establish();
 	if (outcome.kind === 'failed') {
-		throw new Error(
+		throw new SignInFailed(
 			description
 				? describeSignInFailure(outcome.failure, description)
 				: `Sign-in failed (${outcome.failure.kind})`,
@@ -442,6 +457,67 @@ export async function signRunIn(
 	}
 
 	return true;
+}
+
+/**
+ * Write the report of a run that could not sign in.
+ *
+ * No page was reviewed, so every configured page is recorded as failed with
+ * the reason: without that, a pipeline that failed would leave nothing saying
+ * which pages went unreviewed. A report that cannot be written is logged and
+ * not raised, because the sign-in failure is what the caller has to report.
+ *
+ * @param builder - The run's report accumulator
+ * @param config - The run's configuration
+ * @param provenance - The tooling behind the run
+ * @param reason - Why signing in failed
+ */
+export async function reportFailedSignIn(
+	builder: ReportBuilder,
+	config: UxLintConfig,
+	provenance: RunProvenance,
+	reason: string,
+): Promise<void> {
+	builder.setProvenance({...provenance, signedIn: false});
+	builder.setPersona(config.persona);
+	builder.failEveryPage(config.pages, reason);
+
+	try {
+		await builder.saveReport(config.report.output);
+	} catch (error) {
+		logger.error('The report of a failed sign-in could not be written', {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+/**
+ * Word a run's failure for the terminal, writing the report first when the
+ * failure was the sign-in.
+ *
+ * A failed sign-in is reported under its own name and still leaves a report;
+ * anything else is a failed analysis and leaves none.
+ *
+ * @param error - What ended the run
+ * @param config - The run's configuration
+ * @param provenance - The tooling behind the run
+ * @param run - The run, when it got as far as being assembled
+ * @returns The message, without the `uxlint:` prefix
+ */
+export async function settleRunFailure(
+	error: unknown,
+	config: UxLintConfig,
+	provenance: RunProvenance,
+	run: {reportBuilder: ReportBuilder} | undefined,
+): Promise<string> {
+	const reason = error instanceof Error ? error.message : 'Unknown error';
+
+	if (error instanceof SignInFailed && run) {
+		await reportFailedSignIn(run.reportBuilder, config, provenance, reason);
+		return `sign-in failed — ${reason}`;
+	}
+
+	return `analysis failed — ${reason}`;
 }
 
 /**
