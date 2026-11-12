@@ -24,6 +24,7 @@ Designed for frontend engineers who want quick, actionable UX feedback aligned w
 - Page-by-page evaluation guided by your freeform feature descriptions
 - Accessibility violations **measured**, not guessed, with the rule that caught each one
 - Core Web Vitals measured per page, so a report can be compared with an earlier one
+- Pages behind a login reviewed headless, with the password kept out of every output
 - Every finding labelled as measured or as AI judgement, so you know what you can dispute
 - Actionable recommendations prioritized for frontend teams
 - Single command execution with zero boilerplate beyond one config file
@@ -198,6 +199,7 @@ uxlint
 | `uxlint`               | ✅ Yes              | Runs analysis in CI mode (headless) |
 | `uxlint`               | ❌ No               | Shows error and exits               |
 | `uxlint --delegate`    | ✅ Yes              | Runs analysis without a model key   |
+| `uxlint sign-in`       | ✅ Yes              | Checks the configured sign-in only  |
 
 ## Delegate mode
 
@@ -315,6 +317,152 @@ access anyway — with an extra process in the middle. Keep using `uxlint` with
 The judgement server the launched agent connects to. It is started by
 `uxlint --delegate`, not by you, and is documented only so that a process you
 see in a list is not a mystery.
+
+## Pages behind a login
+
+Most of a product sits behind a sign-in. Add a `signIn` block and uxlint signs
+in once, before the first page, and reviews every configured page as that
+signed-in visitor — headless, with no person present, in every mode (`uxlint`,
+`uxlint --interactive`, `uxlint --delegate` and `uxlint delegate capture`).
+
+```yaml
+signIn:
+  url: https://app.example.com/login
+  steps:
+    - fill: Email
+      value: qa@example.com
+    - fill: Password
+      secret: UXLINT_QA_PASSWORD
+    - click: Sign in
+  signedIn:
+    name: Sign out
+    role: button
+  timeoutMs: 30000
+```
+
+| Key             | Required | Meaning                                                                        |
+| --------------- | -------- | ------------------------------------------------------------------------------ |
+| `url`           | yes      | Absolute address where sign-in starts. Opened before the first step.           |
+| `steps`         | yes      | Ordered list, at least one. Carried out one at a time.                         |
+| `signedIn.name` | yes      | Accessible name of an element shown only to a signed-in visitor.               |
+| `signedIn.role` | no       | Narrows the sign to one role (`button`, `link`, …).                            |
+| `timeoutMs`     | no       | Bound on one sign-in, from opening `url` to finding the sign. Default `30000`. |
+
+The block is optional. Without it, a run behaves exactly as it did before, and
+a page that redirects to a login form is reviewed as the login form.
+
+### Steps
+
+Each step is exactly one of two things.
+
+- **`fill`** types into a field, named by its accessible name. It needs
+  exactly one of `value` (a literal, for things that are not secret) or
+  `secret` (the **name** of an environment variable). Without `role`, the
+  target must be a `textbox`, `searchbox` or `combobox`.
+- **`click`** presses a control, named by its accessible name. Without `role`,
+  the target must be a `button` or a `link`.
+
+Before each step the page is captured afresh. The target is the element whose
+accessible name equals the step's text once both are trimmed and their inner
+whitespace collapsed; the comparison is case-sensitive. No such element fails
+the step as `not-found`; more than one fails it as `ambiguous` — add `role` to
+narrow it. A step waits at most 5 seconds for its target, and the whole
+sign-in is bounded by `timeoutMs`.
+
+### Secrets
+
+- `secret` names an environment variable. Its value is read when the run
+  starts, from the process environment, which includes a local `.env` file —
+  the same mechanism the model provider keys use. In a pipeline, supply it as
+  a pipeline secret.
+- The configuration file never holds a secret value. **A password written
+  under `value:` is treated as an ordinary literal and is not redacted.**
+- A named variable that is unset stops the run before the browser starts and
+  names the variable. So does an empty value, or one shorter than four
+  characters: it could not be redacted without mangling ordinary text.
+- A value read through `secret` is kept out of everything the run produces:
+  requests to the model provider, evidence handed to a delegated agent, run
+  directories, the report, the log files and terminal output. Where your
+  product itself displays the value, the reader sees `[redacted]`.
+- With `uxlint --delegate`, the coding agent uxlint starts does not inherit the
+  variables `secret` names. With `uxlint delegate capture` the agent runs
+  uxlint itself, so the secret is necessarily in that agent's own environment:
+  uxlint keeps it out of everything it hands back, but cannot hide it from a
+  process that already holds it. A `.env` file in the project is likewise
+  readable by any agent working there.
+- Not covered: a secret your product displays in an encoding other than
+  literal, URL-encoded, JSON-escaped or HTML-escaped. And the content of
+  signed-in pages in general is sent for judgement exactly as public page
+  content already is — review with a test account, not a real customer's.
+
+The session lives only in the browser's throwaway profile, which is discarded
+when the browser closes. uxlint writes no cookie or token to disk.
+
+### The signed-in sign
+
+A visitor counts as signed in when the current page has an element whose
+accessible name equals `signedIn.name`, and whose role equals `signedIn.role`
+when one is given. It is checked once after the steps complete and again on
+every configured page before that page is reviewed. It is the only test: a run
+never infers the signed-in state from an address. Choose something every
+configured page shows, such as the account menu or a _Sign out_ control.
+
+### Checking a sign-in: `uxlint sign-in`
+
+```bash
+uxlint sign-in
+```
+
+Signs in and opens each configured page, applying the same test a review
+would. It calls no model, measures nothing, writes no report, and needs no
+model provider credential.
+
+```text
+uxlint: signed in — found button "Sign out" after 3 steps (1.2 s)
+  ✓ https://app.example.com/dashboard
+  ✗ https://app.example.com/editor — signed in, but this page did not show the signed-in sign "Sign out"
+  → https://app.example.com/home — reached https://app.example.com/dashboard
+```
+
+A `→` line is informational: the page showed the sign, at a different address
+than configured. When sign-in itself fails, only the failure is printed, with
+the step and what the page showed:
+
+```text
+uxlint: sign-in failed at step 2 (fill "Password"): not-found. The page showed: "Sign in" at https://app.example.com/login/verify
+```
+
+It exits `0` when sign-in succeeded and every page showed the sign, and `1`
+otherwise.
+
+### When sign-in fails, and when a page is not reached
+
+- **Sign-in fails**: no page is judged or measured. A report is still written,
+  with every page under _Failed Pages_ and the reason, and the terminal says
+  `uxlint: sign-in failed — {reason}`. **The run exits `1` whether or not
+  `thresholds` is configured.**
+- **A page does not show the sign**: uxlint signs in again, once. If the sign
+  is then there, the page is reviewed as usual. If signing in again fails, the
+  page is `failed` as a lost session; if it succeeds and the sign is still
+  missing, the page is `failed` because it does not carry the sign. Either
+  way the run continues with the next page, and nothing of the refused page is
+  sent to a model or an agent.
+- Pages failed this way are ordinary failed pages to the gate: counted by
+  `failOnFailedPage` and named with their reason.
+
+The report says whether the run was signed in (`**Signed in**: yes — …` or
+`no — …`), and never names the account. Separately, and on every run with or
+without a `signIn` block, a page whose configured address forwarded elsewhere
+carries a `**Reviewed page**` line naming the address actually reviewed.
+
+### What the block cannot express
+
+- A step that needs a person: one-time codes, CAPTCHA, an identity-provider
+  prompt. The run reports a sign-in failure.
+- A session supplied ready-made (a cookie, a token), or a script.
+- More than one account, or pages reviewed signed out in the same run. Review
+  those with a configuration that has no `signIn` block. A `signIn` key on an
+  entry of `pages` is rejected.
 
 ## Authentication
 
@@ -514,6 +662,11 @@ Required fields are marked as required. All text fields accept natural language.
   - `output` (string, required): File path where the report will be written (e.g., `./ux-report.md`).
 - `thresholds` (object, optional): CI gate limits. See [Failing CI on UX regressions](#failing-ci-on-ux-regressions).
 - `browser` (object, optional): Browser settings. See [Browser requirements](#browser-requirements).
+- `signIn` (object, optional): Signs the run in before the first page. See [Pages behind a login](#pages-behind-a-login).
+  - `url` (string, required): Where sign-in starts.
+  - `steps` (array, required): `fill` and `click` steps, in order.
+  - `signedIn` (object, required): `name`, and optionally `role`, of an element only a signed-in visitor sees.
+  - `timeoutMs` (number, optional): Bound on one sign-in in milliseconds (default `30000`).
 - `analysis` (object, optional): Analysis settings. See [Analysis settings](#analysis-settings).
   - `pageTimeLimitMs` (number, optional): Per-page wall-clock limit in milliseconds (default `600000`).
 

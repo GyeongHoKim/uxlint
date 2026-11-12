@@ -139,6 +139,10 @@ needs more than an edit to one adapter:
 - Page status is decided by what arrived at the judgement server, never by the
   host agent's exit code or its own account of itself.
 
+A signed-in review (`signIn` in the configuration) changes none of this:
+sign-in is carried out by uxlint during the capture pass and never by the host
+agent, which is told neither how the run signed in nor any secret it used.
+
 The adapters are also exercised against fake `claude`, `codex` and `agent`
 executables (`tests/fixtures/fake-hosts/`) that parse the
 command line the way each CLI's documentation says it does, start the real
