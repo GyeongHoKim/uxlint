@@ -309,6 +309,9 @@ export type UxReport = {
  */
 const analysisStages = [
 	'idle',
+	// Before the first page, when the configuration describes a sign-in. It
+	// has a name for the same reason measuring has one: seconds pass in it.
+	'signing-in',
 	'navigating',
 	'capturing',
 	// Between capture and judgement, because that is when it happens -- and it

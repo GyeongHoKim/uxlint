@@ -473,3 +473,44 @@ test('a judged finding carrying a rule is refused', t => {
 		{message: /must not carry a ruleId/},
 	);
 });
+
+// --- the address a page was reached at (011) --------------------------------
+
+test('a page reviewed at another address records that address', t => {
+	const {builder} = createBuilder();
+	builder.initializePageAnalysis('https://example.com/home', 'features');
+	builder.setReachedUrl('https://example.com/dashboard');
+
+	const analysis = builder.completePageAnalysis();
+
+	t.is(analysis.reachedUrl, 'https://example.com/dashboard');
+});
+
+test('a failed page keeps the address it was reached at', t => {
+	const {builder} = createBuilder();
+	const page = {url: 'https://example.com/home', features: 'features'};
+	builder.initializePageAnalysis(page.url, page.features);
+	builder.setReachedUrl('https://example.com/dashboard');
+
+	const analysis = builder.failCurrentPage('the session was lost', page);
+
+	t.is(analysis.reachedUrl, 'https://example.com/dashboard');
+});
+
+test('a page reviewed where it was asked for carries no second address', t => {
+	const {builder} = createBuilder();
+	builder.initializePageAnalysis('https://example.com/home', 'features');
+
+	t.false(Object.hasOwn(builder.completePageAnalysis(), 'reachedUrl'));
+});
+
+test('an address cannot be recorded before a page is open', t => {
+	const {builder} = createBuilder();
+
+	t.throws(
+		() => {
+			builder.setReachedUrl('https://example.com/dashboard');
+		},
+		{message: /No page analysis initialized/},
+	);
+});

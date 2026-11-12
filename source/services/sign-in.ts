@@ -11,7 +11,11 @@
 import process from 'node:process';
 import {logger} from '../infrastructure/logger.js';
 import type {UxLintConfig} from '../models/config.js';
-import {resolveSecrets, type Redactor} from '../models/secret-redaction.js';
+import {
+	createRedactor,
+	resolveSecrets,
+	type Redactor,
+} from '../models/secret-redaction.js';
 import {
 	clickableRoles,
 	describeNotReached,
@@ -258,13 +262,21 @@ export class SignedInSession {
 			});
 		}
 
-		const failure = await this.carryOutFrom(0, signal);
+		const shows = (snapshot: string) =>
+			hasSignedInSign(snapshot, this.description.signedIn);
+
+		// A product may send a visitor who is already signed in away from its
+		// login page. There is then no form to fill, and nothing to do.
+		const arrival = await this.capture();
+		if (shows(arrival)) {
+			return {kind: 'signed-in'};
+		}
+
+		const failure = await this.carryOutFrom(0, signal, arrival);
 		if (failure) {
 			return this.failed(failure);
 		}
 
-		const shows = (snapshot: string) =>
-			hasSignedInSign(snapshot, this.description.signedIn);
 		const last = await this.recheck(await this.capture(), shows, signal);
 
 		return shows(last)
@@ -283,6 +295,7 @@ export class SignedInSession {
 	private async carryOutFrom(
 		stepIndex: number,
 		signal: AbortSignal,
+		arrival?: string,
 	): Promise<SignInFailure | undefined> {
 		const step = this.description.steps[stepIndex];
 
@@ -293,7 +306,7 @@ export class SignedInSession {
 		}
 
 		return (
-			(await this.carryOut(step, stepIndex, signal)) ??
+			(await this.carryOut(step, stepIndex, signal, arrival)) ??
 			this.carryOutFrom(stepIndex + 1, signal)
 		);
 	}
@@ -307,6 +320,7 @@ export class SignedInSession {
 		step: SignInStep,
 		stepIndex: number,
 		signal: AbortSignal,
+		arrival?: string,
 	): Promise<SignInFailure | undefined> {
 		const filling = 'fill' in step;
 		const target = {
@@ -318,8 +332,10 @@ export class SignedInSession {
 
 		// Only an absent target is waited for: a form can render late, but two
 		// matching elements do not become one by waiting.
+		// The first step reads the capture sign-in arrived on; every later one
+		// captures afresh, because the step before it changed the page.
 		const snapshot = await this.recheck(
-			await this.capture(),
+			arrival ?? (await this.capture()),
 			candidate => resolve(candidate).kind !== 'not-found',
 			signal,
 		);
@@ -363,6 +379,69 @@ export class SignedInSession {
 
 		return value;
 	}
+}
+
+/**
+ * Build the session a configuration's sign-in describes.
+ *
+ * Signs nothing in: that is a step of the run, with its own place in the
+ * order of things.
+ *
+ * @param description - The configuration's sign-in description
+ * @param client - The run's browser client
+ * @param environment - Where secrets are read from
+ * @returns The session
+ * @throws When a named secret is missing or unusable
+ */
+export function createSignedInSession(
+	description: SignInDescription,
+	client: SignInBrowser,
+	environment: Readonly<Record<string, string | undefined>> = process.env,
+): SignedInSession {
+	const resolved = resolveSecrets(description, environment);
+
+	if (resolved.kind === 'missing') {
+		throw new Error(missingSecretText(resolved.names));
+	}
+
+	if (resolved.kind === 'unusable') {
+		throw new Error(unusableSecretText(resolved.name, resolved.reason));
+	}
+
+	return new SignedInSession({
+		client,
+		description,
+		secrets: resolved.values,
+		redact: createRedactor(resolved.values.values()),
+	});
+}
+
+/**
+ * Sign a run in before its first page, when it has a session.
+ *
+ * @param session - The run's session, if its configuration describes a sign-in
+ * @param description - That description, for wording a failure
+ * @returns True when the run signed in, false when it has no session
+ * @throws With the failure's reason when signing in failed
+ */
+export async function signRunIn(
+	session: SignedInSession | undefined,
+	description: SignInDescription | undefined,
+): Promise<boolean> {
+	if (!session) {
+		return false;
+	}
+
+	const outcome = await session.establish();
+	if (outcome.kind === 'failed') {
+		throw new Error(
+			description
+				? describeSignInFailure(outcome.failure, description)
+				: `Sign-in failed (${outcome.failure.kind})`,
+		);
+	}
+
+	return true;
 }
 
 /**

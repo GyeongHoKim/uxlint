@@ -13,11 +13,15 @@ import {
 	useAnalysis,
 	type UseAnalysisResult,
 } from '../../source/hooks/use-analysis.js';
-import type {AnalysisStage} from '../../source/models/analysis.js';
+import type {
+	AnalysisStage,
+	AnalysisState,
+} from '../../source/models/analysis.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import type {LLMResponseData} from '../../source/models/llm-response.js';
 import {AIService} from '../../source/services/ai-service.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
+import type {SignedInSession} from '../../source/services/sign-in.js';
 import {createMockMCPClient} from '../utils.js';
 
 /**
@@ -476,6 +480,203 @@ test.serial(
 			/transport teardown exploded/,
 			'the close failure itself is what reaches the UI state',
 		);
+
+		sandbox.restore();
+	},
+);
+
+/**
+ * Signing in (011). A run whose configuration describes a sign-in carries a
+ * session, and the hook establishes it once before any page is analysed,
+ * publishing a stage of its own while it does. A run without one must be
+ * left exactly as it was.
+ */
+const threePagesConfig: UxLintConfig = {
+	mainPageUrl: 'https://example.com',
+	subPageUrls: ['https://example.com/billing', 'https://example.com/team'],
+	pages: [
+		{url: 'https://example.com', features: 'Overview'},
+		{url: 'https://example.com/billing', features: 'Invoices'},
+		{url: 'https://example.com/team', features: 'Members'},
+	],
+	persona: 'Test persona',
+	report: {output: './test-report.md'},
+};
+
+const signedInConfig: UxLintConfig = {
+	...threePagesConfig,
+	signIn: {
+		url: 'https://example.com/login',
+		steps: [{fill: 'Email', value: 'reviewer@example.com'}, {click: 'Sign in'}],
+		signedIn: {name: 'Account menu', role: 'button'},
+	},
+};
+
+/**
+ * Run the hook to completion over a run that may carry a session.
+ *
+ * Page analysis is replaced by one that completes each page on the builder:
+ * these tests are about what happens around the pages, and `order` records
+ * the sign-in against each analysis so a test can assert which came first.
+ */
+const runWithSession = async (
+	sandbox: sinon.SinonSandbox,
+	config: UxLintConfig,
+	options: {signedIn: boolean},
+) => {
+	const order: string[] = [];
+	const states: AnalysisState[] = [];
+
+	const reportBuilder = new ReportBuilder({
+		...fsPromises,
+		writeFile: sandbox.stub().resolves(),
+	});
+	const aiService = new AIService(
+		new MockLanguageModelV4(),
+		createMockMCPClient(),
+		reportBuilder,
+	);
+	sandbox.stub(aiService, 'analyzePage').callsFake(async (_config, page) => {
+		order.push(`analyse ${page.url}`);
+		reportBuilder.initializePageAnalysis(page.url, page.features);
+		return reportBuilder.completePageAnalysis();
+	});
+
+	const establish = sandbox.stub().callsFake(async () => {
+		order.push('establish');
+		return {kind: 'signed-in'};
+	});
+	const session = {
+		establish,
+		redact: (text: string) => text,
+	} as unknown as SignedInSession;
+
+	const {result}: RenderHookResult<UseAnalysisResult, unknown> = renderHook(
+		() =>
+			useAnalysis(
+				config,
+				async () =>
+					options.signedIn
+						? {aiService, reportBuilder, session}
+						: {aiService, reportBuilder},
+				stubPreflight,
+			),
+	);
+
+	// Subscribe to state changes - must be done before runAnalysis
+	act(() => {
+		result.current.onAnalysisStateChange(state => {
+			states.push(state);
+		});
+	});
+
+	await act(async () => {
+		await result.current.runAnalysis();
+	});
+
+	return {result, reportBuilder, establish, order, states};
+};
+
+test.serial(
+	'useAnalysis signs in once, before the first page is analysed',
+	async t => {
+		// One sign-in serves the whole run: the pages share a browser, so
+		// signing in again per page would only repeat work already done.
+		const sandbox = sinon.createSandbox();
+
+		const {result, establish, order} = await runWithSession(
+			sandbox,
+			signedInConfig,
+			{signedIn: true},
+		);
+
+		t.is(establish.callCount, 1, 'three pages must cost exactly one sign-in');
+		t.deepEqual(order, [
+			'establish',
+			'analyse https://example.com',
+			'analyse https://example.com/billing',
+			'analyse https://example.com/team',
+		]);
+		t.is(result.current.analysisState.currentStage, 'complete');
+
+		sandbox.restore();
+	},
+);
+
+test.serial(
+	'useAnalysis publishes a signing-in stage before the first page starts',
+	async t => {
+		// Signing in can take as long as a page does. Without a stage of its
+		// own the UI would sit on whatever it showed last and look stalled.
+		const sandbox = sinon.createSandbox();
+
+		const {states} = await runWithSession(sandbox, signedInConfig, {
+			signedIn: true,
+		});
+
+		const signingIn = states.findIndex(
+			state => state.currentStage === 'signing-in',
+		);
+		const navigating = states.findIndex(
+			state => state.currentStage === 'navigating',
+		);
+
+		t.not(signingIn, -1, 'a signing-in state must be published');
+		t.is(states[signingIn]?.waitingMessage, 'Signing in…');
+		t.not(navigating, -1, 'the pages must still be reached');
+		t.true(
+			signingIn < navigating,
+			'signing in is shown before the first page, not during it',
+		);
+
+		sandbox.restore();
+	},
+);
+
+test.serial(
+	'useAnalysis records on the report that the run signed in',
+	async t => {
+		const sandbox = sinon.createSandbox();
+
+		const {reportBuilder} = await runWithSession(sandbox, signedInConfig, {
+			signedIn: true,
+		});
+
+		const {tooling} = reportBuilder.generateFinalReport().metadata;
+		t.true(
+			tooling.signedIn,
+			'a reader of the report must be able to tell the pages were reviewed signed in',
+		);
+		// Signing in adds to the provenance; it must not replace what was there.
+		t.is(tooling.browserServer, 'chrome-devtools-mcp');
+
+		sandbox.restore();
+	},
+);
+
+test.serial(
+	'useAnalysis with no session never signs in or says that it did',
+	async t => {
+		// A configuration without `signIn` is every configuration that existed
+		// before this feature. `signedIn: false` would claim a sign-in was
+		// attempted and failed, so the key has to be absent, not falsy.
+		const sandbox = sinon.createSandbox();
+
+		const {result, reportBuilder, establish, order, states} =
+			await runWithSession(sandbox, threePagesConfig, {signedIn: false});
+
+		t.false(establish.called);
+		t.deepEqual(order, [
+			'analyse https://example.com',
+			'analyse https://example.com/billing',
+			'analyse https://example.com/team',
+		]);
+		t.false(
+			states.some(state => state.currentStage === 'signing-in'),
+			'a run that does not sign in must never show that it is',
+		);
+		t.false('signedIn' in reportBuilder.generateFinalReport().metadata.tooling);
+		t.is(result.current.analysisState.currentStage, 'complete');
 
 		sandbox.restore();
 	},

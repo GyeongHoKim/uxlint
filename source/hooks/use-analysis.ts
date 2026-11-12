@@ -20,6 +20,7 @@ import {evaluateGate} from '../models/gate-result.js';
 import type {UxLintConfig} from '../models/config.js';
 import type {LLMResponseData} from '../models/llm-response.js';
 import {createAIService, type AnalysisRun} from '../services/ai-service.js';
+import {signRunIn} from '../services/sign-in.js';
 
 /**
  * State change callback type
@@ -149,12 +150,28 @@ export function useAnalysis(
 			const {reportBuilder} = run;
 
 			const server = browserServerIdentity();
-			reportBuilder.setProvenance({
+			const provenance = {
 				browserServer: server.name,
 				browserServerVersion: server.version,
 				browserVersion: preflight.browser.version,
 				externalDataAllowed: config.browser?.allowExternalData ?? false,
-			});
+			};
+			reportBuilder.setProvenance(provenance);
+
+			if (run.session) {
+				// Named while it happens: signing in takes seconds, and a
+				// display that showed nothing would look like a hang.
+				updateAnalysisState(previous => ({
+					...previous,
+					currentStage: 'signing-in',
+					waitingMessage: 'Signing in…',
+					isWaitingForLLM: true,
+				}));
+			}
+
+			if (await signRunIn(run.session, config.signIn)) {
+				reportBuilder.setProvenance({...provenance, signedIn: true});
+			}
 
 			const {aiService} = run;
 

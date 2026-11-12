@@ -8,10 +8,13 @@ import {
 	auditSnapshotReply,
 	malformedAuditReplies,
 } from '../fixtures/lighthouse-reply.js';
+import {mcpResult} from '../fixtures/mcp-result.js';
 import {
+	MeasurementService,
 	parseAuditReply,
 	parseTraceReply,
 	readAuditReport,
+	type MeasurementClient,
 } from '../../source/services/measurement.js';
 import {
 	traceWithNavigationReply,
@@ -398,4 +401,40 @@ test('the category score lines are not mistaken for paths', t => {
 	t.false(
 		parsed.value.writtenPaths.some(file => file.includes('Accessibility')),
 	);
+});
+
+// --- the mode the audit is asked for ---------------------------------------
+
+test('the audit is asked for in snapshot mode', async t => {
+	// Research R10 (specs/011-authenticated-pages/research.md). A run signs in
+	// before it reviews its pages, and the audit's `navigation` mode reloads
+	// and resets storage, which would sign every run out between the sign-in
+	// and the review. `snapshot` analyses the page as it stands. Nothing else
+	// would report the change: the audit would still succeed, on the sign-in
+	// page it had been sent back to.
+	const {reply, cleanup} = withReportOnDisk(auditSnapshotReply);
+	const calls: Array<{name: string; args?: Record<string, unknown>}> = [];
+	const client: MeasurementClient = {
+		async callTool({name, arguments: args}) {
+			calls.push({name, args});
+			return mcpResult(
+				name === 'lighthouse_audit' ? reply : traceWithNavigationReply,
+			);
+		},
+	};
+
+	try {
+		const measurement = await new MeasurementService(client).measure(
+			'analysable',
+		);
+
+		// The audit really ran, so the call below is the one that produced it.
+		t.is(measurement.audit.state, 'taken');
+
+		const audits = calls.filter(call => call.name === 'lighthouse_audit');
+		t.is(audits.length, 1);
+		t.is(audits[0]?.args?.['mode'], 'snapshot');
+	} finally {
+		cleanup();
+	}
 });

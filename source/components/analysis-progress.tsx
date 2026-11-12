@@ -103,6 +103,18 @@ export function AnalysisProgress({
 				</Box>
 			)}
 
+			{/* Signing in. Before any page, so there is no page to count yet. */}
+			{stage === 'signing-in' && (
+				<Box marginTop={1}>
+					<Box marginRight={1}>
+						<Text color={theme.accent}>
+							<Spinner type="dots" />
+						</Text>
+					</Box>
+					<Text color="cyan">{waitingMessage ?? 'Signing in…'}</Text>
+				</Box>
+			)}
+
 			{/* Waiting message with spinner */}
 			{Boolean(isWaitingForLLM && waitingMessage && stage === 'analyzing') && (
 				<Box flexDirection="column" marginTop={1}>

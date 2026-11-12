@@ -44,6 +44,7 @@ import {getLanguageModel} from './llm-provider.js';
 import {
 	getMCPClient,
 	narrowBrowserTools,
+	requireSignInTools,
 	resetMCPClient,
 } from './mcp-client.js';
 import {
@@ -52,6 +53,7 @@ import {
 	measuredFindings,
 } from './measurement.js';
 import {ReportBuilder} from './report-builder.js';
+import {createSignedInSession, type SignedInSession} from './sign-in.js';
 
 /**
  * Maximum steps for the agent loop, expressed as a stop condition. The value
@@ -67,6 +69,16 @@ class PageBoundExceeded extends Error {
 	constructor(limitMs: number) {
 		super(`Page analysis exceeded its ${limitMs} ms time bound`);
 		this.name = 'PageBoundExceeded';
+	}
+}
+
+/**
+ * Raised when a signed-in run's session refused the page that was captured.
+ */
+class PageNotReached extends Error {
+	constructor(reason: string) {
+		super(reason);
+		this.name = 'PageNotReached';
 	}
 }
 
@@ -144,6 +156,7 @@ export class AIService {
 	private readonly mcpClient: MCPClient;
 	private readonly measurement: MeasurementService;
 	private readonly reportBuilder: ReportBuilder;
+	private readonly session: SignedInSession | undefined;
 	private isClosed = false;
 
 	/**
@@ -162,14 +175,16 @@ export class AIService {
 	 * @param builder - Report builder collecting findings
 	 * @param options - Optional collaborators
 	 * @param options.measurement - Measurement service; defaults to one bound to this client
+	 * @param options.session - The run's signed-in session, when the configuration describes a sign-in
 	 */
 	constructor(
 		model: LanguageModelV4,
 		mcpClient: MCPClient,
 		builder: ReportBuilder,
-		options: {measurement?: MeasurementService} = {},
+		options: {measurement?: MeasurementService; session?: SignedInSession} = {},
 	) {
-		const {measurement} = options;
+		const {measurement, session} = options;
+		this.session = session;
 		this.model = model;
 		this.mcpClient = mcpClient;
 		this.reportBuilder = builder;
@@ -255,7 +270,25 @@ export class AIService {
 			// analysis uses. Everything else the server offers would be re-sent,
 			// in full, on every request.
 			onProgress?.('navigating', `Navigating to ${page.url}`);
-			const mcpTools = narrowBrowserTools(await this.mcpClient.tools());
+			const browserTools = narrowBrowserTools(await this.mcpClient.tools());
+
+			// Set by the capture tool when the session refuses a page. Read
+			// wherever the loop could otherwise carry on, so that a refused
+			// page stops at the refusal.
+			let notReached: string | undefined;
+			const mcpTools = this.session
+				? {
+						...browserTools,
+						[captureToolName]: this.admittingCapture(
+							browserTools[captureToolName],
+							page,
+							() => !pageSettled && epoch === this.pageEpoch,
+							reason => {
+								notReached = reason;
+							},
+						),
+					}
+				: browserTools;
 
 			// Build system prompt
 			const systemPrompt = this.buildSystemPrompt(config);
@@ -333,6 +366,12 @@ export class AIService {
 						// This loop was abandoned at its page's bound. Throwing
 						// stops it for good; its rejection is swallowed below.
 						throw new PageBoundExceeded(boundMs);
+					}
+
+					if (notReached !== undefined) {
+						// Nothing was captured that the model may see, so there
+						// is nothing to ask it. Its rejection is handled below.
+						throw new PageNotReached(notReached);
 					}
 
 					for (const observation of drainObservations()) {
@@ -456,6 +495,13 @@ export class AIService {
 					},
 				});
 			} catch (error) {
+				if (notReached !== undefined) {
+					// Asked of the flag rather than of the error: the engine is
+					// free to wrap what a step preparation throws.
+					pageSettled = true;
+					return this.reportBuilder.failCurrentPage(notReached, page);
+				}
+
 				if (error instanceof PageBoundExceeded) {
 					// The page's evidence is whatever landed before expiry:
 					// drain observations, advance the stage, close out partial
@@ -483,6 +529,13 @@ export class AIService {
 				}
 
 				throw error;
+			}
+
+			if (notReached !== undefined) {
+				// The model captured and stopped in one turn, so no further
+				// step was prepared to stop the page. It is refused all the same.
+				pageSettled = true;
+				return this.reportBuilder.failCurrentPage(notReached, page);
 			}
 
 			// Observations from the final step (the one whose completion tool
@@ -543,6 +596,74 @@ export class AIService {
 			// a caller that discards it, leaving the failure out of the report.
 			return this.reportBuilder.failCurrentPage(errorMessage, page);
 		}
+	}
+
+	/**
+	 * Wrap the capture tool so its reply passes through the session first.
+	 *
+	 * On this route the model asks for the page structure itself, so this is
+	 * the only place the decision can sit and still be structural: the model
+	 * has no other tool that produces a capture, and so no way to read a page
+	 * the session did not admit.
+	 *
+	 * @param capture - The browser server's capture tool
+	 * @param page - The page under analysis
+	 * @param stillOurs - Whether the page is still the one open
+	 * @param refuse - Told the reason when the session refuses the page
+	 * @returns A tool the model cannot tell from the original
+	 */
+	private admittingCapture<T extends Record<string, unknown>>(
+		capture: T,
+		page: Page,
+		stillOurs: () => boolean,
+		refuse: (reason: string) => void,
+	): T {
+		const {execute: original} = capture as {
+			execute?: (input: unknown, options: unknown) => Promise<unknown>;
+		};
+		const refusedCapture = {
+			content: [{type: 'text' as const, text: ''}],
+			isError: true,
+		};
+
+		return {
+			...capture,
+			execute: async (input: unknown, options: unknown) => {
+				const output = await original?.(input, options);
+				const outcome = readToolOutcome(output);
+
+				// A capture that failed is already something the stage machine
+				// declines to count; the session has nothing to say about it.
+				if (outcome.failed || outcome.text.length === 0) {
+					return output;
+				}
+
+				if (!this.session || !stillOurs()) {
+					return refusedCapture;
+				}
+
+				const admission = await this.session.admit(page.url, outcome.text);
+
+				// Admission can outlive the page: recovery signs in again.
+				if (!stillOurs()) {
+					return refusedCapture;
+				}
+
+				if (admission.kind === 'refused') {
+					refuse(admission.detail);
+					return refusedCapture;
+				}
+
+				if (admission.reachedUrl !== undefined) {
+					this.reportBuilder.setReachedUrl(admission.reachedUrl);
+				}
+
+				return {
+					content: [{type: 'text' as const, text: admission.snapshot}],
+					isError: false,
+				};
+			},
+		};
 	}
 
 	/**
@@ -877,6 +998,9 @@ IMPORTANT: You MUST call completePageAnalysis before finishing. The analysis is 
 export type AnalysisRun = {
 	aiService: AIService;
 	reportBuilder: ReportBuilder;
+
+	/** Present only when the configuration describes a sign-in */
+	session?: SignedInSession;
 };
 
 /**
@@ -888,6 +1012,7 @@ export type AIServiceOverrides = {
 	model?: LanguageModelV4;
 	client?: MCPClient;
 	builder?: ReportBuilder;
+	session?: SignedInSession;
 };
 
 /**
@@ -907,21 +1032,25 @@ export async function createAIService(
 	verdict: PreflightVerdict | undefined,
 	overrides: AIServiceOverrides = {},
 ): Promise<AnalysisRun> {
-	const {model, client, builder} = overrides;
+	const {model, client, builder, session: injected} = overrides;
 
 	// Model resolution is the only step delegate mode does not want, so it
 	// happens here rather than inside the shared assembly below. Reaching for a
 	// provider is what makes a credential mandatory, and a delegated run never
 	// calls one.
 	const resolvedModel = model ?? (await getLanguageModel(config));
-	const {mcpClient, reportBuilder} = await assembleBrowserRun(config, verdict, {
-		client,
-		builder,
-	});
+	const {mcpClient, reportBuilder, session} = await assembleBrowserRun(
+		config,
+		verdict,
+		{client, builder, session: injected},
+	);
 
 	return {
-		aiService: new AIService(resolvedModel, mcpClient, reportBuilder),
+		aiService: new AIService(resolvedModel, mcpClient, reportBuilder, {
+			...(session && {session}),
+		}),
 		reportBuilder,
+		...(session && {session}),
 	};
 }
 
@@ -932,6 +1061,9 @@ export async function createAIService(
 export type DelegatedRun = {
 	mcpClient: MCPClient;
 	reportBuilder: ReportBuilder;
+
+	/** Present only when the configuration describes a sign-in */
+	session?: SignedInSession;
 };
 
 /**
@@ -941,6 +1073,7 @@ export type DelegatedRun = {
 export type DelegatedRunOverrides = {
 	client?: MCPClient;
 	builder?: ReportBuilder;
+	session?: SignedInSession;
 };
 
 /**
@@ -960,12 +1093,23 @@ async function assembleBrowserRun(
 	verdict: PreflightVerdict | undefined,
 	overrides: DelegatedRunOverrides,
 ): Promise<DelegatedRun> {
-	const {client, builder} = overrides;
+	const {client, builder, session: injected} = overrides;
+	const mcpClient =
+		client ?? (await getMCPClient(requireVerdict(verdict), config.browser));
+	let session = injected;
+
+	// Built only for a configuration that describes a sign-in, and the two
+	// extra tools are demanded only then: a run that never signs in must go on
+	// working against a server that could not have signed it in.
+	if (!session && config.signIn) {
+		requireSignInTools(await mcpClient.tools());
+		session = createSignedInSession(config.signIn, mcpClient);
+	}
 
 	return {
-		mcpClient:
-			client ?? (await getMCPClient(requireVerdict(verdict), config.browser)),
+		mcpClient,
 		reportBuilder: builder ?? new ReportBuilder(fsPromises),
+		...(session && {session}),
 	};
 }
 

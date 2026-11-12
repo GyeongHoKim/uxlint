@@ -350,3 +350,66 @@ test('renders a concrete activity label verbatim while work is active (US3)', t 
 		'the activity label the engine emitted must reach the terminal',
 	);
 });
+
+// --- signing in (feature 011) ----------------------------------------------
+
+test('signing in is named while it happens', t => {
+	// The state before the first page. Seconds pass in it, and a display that
+	// renders nothing for those seconds is what a hang looks like.
+	const {lastFrame, unmount} = render(
+		<AnalysisProgress
+			isWaitingForLLM
+			theme={defaultTheme}
+			stage="signing-in"
+			currentPage={0}
+			totalPages={3}
+			waitingMessage="Signing in…"
+		/>,
+	);
+
+	const frame = lastFrame() ?? '';
+	unmount();
+
+	t.true(frame.includes('Signing in…'));
+});
+
+test('signing in shows no page counter', t => {
+	// No page has started, so "Page 0/3" would count something that is not
+	// happening yet.
+	const {lastFrame, unmount} = render(
+		<AnalysisProgress
+			isWaitingForLLM
+			theme={defaultTheme}
+			stage="signing-in"
+			currentPage={0}
+			totalPages={3}
+			waitingMessage="Signing in…"
+		/>,
+	);
+
+	const frame = lastFrame() ?? '';
+	unmount();
+
+	// Asserted alongside the label, so that an empty frame does not pass this
+	// by showing nothing at all.
+	t.true(frame.includes('Signing in…'));
+	t.notRegex(frame, /Page \d+\/\d+/);
+});
+
+test('signing in has a default label when none is supplied', t => {
+	// As the measuring stage does: the phase is named by the component, so a
+	// caller that sets the stage and nothing else still gets a display.
+	const {lastFrame, unmount} = render(
+		<AnalysisProgress
+			theme={defaultTheme}
+			stage="signing-in"
+			currentPage={0}
+			totalPages={3}
+		/>,
+	);
+
+	const frame = lastFrame() ?? '';
+	unmount();
+
+	t.true(frame.includes('Signing in…'));
+});
