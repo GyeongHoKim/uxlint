@@ -12,6 +12,7 @@ import {
 	validateAnalysisConfig,
 } from '../../models/config.js';
 import {validateBrowserSettings} from '../../models/browser.js';
+import {validateSignIn} from '../../models/sign-in.js';
 import {ConfigurationError} from '../../models/errors.js';
 import {validateThresholds} from '../../models/thresholds.js';
 import type {SaveOptions} from '../../models/wizard-state.js';
@@ -338,6 +339,17 @@ export class ConfigIO {
 			);
 		}
 
+		// And the sign-in description. A step the validator let through is one
+		// the run discovers on the login page, after a browser has started.
+		const signInIssue = validateSignIn(config['signIn']);
+		if (signInIssue) {
+			throw new ConfigurationError(
+				signInIssue.message,
+				filePath,
+				signInIssue.key,
+			);
+		}
+
 		// Return the validated config (TypeScript now knows it's valid)
 		logger.info('Config validation successful', {
 			filePath,
@@ -551,6 +563,16 @@ export class ConfigIO {
 				`pages[${index}].features is required and must be a string`,
 				filePath,
 				'pages',
+			);
+		}
+
+		// One session per run. A per-page setting that was silently ignored
+		// would leave the user believing this page was reviewed differently.
+		if (Object.hasOwn(pageObject, 'signIn')) {
+			throw new ConfigurationError(
+				`pages[${index}].signIn is not supported: sign-in is set once for the whole run, in the top-level signIn block`,
+				filePath,
+				`pages[${index}].signIn`,
 			);
 		}
 	}
