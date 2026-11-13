@@ -445,8 +445,10 @@ otherwise.
   is then there, the page is reviewed as usual. If signing in again fails, the
   page is `failed` as a lost session; if it succeeds and the sign is still
   missing, the page is `failed` because it does not carry the sign. Either
-  way the run continues with the next page, and nothing of the refused page is
-  sent to a model or an agent.
+  way the run continues with the next page, and no capture of the refused
+  page is sent to a model or an agent. With a model provider, the browser's
+  reply to opening the page reaches the model before the sign is looked for,
+  and that reply can name the address the page ended up at.
 - Pages failed this way are ordinary failed pages to the gate: counted by
   `failOnFailedPage` and named with their reason.
 
