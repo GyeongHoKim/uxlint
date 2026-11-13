@@ -47,11 +47,13 @@ the build writes `dist/source/cli.js`.
 - For scenarios that judge pages: a model provider credential, or a coding
   agent for the delegate route.
 
-Start it and note the port:
+Set the password, start the site and note the port. The site reads the
+password when it starts and keeps the terminal, so run everything after this
+in a second terminal with the same `export`:
 
 ```bash
-node dist/tests/fixtures/login-site.js   # prints http://127.0.0.1:<port>
 export LOGIN_SITE_PASSWORD='quickstart-Secret-123'
+node dist/tests/fixtures/login-site.js   # prints http://127.0.0.1:<port>
 ```
 
 A working configuration (`.uxlintrc.yml`):
