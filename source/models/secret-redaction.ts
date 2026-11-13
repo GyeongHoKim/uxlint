@@ -84,6 +84,30 @@ export function resolveSecrets(
 const lowerCaseEscapes = (encoded: string): string =>
 	encoded.replaceAll(/%[\dA-F]{2}/g, escape => escape.toLowerCase());
 
+/**
+ * Write every non-ASCII character as `\uXXXX`, the way an encoder that keeps
+ * its output ASCII does. A character beyond the Basic Multilingual Plane is
+ * written as its two UTF-16 surrogate halves, which is how JSON spells it.
+ */
+const asAsciiJson = (jsonEscaped: string, hexCase: 'lower' | 'upper'): string =>
+	jsonEscaped.replaceAll(/\P{ASCII}/gu, character => {
+		const codePoint = character.codePointAt(0)!;
+		const units =
+			codePoint > 0xff_ff
+				? [
+						0xd8_00 + Math.floor((codePoint - 0x1_00_00) / 0x4_00),
+						0xdc_00 + ((codePoint - 0x1_00_00) % 0x4_00),
+					]
+				: [codePoint];
+
+		return units
+			.map(unit => {
+				const hex = unit.toString(16).padStart(4, '0');
+				return String.raw`\u` + (hexCase === 'lower' ? hex : hex.toUpperCase());
+			})
+			.join('');
+	});
+
 const asMarkupText = (value: string): string =>
 	value
 		.replaceAll('&', '&amp;')
@@ -97,15 +121,26 @@ function spellingsOf(value: string): string[] {
 	const urlEncoded = encodeURIComponent(value);
 	const formEncoded = urlEncoded.replaceAll('%20', '+');
 
+	// A submitted form escapes more than an address does: `~`, `!`, `'`, `(`
+	// and `)` survive `encodeURIComponent` and do not survive this.
+	const submitted = new URLSearchParams({v: value}).toString().slice(2);
+	const jsonEscaped = JSON.stringify(value).slice(1, -1);
+
 	return [
 		value,
 		urlEncoded,
 		formEncoded,
+		submitted,
 		lowerCaseEscapes(urlEncoded),
 		lowerCaseEscapes(formEncoded),
+		lowerCaseEscapes(submitted),
 		// As it appears inside a JSON string, which is how the audit report
 		// and a page's embedded data quote it.
-		JSON.stringify(value).slice(1, -1),
+		jsonEscaped,
+		// As an encoder that writes non-ASCII as `\uXXXX` quotes it (PHP's
+		// `json_encode` does by default), in either hex case.
+		asAsciiJson(jsonEscaped, 'lower'),
+		asAsciiJson(jsonEscaped, 'upper'),
 		// As markup spells it: in text, and inside an attribute, which is how
 		// the snippets an audit quotes from a page carry a field's value.
 		asMarkupText(value),

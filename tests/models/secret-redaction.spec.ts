@@ -195,3 +195,34 @@ test('a secret is replaced as markup spells it', t => {
 	);
 	t.is(redact('p&amp;ss"w&lt;o&gt;rd\'s'), redactedMarker);
 });
+
+test('a secret is replaced as a JSON encoder escaping non-ASCII spells it', t => {
+	// `JSON.stringify` leaves non-ASCII as it is, but many encoders (PHP's
+	// `json_encode` by default among them) write it as `\uXXXX`, in either
+	// case. An astral character is written as its two UTF-16 halves.
+	const secret = 'pässwörd-🔑"x';
+	const redact = createRedactor([secret]);
+	// Assembled from parts: compiled for ES2020, a `String.raw` template has
+	// its complete `\uXXXX` escapes turned into the characters they name.
+	const spelled = (units: string[]) => {
+		const [a, o, high, low] = units.map(unit => String.raw`\u` + unit);
+		return `p${a}ssw${o}rd-${high}${low}${String.raw`\"`}x`;
+	};
+
+	const lower = spelled(['00e4', '00f6', 'd83d', 'dd11']);
+	const upper = spelled(['00E4', '00F6', 'D83D', 'DD11']);
+
+	t.is(redact(`{"password":"${lower}"}`), `{"password":"${redactedMarker}"}`);
+	t.is(redact(`{"password":"${upper}"}`), `{"password":"${redactedMarker}"}`);
+});
+
+test('a secret is replaced as a submitted form spells it', t => {
+	// A form encodes more than an address does: `~`, `!`, `'`, `(` and `)`
+	// are all escaped there.
+	const secret = "pass~word!(it's)";
+	const redact = createRedactor([secret]);
+	const submitted = new URLSearchParams({password: secret}).toString();
+
+	t.is(redact(`POST /login ${submitted}`), 'POST /login password=[redacted]');
+	t.is(redact(submitted.toLowerCase()), 'password=[redacted]');
+});
