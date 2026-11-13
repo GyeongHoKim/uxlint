@@ -37,6 +37,7 @@ import {
 } from '../models/sign-in.js';
 import {readToolOutcome} from '../models/tool-output.js';
 import type {runPreflight as defaultRunPreflight} from '../services/browser-preflight.js';
+import {resetMCPClient} from '../services/mcp-client.js';
 import {
 	measuredFindings,
 	type MeasurementService,
@@ -373,5 +374,9 @@ export async function releaseBrowser(
 		logger.error('Failed to close the browser client', {
 			error: error instanceof Error ? error.message : String(error),
 		});
+	} finally {
+		// The memo is process-wide: a closed client left in it is the one
+		// the next run would be handed.
+		resetMCPClient(client);
 	}
 }
