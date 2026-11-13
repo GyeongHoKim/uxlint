@@ -30,6 +30,7 @@ import {
 	resolveTarget,
 	sameAddress,
 	unusableSecretText,
+	type NotReachedReason,
 	type PageAdmission,
 	type SignInDescription,
 	type SignInFailure,
@@ -69,6 +70,9 @@ export type SignedInSessionOptions = {
 	wait?: (ms: number) => Promise<void>;
 };
 
+/** What an abandoned sign-in or admission is said to have failed with. */
+const abandonedText = 'the page stopped waiting for it';
+
 const realWait = async (ms: number): Promise<void> =>
 	new Promise(resolve => {
 		setTimeout(resolve, ms);
@@ -99,15 +103,18 @@ export class SignedInSession {
 	/**
 	 * Sign in: open the sign-in address, carry the steps out, find the sign.
 	 *
+	 * @param abandoned - Aborted when nobody is waiting for this sign-in any more
 	 * @returns Whether the run is signed in, and if not, why
 	 */
-	async establish(): Promise<SignInOutcome> {
+	async establish(abandoned?: AbortSignal): Promise<SignInOutcome> {
 		const timeoutMs = this.description.timeoutMs ?? defaultSignInTimeoutMs;
 		let outcome: SignInOutcome;
 
 		try {
-			outcome = await withDeadline(timeoutMs, async signal =>
-				this.signIn(signal),
+			outcome = await withDeadline(timeoutMs, async expired =>
+				this.signIn(
+					abandoned ? AbortSignal.any([expired, abandoned]) : expired,
+				),
 			);
 		} catch (error) {
 			if (!(error instanceof DeadlineExpired)) {
@@ -136,38 +143,68 @@ export class SignedInSession {
 	 *
 	 * @param pageUrl - The configured address of the page
 	 * @param snapshot - The structure captured for it
+	 * @param abandoned - Aborted when the page stops waiting, as when its time
+	 * runs out. Recovery drives the browser for seconds, and past that point it
+	 * would be driving it under the page reviewed next.
 	 * @returns The capture to review, or why the page was refused
 	 */
-	async admit(pageUrl: string, snapshot: string): Promise<PageAdmission> {
-		const shown = await this.awaitSign(snapshot);
+	async admit(
+		pageUrl: string,
+		snapshot: string,
+		abandoned?: AbortSignal,
+	): Promise<PageAdmission> {
+		const shown = await this.awaitSign(snapshot, abandoned);
 		if (shown !== undefined) {
 			return this.admitted(pageUrl, shown);
 		}
 
-		logger.warn('Signed-in sign absent, signing in again', {pageUrl});
-		const again = await this.establish();
-		if (again.kind === 'failed') {
-			return {
-				kind: 'refused',
-				reason: 'session-lost',
-				detail: describeNotReached(
-					'session-lost',
-					this.description,
-					describeSignInFailure(again.failure, this.description),
-				),
-			};
+		if (abandoned?.aborted) {
+			return this.refused('session-lost', abandonedText);
 		}
 
-		await this.call('navigate_page', {url: pageUrl});
-		const reopened = await this.awaitSign(await this.capture());
+		logger.warn('Signed-in sign absent, signing in again', {pageUrl});
+		const again = await this.establish(abandoned);
+		if (abandoned?.aborted) {
+			return this.refused('session-lost', abandonedText);
+		}
+
+		if (again.kind === 'failed') {
+			return this.refused(
+				'session-lost',
+				describeSignInFailure(again.failure, this.description),
+			);
+		}
+
+		// Signing in again lands on a page that shows the sign. Were the page
+		// asked for not opened, that one would be captured in its place.
+		const reopening = await this.call(
+			'navigate_page',
+			{url: pageUrl},
+			abandoned,
+		);
+		if (reopening.failed) {
+			return this.refused('not-reopened', reopening.text);
+		}
+
+		const reopened = await this.awaitSign(
+			await this.capture(abandoned),
+			abandoned,
+		);
 		if (reopened !== undefined) {
 			return this.admitted(pageUrl, reopened);
 		}
 
+		return this.refused('sign-missing');
+	}
+
+	/**
+	 * Refuse a page. The text names the sign, which may itself spell a secret.
+	 */
+	private refused(reason: NotReachedReason, detail?: string): PageAdmission {
 		return {
 			kind: 'refused',
-			reason: 'sign-missing',
-			detail: describeNotReached('sign-missing', this.description),
+			reason,
+			detail: this.redact(describeNotReached(reason, this.description, detail)),
 		};
 	}
 
@@ -186,11 +223,21 @@ export class SignedInSession {
 
 	/**
 	 * Call a browser tool, treating a transport failure as a failed call.
+	 *
+	 * Nothing is asked of the browser once the work has been abandoned: a
+	 * deadline stops the waiting, not the code that was waited for, and that
+	 * code would otherwise go on to type into whatever page is open by then.
+	 * A call already under way cannot be recalled; no further one is made.
 	 */
 	private async call(
 		name: string,
 		toolArguments: Record<string, unknown>,
+		abandoned?: AbortSignal,
 	): Promise<ToolOutcome> {
+		if (abandoned?.aborted) {
+			return {text: abandonedText, failed: true};
+		}
+
 		try {
 			return readToolOutcome(
 				await this.client.callTool({name, arguments: toolArguments}),
@@ -207,8 +254,8 @@ export class SignedInSession {
 	 * Capture the open page. A capture that failed reads as an empty page,
 	 * which shows neither a target nor the sign.
 	 */
-	private async capture(): Promise<string> {
-		const outcome = await this.call('take_snapshot', {});
+	private async capture(abandoned?: AbortSignal): Promise<string> {
+		const outcome = await this.call('take_snapshot', {}, abandoned);
 		return outcome.failed ? '' : outcome.text;
 	}
 
@@ -229,7 +276,7 @@ export class SignedInSession {
 
 		await this.wait(recheckIntervalMs);
 		return this.recheck(
-			await this.capture(),
+			await this.capture(signal),
 			settled,
 			signal,
 			waited + recheckIntervalMs,
@@ -241,9 +288,12 @@ export class SignedInSession {
 	 *
 	 * @returns The capture that shows it, or undefined when it never appeared
 	 */
-	private async awaitSign(first: string): Promise<string | undefined> {
+	private async awaitSign(
+		first: string,
+		abandoned?: AbortSignal,
+	): Promise<string | undefined> {
 		const shows = (snapshot: string) => this.showsSign(snapshot);
-		const snapshot = await this.recheck(first, shows);
+		const snapshot = await this.recheck(first, shows, abandoned);
 
 		return shows(snapshot) ? snapshot : undefined;
 	}
@@ -269,9 +319,11 @@ export class SignedInSession {
 	}
 
 	private async signIn(signal: AbortSignal): Promise<SignInOutcome> {
-		const opened = await this.call('navigate_page', {
-			url: this.description.url,
-		});
+		const opened = await this.call(
+			'navigate_page',
+			{url: this.description.url},
+			signal,
+		);
 		if (opened.failed) {
 			return this.failed({
 				kind: 'not-opened',
@@ -283,7 +335,7 @@ export class SignedInSession {
 
 		// A product may send a visitor who is already signed in away from its
 		// login page. There is then no form to fill, and nothing to do.
-		const arrival = await this.capture();
+		const arrival = await this.capture(signal);
 		if (shows(arrival)) {
 			return {kind: 'signed-in'};
 		}
@@ -293,7 +345,7 @@ export class SignedInSession {
 			return this.failed(failure);
 		}
 
-		const last = await this.recheck(await this.capture(), shows, signal);
+		const last = await this.recheck(await this.capture(signal), shows, signal);
 
 		return shows(last)
 			? {kind: 'signed-in'}
@@ -351,7 +403,7 @@ export class SignedInSession {
 		// The first step reads the capture sign-in arrived on; every later one
 		// captures afresh, because the step before it changed the page.
 		const snapshot = await this.recheck(
-			arrival ?? (await this.capture()),
+			arrival ?? (await this.capture(signal)),
 			candidate => resolve(candidate).kind !== 'not-found',
 			signal,
 		);
@@ -371,12 +423,15 @@ export class SignedInSession {
 			return failure(resolution.kind);
 		}
 
+		// The capture above may have been answered after the deadline had
+		// already answered for this attempt; `call` then asks for nothing.
 		const outcome = filling
-			? await this.call('fill', {
-					uid: resolution.uid,
-					value: this.valueOf(step),
-				})
-			: await this.call('click', {uid: resolution.uid});
+			? await this.call(
+					'fill',
+					{uid: resolution.uid, value: this.valueOf(step)},
+					signal,
+				)
+			: await this.call('click', {uid: resolution.uid}, signal);
 
 		return outcome.failed ? failure('tool-error') : undefined;
 	}
@@ -463,9 +518,10 @@ export async function signRunIn(
 
 	const outcome = await session.establish();
 	if (outcome.kind === 'failed') {
+		// The text names the sign, which may itself spell a secret.
 		throw new SignInFailed(
 			description
-				? describeSignInFailure(outcome.failure, description)
+				? session.redact(describeSignInFailure(outcome.failure, description))
 				: `Sign-in failed (${outcome.failure.kind})`,
 		);
 	}

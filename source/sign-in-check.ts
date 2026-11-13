@@ -100,7 +100,7 @@ async function checkPage(
 
 	if (result.notReached === 'sign-missing') {
 		return {
-			line: `  ✗ ${page.url} — signed in, but this page did not show the signed-in sign "${description.signedIn.name}"`,
+			line: `  ✗ ${page.url} — signed in, but this page did not show the signed-in sign "${session.redact(description.signedIn.name)}"`,
 			refused: true,
 		};
 	}
@@ -167,7 +167,9 @@ async function check(
 		checkPage(guarded, page, session, description),
 	);
 
-	const {name, role} = description.signedIn;
+	// The sign may itself spell a secret: an account name supplied as one.
+	const {role} = description.signedIn;
+	const name = session.redact(description.signedIn.name);
 	const sign = role === undefined ? `"${name}"` : `${role} "${name}"`;
 	const steps = `${description.steps.length} step${
 		description.steps.length === 1 ? '' : 's'

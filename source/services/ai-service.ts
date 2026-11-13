@@ -292,12 +292,20 @@ export class AIService {
 			// wherever the loop could otherwise carry on, so that a refused
 			// page stops at the refusal.
 			let notReached: string | undefined;
+
+			// Aborted when the page's bound expires. Held by the engine call
+			// and by the session, whose recovery would otherwise go on driving
+			// the browser under the page reviewed next.
+			const controller = new AbortController();
 			const mcpTools = {
 				...browserTools,
 				[captureToolName]: this.admittingCapture(
 					browserTools[captureToolName],
 					page,
-					() => !pageSettled && epoch === this.pageEpoch,
+					{
+						stillOurs: () => !pageSettled && epoch === this.pageEpoch,
+						abandoned: controller.signal,
+					},
 					reason => {
 						notReached = reason;
 					},
@@ -444,7 +452,6 @@ export class AIService {
 			// await settles at the bound whether or not the callee honours it.
 			// (The SDK's own totalMs rides an unref'd AbortSignal.timeout and
 			// has been observed never to fire as the sole pending handle.)
-			const controller = new AbortController();
 			const generation = agent.generate({
 				messages: [{role: 'user', content: userPrompt}],
 				abortSignal: controller.signal,
@@ -628,7 +635,9 @@ export class AIService {
 	 *
 	 * @param capture - The browser server's capture tool
 	 * @param page - The page under analysis
-	 * @param stillOurs - Whether the page is still the one open
+	 * @param bound - What ties the capture to its page
+	 * @param bound.stillOurs - Whether the page is still the one open
+	 * @param bound.abandoned - Aborted when the page stops waiting
 	 * @param refuse - Told the reason when the session refuses the page
 	 * @returns A tool the model cannot tell from the original; the original
 	 * itself on a run that does not sign in
@@ -636,12 +645,14 @@ export class AIService {
 	private admittingCapture<T extends Record<string, unknown>>(
 		capture: T,
 		page: Page,
-		stillOurs: () => boolean,
+		bound: {stillOurs: () => boolean; abandoned: AbortSignal},
 		refuse: (reason: string) => void,
 	): T {
 		if (!this.session) {
 			return capture;
 		}
+
+		const {stillOurs, abandoned} = bound;
 
 		const {execute: original} = capture as {
 			execute?: (input: unknown, options: unknown) => Promise<unknown>;
@@ -667,9 +678,14 @@ export class AIService {
 					return refusedCapture;
 				}
 
-				const admission = await this.session.admit(page.url, outcome.text);
+				const admission = await this.session.admit(
+					page.url,
+					outcome.text,
+					abandoned,
+				);
 
-				// Admission can outlive the page: recovery signs in again.
+				// Admission can outlive the page: it is told to stop, but a
+				// browser call already under way still has to come back.
 				if (!stillOurs()) {
 					return refusedCapture;
 				}

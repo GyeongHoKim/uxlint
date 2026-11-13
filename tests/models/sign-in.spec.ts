@@ -547,3 +547,50 @@ test('a page without the sign is reported as signed in but not shown', t => {
 test('sign-in requires the fill and click tools', t => {
 	t.deepEqual([...requiredSignInTools], ['fill', 'click']);
 });
+
+// The browser server prints a name between double quotes without escaping
+// the ones the name itself contains.
+test('a name that contains double quotes is found', t => {
+	const snapshot = structure('Greeter', 'https://app.example.com/', [
+		'button "Say "hello"" focusable',
+		'textbox "Your "handle" " value="qa"',
+	]);
+
+	t.deepEqual(resolveTarget(snapshot, {name: 'Say "hello"'}, clickableRoles), {
+		kind: 'found',
+		uid: '1_1',
+	});
+	t.deepEqual(resolveTarget(snapshot, {name: 'Your "handle"'}, fillableRoles), {
+		kind: 'found',
+		uid: '1_2',
+	});
+	t.true(hasSignedInSign(snapshot, {name: 'Say "hello"', role: 'button'}));
+	t.false(hasSignedInSign(snapshot, {name: 'Say ', role: 'button'}));
+});
+
+test('an attribute after a name is not read as part of the name', t => {
+	const snapshot = structure('Form', 'https://app.example.com/', [
+		'textbox "Email " description="Work address" value="qa@example.com"',
+	]);
+
+	t.deepEqual(resolveTarget(snapshot, {name: 'Email'}, fillableRoles), {
+		kind: 'found',
+		uid: '1_1',
+	});
+});
+
+test('the reached address is read past a title that contains double quotes', t => {
+	t.is(
+		reachedUrlOf(
+			structure('The "new" dashboard', 'https://app.example.com/home', []),
+		),
+		'https://app.example.com/home',
+	);
+});
+
+test('a page that could not be opened again is reported with what the browser said', t => {
+	t.is(
+		describeNotReached('not-reopened', wellFormed, 'net::ERR_FAILED'),
+		'Signed in again, but the page could not be opened: net::ERR_FAILED',
+	);
+});

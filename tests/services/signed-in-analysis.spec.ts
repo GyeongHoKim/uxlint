@@ -192,7 +192,10 @@ test.serial(
 		await service.analyzePage(cfg, cfg.pages[0]!);
 
 		t.is(admit.callCount, 1);
-		t.deepEqual(admit.firstCall.args, [`${origin}/dashboard`, rawCapture]);
+		t.deepEqual(admit.firstCall.args.slice(0, 2), [
+			`${origin}/dashboard`,
+			rawCapture,
+		]);
 		await service.close();
 	},
 );
@@ -558,3 +561,33 @@ test('an injected session is used as given', async t => {
 
 	t.is(run.session, session);
 });
+
+// --- an admission the page did not wait for ---------------------------------
+
+test.serial(
+	'a page whose time runs out tells the session to stop working on it',
+	async t => {
+		// Admission can sign in again, which takes far longer than a capture.
+		// Left running past the page's bound it would drive the browser under
+		// the page reviewed next.
+		const {model} = recordingModel();
+		let given: AbortSignal | undefined;
+		const session = {
+			async admit(_url: string, _snapshot: string, signal?: AbortSignal) {
+				given = signal;
+				return new Promise<never>(() => {
+					// Never settles: the bound is the only way out.
+				});
+			},
+			redact: (text: string) => text,
+		} as unknown as SignedInSession;
+		const service = new AIService(model, browser(), builder(), {session});
+		const cfg = {...config(), analysis: {pageTimeLimitMs: 150}};
+
+		const analysis = await service.analyzePage(cfg, cfg.pages[0]!);
+
+		t.is(analysis.status, 'partial');
+		t.true(given?.aborted);
+		await service.close();
+	},
+);

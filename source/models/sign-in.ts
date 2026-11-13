@@ -64,7 +64,7 @@ export type SignInOutcome =
 	{kind: 'signed-in'} | {kind: 'failed'; failure: SignInFailure};
 
 /** Why a page was refused admission. */
-export type NotReachedReason = 'session-lost' | 'sign-missing';
+export type NotReachedReason = 'session-lost' | 'sign-missing' | 'not-reopened';
 
 /** What the session decided about one captured page. */
 export type PageAdmission =
@@ -101,11 +101,15 @@ const rootRole = 'RootWebArea';
 // `uid=1_4 textbox "Email " value="…"`: the name is the quoted string directly
 // after the role. A later quoted string belongs to an attribute, which is why
 // the name may not be searched for anywhere else on the line.
-const elementLine = /^(\s*)uid=(\S+) (\S+)(?: "((?:[^"\\]|\\.)*)")?/;
+//
+// The browser server prints a name between double quotes without escaping the
+// ones the name itself contains, so the name does not end at the next quote:
+// it ends at the first quote that the line ends on or an attribute follows.
+const elementLine = /^(\s*)uid=(\S+) (\S+)(?: "(.*?)"(?=$| [\w-]+(?:[ =]|$)))?/;
 
 // Applied to one line with its indentation removed.
 const rootAddress = new RegExp(
-	String.raw`^uid=\S+ ${rootRole}(?: "(?:[^"\\]|\\.)*")? url="([^"]*)"`,
+	String.raw`^uid=\S+ ${rootRole}(?: ".*?")? url="([^"]*)"`,
 );
 
 /**
@@ -604,17 +608,24 @@ export function describeSignInFailure(
  *
  * @param reason - Why it was refused
  * @param description - The run's sign-in description
- * @param signInFailure - For a lost session, why signing in again failed
+ * @param detail - What went wrong, for a reason that has more to say: why
+ * signing in again failed, or what the browser said when the page did not open
  * @returns The sentence the report shows for the page
  */
 export function describeNotReached(
 	reason: NotReachedReason,
 	description: SignInDescription,
-	signInFailure?: string,
+	detail?: string,
 ): string {
 	if (reason === 'session-lost') {
 		return `The session was lost and signing in again failed: ${
-			signInFailure ?? 'no reason was given'
+			detail ?? 'no reason was given'
+		}`;
+	}
+
+	if (reason === 'not-reopened') {
+		return `Signed in again, but the page could not be opened: ${
+			detail ?? 'navigation failed'
 		}`;
 	}
 
