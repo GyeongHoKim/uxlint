@@ -11,12 +11,16 @@
  */
 
 import {promises as fsPromises} from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {tool} from 'ai';
 import {MockLanguageModelV4} from 'ai/test';
 import test from 'ava';
 import sinon from 'sinon';
 import {z} from 'zod/v4';
+import {releaseBrowser} from '../../source/delegate/capture-pass.js';
+import {captureForAgent} from '../../source/delegate/driven/capture.js';
 import type {UxLintConfig} from '../../source/models/config.js';
 import {
 	AIService,
@@ -29,6 +33,7 @@ import {
 	resetMCPClient,
 } from '../../source/services/mcp-client.js';
 import {ReportBuilder} from '../../source/services/report-builder.js';
+import {configFor, fakeBrowser, readyVerdict} from '../delegate/helpers.js';
 import {mcpResult} from '../fixtures/mcp-result.js';
 
 const config = (): UxLintConfig => ({
@@ -262,5 +267,56 @@ test.serial(
 		t.is(made.length, 2, 'a released transport is built again, not reused');
 
 		resetMCPClient();
+	},
+);
+
+// The delegate routes close their own client rather than a service's, and the
+// memo has to be released there as well.
+test.serial(
+	'a browser a delegate route released is not handed to the next run',
+	async t => {
+		resetMCPClient();
+		t.teardown(() => {
+			resetMCPClient();
+		});
+		const createClient = async () => fakeBrowser();
+
+		const first = await getMCPClient(readyVerdict, undefined, createClient);
+		await releaseBrowser(first);
+
+		t.not(await getMCPClient(readyVerdict, undefined, createClient), first);
+	},
+);
+
+test.serial(
+	'a capture that finished does not leave its closed browser memoised',
+	async t => {
+		resetMCPClient();
+		t.teardown(() => {
+			resetMCPClient();
+		});
+		const createClient = async () => fakeBrowser();
+		const parent = await fsPromises.mkdtemp(
+			path.join(os.tmpdir(), 'uxlint-isolation-'),
+		);
+		t.teardown(async () => fsPromises.rm(parent, {recursive: true}));
+
+		const first = await getMCPClient(readyVerdict, undefined, createClient);
+		const exitCode = await captureForAgent(configFor(1, 'report.md'), {
+			client: first,
+			parentDirectory: parent,
+			async runPreflight() {
+				return readyVerdict;
+			},
+			emitPayload() {
+				// Nothing is printed during a test.
+			},
+			emitMessage() {
+				// Nothing is printed during a test.
+			},
+		});
+
+		t.is(exitCode, 0);
+		t.not(await getMCPClient(readyVerdict, undefined, createClient), first);
 	},
 );

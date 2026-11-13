@@ -25,6 +25,7 @@ import {runPreflight as defaultRunPreflight} from '../../services/browser-prefli
 import {
 	browserServerIdentity,
 	narrowBrowserTools,
+	resetMCPClient,
 } from '../../services/mcp-client.js';
 import {MeasurementService} from '../../services/measurement.js';
 import {
@@ -185,6 +186,7 @@ export async function captureForAgent(
 		try {
 			await mcpClient.close();
 		} finally {
+			resetMCPClient(mcpClient);
 			run = undefined;
 		}
 

@@ -28,6 +28,7 @@ import {runPreflight as defaultRunPreflight} from '../services/browser-preflight
 import {
 	browserServerIdentity,
 	narrowBrowserTools,
+	resetMCPClient,
 } from '../services/mcp-client.js';
 import {secretNames} from '../models/secret-redaction.js';
 import {MeasurementService} from '../services/measurement.js';
@@ -415,6 +416,7 @@ export async function runDelegatedAnalysis(
 		try {
 			await mcpClient.close();
 		} finally {
+			resetMCPClient(mcpClient);
 			run = undefined;
 		}
 
