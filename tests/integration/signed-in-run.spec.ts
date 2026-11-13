@@ -314,9 +314,17 @@ type Sink = {label: string; text: string};
 
 /** Every file under a directory, read whole. A directory that is gone has none. */
 async function filesUnder(directory: string): Promise<Sink[]> {
+	// Only a directory that is gone has nothing to search. One that could not
+	// be read would otherwise pass the sweep without having been looked at.
 	const entries = await fs.promises
 		.readdir(directory, {recursive: true, withFileTypes: true})
-		.catch(() => []);
+		.catch((error: unknown) => {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return [];
+			}
+
+			throw error;
+		});
 
 	return Promise.all(
 		entries
@@ -352,8 +360,13 @@ async function settledLog(logFile: string): Promise<string> {
 		const contents = await fs.promises
 			.readFile(logFile, 'utf8')
 			.catch(() => '');
-		if (contents.includes(marker) || attemptsLeft === 0) {
+		if (contents.includes(marker)) {
 			return contents;
+		}
+
+		// A log searched before its entries landed proves nothing.
+		if (attemptsLeft === 0) {
+			throw new Error(`The log never showed ${marker}: ${logFile}`);
 		}
 
 		await new Promise(resolve => {
