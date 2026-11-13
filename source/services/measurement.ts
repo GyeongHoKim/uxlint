@@ -41,6 +41,7 @@ import {
 	type TraceResult,
 	type Violation,
 } from '../models/measurement.js';
+import type {Redactor} from '../models/secret-redaction.js';
 import {readToolOutcome} from '../models/tool-output.js';
 import {withDeadline} from './deadline.js';
 
@@ -552,6 +553,7 @@ export class MeasurementService {
 		private readonly log: MeasurementLog = message => {
 			logger.warn(message);
 		},
+		private readonly redact: Redactor = text => text,
 	) {}
 
 	/**
@@ -674,7 +676,10 @@ export class MeasurementService {
 	): Promise<Measured<{violations: Violation[]; engineVersion?: string}>> {
 		try {
 			const contents = await fs.readFile(reportPath, 'utf8');
-			return readAuditReport(contents);
+			// The audit quotes the page it read, and the report file is read
+			// from disk rather than through the browser client, so nothing
+			// else stands between a secret the page displays and a finding.
+			return readAuditReport(this.redact(contents));
 		} catch {
 			return notTaken('unparseable');
 		} finally {

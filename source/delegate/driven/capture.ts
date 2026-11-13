@@ -25,9 +25,20 @@ import {runPreflight as defaultRunPreflight} from '../../services/browser-prefli
 import {
 	browserServerIdentity,
 	narrowBrowserTools,
+	resetMCPClient,
 } from '../../services/mcp-client.js';
 import {MeasurementService} from '../../services/measurement.js';
-import {captureAllPages, checkBrowser} from '../capture-pass.js';
+import {
+	checkSignInSecrets,
+	reportFailedSignIn,
+	SignInFailed,
+	signRunIn,
+} from '../../services/sign-in.js';
+import {
+	captureAllPages,
+	checkBrowser,
+	releaseBrowser,
+} from '../capture-pass.js';
 import {buildEvidence} from '../evidence.js';
 import {DelegationSession} from '../session.js';
 import {pruneRuns} from './runs.js';
@@ -87,6 +98,14 @@ export async function captureForAgent(
 		totalPages: config.pages.length,
 	});
 
+	// Known without starting anything, so said before anything is looked for.
+	const secretProblem = checkSignInSecrets(config);
+	if (secretProblem !== undefined) {
+		logger.error('Sign-in secrets unusable', {message: secretProblem});
+		emitMessage(`uxlint: ${secretProblem}`);
+		return 1;
+	}
+
 	// Swept here and nowhere else. This is the one command always run before a
 	// review and never during one, which makes it the only safe moment to delete
 	// a run somebody else may still be working through.
@@ -98,6 +117,15 @@ export async function captureForAgent(
 	}
 
 	let run: Awaited<ReturnType<typeof createDelegatedRun>> | undefined;
+	let failure: string;
+
+	const server = browserServerIdentity();
+	const provenance = {
+		browserServer: server.name,
+		browserServerVersion: server.version,
+		browserVersion: preflight.browser.version,
+		externalDataAllowed: config.browser?.allowExternalData ?? false,
+	};
 
 	try {
 		run = await createDelegatedRun(config, preflight, {client});
@@ -108,11 +136,20 @@ export async function captureForAgent(
 		// surprise partway through a page.
 		narrowBrowserTools(await mcpClient.tools());
 
-		const measurement = new MeasurementService(mcpClient);
+		// Once, before any page is captured.
+		const signedIn = await signRunIn(run.session, config.signIn);
+
+		const measurement = new MeasurementService(
+			mcpClient,
+			undefined,
+			undefined,
+			run.session?.redact,
+		);
 		const captured = await captureAllPages(
 			mcpClient,
 			measurement,
 			config.pages,
+			{session: run.session},
 		);
 
 		const evidence: PageEvidence[] = captured.map(item =>
@@ -127,7 +164,6 @@ export async function captureForAgent(
 			}),
 		);
 
-		const server = browserServerIdentity();
 		const session = await DelegationSession.create(
 			{
 				// No agent launched this, and none will be. The field records the
@@ -138,20 +174,21 @@ export async function captureForAgent(
 				pages: evidence,
 				captured,
 				persona: config.persona,
-				provenance: {
-					browserServer: server.name,
-					browserServerVersion: server.version,
-					browserVersion: preflight.browser.version,
-					externalDataAllowed: config.browser?.allowExternalData ?? false,
-				},
+				provenance: {...provenance, ...(signedIn && {signedIn})},
 			},
 			parentDirectory === undefined ? {} : {parentDirectory},
 		);
 
 		// Closed before anything is printed, so nothing else owns stdout when the
 		// payload goes out -- which is the condition console-output.ts requires.
-		await mcpClient.close();
-		run = undefined;
+		// Cleared even when close() throws, so the finally below does not close
+		// a torn-down client a second time.
+		try {
+			await mcpClient.close();
+		} finally {
+			resetMCPClient(mcpClient);
+			run = undefined;
+		}
 
 		const payload: CapturePayload = {
 			run: session.id,
@@ -172,11 +209,27 @@ export async function captureForAgent(
 			error: reason,
 			stack: error instanceof Error ? error.stack : undefined,
 		});
-		emitMessage(`uxlint: ${reason}`);
-		return 1;
-	} finally {
-		if (run) {
-			await run.mcpClient.close();
+
+		if (error instanceof SignInFailed && run) {
+			// There is no evidence to come back for, so no run is left behind
+			// and no later command will write a report: this one does, so the
+			// pages that went unreviewed are listed somewhere.
+			await reportFailedSignIn(
+				run.reportBuilder,
+				config,
+				{...provenance, hostAgent: agentDrivenRoute},
+				reason,
+			);
+			failure = `uxlint: sign-in failed — ${reason}`;
+		} else {
+			failure = `uxlint: ${reason}`;
 		}
+	} finally {
+		await releaseBrowser(run?.mcpClient);
 	}
+
+	// Reached only on failure, and only once the browser has been released:
+	// until then the terminal's streams are its transport's.
+	emitMessage(failure);
+	return 1;
 }

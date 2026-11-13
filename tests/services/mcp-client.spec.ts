@@ -1,15 +1,23 @@
 import process from 'node:process';
 import test from 'ava';
+import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import {
 	browserServerIdentity,
 	buildLaunchSpec,
 	entryPointPath,
 	narrowBrowserTools,
+	redactingClient,
+	requireSignInTools,
 	resetMCPClient,
 	resolveBrowserSettings,
 	type BrowserLaunchSettings,
 } from '../../source/services/mcp-client.js';
 import type {PreflightVerdict} from '../../source/models/browser-preflight.js';
+import {
+	createRedactor,
+	redactedMarker,
+} from '../../source/models/secret-redaction.js';
+import {mcpError, mcpResult} from '../fixtures/mcp-result.js';
 
 const ready: PreflightVerdict = {
 	kind: 'ready',
@@ -280,5 +288,268 @@ test('narrowing happens before any provider request could be issued', t => {
 	});
 	t.notThrows(() => {
 		narrowBrowserTools({navigate_page: 'nav', take_snapshot: 'cap'});
+	});
+});
+
+// --- sign-in tools (011) ----------------------------------------------------
+
+test('a browser server offering fill and click satisfies sign-in', t => {
+	t.notThrows(() => {
+		requireSignInTools({
+			navigate_page: 'nav',
+			take_snapshot: 'cap',
+			fill: 'fill',
+			click: 'click',
+		});
+	});
+});
+
+test('a browser server without fill fails before sign-in, naming it', t => {
+	const error = t.throws(() => {
+		requireSignInTools({
+			navigate_page: 'nav',
+			take_snapshot: 'cap',
+			click: 'c',
+		});
+	});
+
+	// Found at startup, not at the first step of signing in: by then the run
+	// has opened the login page and has nothing it can do there.
+	t.true(error?.message.includes('fill'), 'the message must name it');
+	t.false(error?.message.includes('click'));
+	t.regex(error?.message ?? '', /sign-in requires/);
+});
+
+test('both missing sign-in tools are named rather than only the first', t => {
+	const error = t.throws(() => {
+		requireSignInTools({navigate_page: 'nav', take_snapshot: 'cap'});
+	});
+
+	t.true(error?.message.includes('fill'));
+	t.true(error?.message.includes('click'));
+});
+
+// --- a client whose results carry no secret (011) ---------------------------
+
+const secret = 'correct-horse-battery-staple';
+
+type ToolArguments = Record<string, unknown>;
+
+/** A tool as the analysis calls it, reduced to the part these tests use. */
+type CallableTool = {
+	execute(args: ToolArguments, options: unknown): Promise<unknown>;
+};
+
+/**
+ * A client that answers every call with the same text, and records what it
+ * was asked. The text stands in for a page that prints what was typed into
+ * it, which is how a secret gets into a result in the first place.
+ */
+function clientAnswering(text: string) {
+	const received: Array<{via: string; name: string; args: ToolArguments}> = [];
+	let closes = 0;
+
+	const toolNamed = (name: string): CallableTool => ({
+		async execute(args) {
+			received.push({via: 'tools', name, args});
+			return mcpResult(text);
+		},
+	});
+
+	const client = {
+		async tools() {
+			return {
+				take_snapshot: toolNamed('take_snapshot'),
+				fill: toolNamed('fill'),
+			};
+		},
+		async callTool(request: {name: string; arguments?: ToolArguments}) {
+			received.push({
+				via: 'callTool',
+				name: request.name,
+				args: request.arguments ?? {},
+			});
+			return mcpResult(text);
+		},
+		async close() {
+			closes++;
+		},
+	} as unknown as MCPClient;
+
+	return {client, received, closed: () => closes};
+}
+
+const wrapped = (client: MCPClient): MCPClient =>
+	redactingClient(client, createRedactor([secret]));
+
+const toolsOf = async (client: MCPClient) =>
+	(await client.tools()) as unknown as Record<string, CallableTool>;
+
+const executeOptions = {toolCallId: 'call-1', messages: []};
+
+test('a direct tool call returns the marker in place of a secret', async t => {
+	const {client} = clientAnswering(`StaticText "Your key: ${secret}"`);
+
+	const result = await wrapped(client).callTool({
+		name: 'take_snapshot',
+		arguments: {},
+	});
+
+	t.false(JSON.stringify(result).includes(secret));
+	t.deepEqual(result, mcpResult(`StaticText "Your key: ${redactedMarker}"`));
+});
+
+test('every tool the client hands out returns the marker in place of a secret', async t => {
+	const {client} = clientAnswering(`StaticText "Your key: ${secret}"`);
+
+	const tools = await toolsOf(wrapped(client));
+	t.deepEqual(Object.keys(tools).sort(), ['fill', 'take_snapshot']);
+
+	const results = await Promise.all(
+		Object.values(tools).map(async tool => tool.execute({}, executeOptions)),
+	);
+
+	for (const result of results) {
+		t.false(JSON.stringify(result).includes(secret));
+		t.deepEqual(result, mcpResult(`StaticText "Your key: ${redactedMarker}"`));
+	}
+});
+
+test('a failed result is redacted and stays a failure', async t => {
+	const {client} = clientAnswering('unused');
+	const failing = {
+		...client,
+		async callTool() {
+			return mcpError(`Could not type "${secret}" into the element`);
+		},
+	} as unknown as MCPClient;
+
+	const result = await wrapped(failing).callTool({name: 'fill', arguments: {}});
+
+	t.deepEqual(
+		result,
+		mcpError(`Could not type "${redactedMarker}" into the element`),
+	);
+});
+
+test('arguments reach the browser unchanged, a secret among them', async t => {
+	// Sign-in has to type the secret. Redacting what goes in would type the
+	// marker into the password field and fail every sign-in.
+	const {client, received} = clientAnswering(
+		'Successfully filled out the element',
+	);
+	const redacting = wrapped(client);
+	const args = {uid: '1_4', value: secret};
+
+	await redacting.callTool({name: 'fill', arguments: args});
+	const tools = await toolsOf(redacting);
+	await tools['fill']?.execute(args, executeOptions);
+
+	t.deepEqual(received, [
+		{via: 'callTool', name: 'fill', args: {uid: '1_4', value: secret}},
+		{via: 'tools', name: 'fill', args: {uid: '1_4', value: secret}},
+	]);
+});
+
+test('a result carrying no secret comes back with equal content', async t => {
+	const text = 'uid=1_0 RootWebArea "Dashboard" url="https://app.example.com/"';
+	const {client} = clientAnswering(text);
+	const redacting = wrapped(client);
+
+	const direct = await redacting.callTool({
+		name: 'take_snapshot',
+		arguments: {},
+	});
+	const tools = await toolsOf(redacting);
+	const adapted = await tools['take_snapshot']?.execute({}, executeOptions);
+
+	t.deepEqual(direct, mcpResult(text));
+	t.deepEqual(adapted, mcpResult(text));
+});
+
+test('closing a redacting client closes the browser client behind it', async t => {
+	const {client, closed} = clientAnswering(`key ${secret}`);
+	const redacting = wrapped(client);
+
+	// Asserted on a client that provably redacts, so that this is a statement
+	// about the wrapper rather than about the client handed back untouched.
+	const result = await redacting.callTool({
+		name: 'take_snapshot',
+		arguments: {},
+	});
+	t.false(JSON.stringify(result).includes(secret));
+
+	await redacting.close();
+
+	t.is(closed(), 1);
+});
+
+/** A client whose every call is rejected with a message quoting the secret. */
+function clientRejecting(message: string): MCPClient {
+	return {
+		async tools() {
+			return {
+				fill: {
+					async execute() {
+						throw new Error(message);
+					},
+				},
+			};
+		},
+		async callTool() {
+			throw new Error(message);
+		},
+	} as unknown as MCPClient;
+}
+
+test('a rejected direct call is rejected without the secret in its message', async t => {
+	const client = wrapped(clientRejecting(`could not type "${secret}"`));
+
+	const error = await t.throwsAsync(
+		client.callTool({name: 'fill', arguments: {}}),
+	);
+
+	t.is(error?.message, 'could not type "[redacted]"');
+	t.false(
+		JSON.stringify(error, Object.getOwnPropertyNames(error)).includes(secret),
+	);
+	t.is(error?.cause, undefined, 'the original must not ride along');
+});
+
+test('a rejected tool is rejected without the secret in its message', async t => {
+	const tools = await toolsOf(
+		wrapped(clientRejecting(`could not type "${secret}"`)),
+	);
+
+	const error = await t.throwsAsync(tools['fill']!.execute({}, executeOptions));
+
+	t.is(error?.message, 'could not type "[redacted]"');
+});
+
+test('an image a tool returns is not rewritten, even where it spells a secret', async t => {
+	// Base64 spells short words by accident. Replacing one would corrupt the
+	// picture, and a picture's bytes are not text a secret can be read from.
+	const image = {
+		type: 'image',
+		data: `AAAA${secret}BBBB`,
+		mimeType: 'image/png',
+	};
+	const client = {
+		async callTool() {
+			return {
+				content: [{type: 'text', text: `typed ${secret}`}, image],
+				isError: false,
+			};
+		},
+	} as unknown as MCPClient;
+
+	const result = await wrapped(client).callTool({
+		name: 'take_screenshot',
+		arguments: {},
+	});
+
+	t.deepEqual(result, {
+		content: [{type: 'text', text: 'typed [redacted]'}, image],
+		isError: false,
 	});
 });

@@ -7,6 +7,7 @@
  */
 
 import type {BrowserSettings} from './browser.js';
+import type {SignInDescription} from './sign-in.js';
 import type {Thresholds} from './thresholds.js';
 
 /**
@@ -229,4 +230,12 @@ export type UxLintConfig = {
 	 * the run.
 	 */
 	analysis?: AnalysisConfig;
+
+	/**
+	 * Optional description of how to sign in before reviewing.
+	 *
+	 * Absent means every page is opened as a visitor who has never been to
+	 * the site, exactly as before this key existed.
+	 */
+	signIn?: SignInDescription;
 };

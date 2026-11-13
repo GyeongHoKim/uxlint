@@ -47,6 +47,15 @@ export type HostLaunch = {
 	 * trailing positional argument.
 	 */
 	stdin?: string;
+
+	/**
+	 * Variables of this process's environment the agent must not inherit.
+	 *
+	 * Set by the run, not by an adapter: a signed-in run reads its secrets
+	 * from the environment, and an agent started from that environment would
+	 * otherwise be handed every one of them.
+	 */
+	withheldEnvironment?: readonly string[];
 };
 
 /**

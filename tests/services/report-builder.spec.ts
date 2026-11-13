@@ -473,3 +473,90 @@ test('a judged finding carrying a rule is refused', t => {
 		{message: /must not carry a ruleId/},
 	);
 });
+
+// --- the address a page was reached at (011) --------------------------------
+
+test('a page reviewed at another address records that address', t => {
+	const {builder} = createBuilder();
+	builder.initializePageAnalysis('https://example.com/home', 'features');
+	builder.setReachedUrl('https://example.com/dashboard');
+
+	const analysis = builder.completePageAnalysis();
+
+	t.is(analysis.reachedUrl, 'https://example.com/dashboard');
+});
+
+test('a failed page keeps the address it was reached at', t => {
+	const {builder} = createBuilder();
+	const page = {url: 'https://example.com/home', features: 'features'};
+	builder.initializePageAnalysis(page.url, page.features);
+	builder.setReachedUrl('https://example.com/dashboard');
+
+	const analysis = builder.failCurrentPage('the session was lost', page);
+
+	t.is(analysis.reachedUrl, 'https://example.com/dashboard');
+});
+
+test('a page reviewed where it was asked for carries no second address', t => {
+	const {builder} = createBuilder();
+	builder.initializePageAnalysis('https://example.com/home', 'features');
+
+	t.false(Object.hasOwn(builder.completePageAnalysis(), 'reachedUrl'));
+});
+
+test('an address cannot be recorded before a page is open', t => {
+	const {builder} = createBuilder();
+
+	t.throws(
+		() => {
+			builder.setReachedUrl('https://example.com/dashboard');
+		},
+		{message: /No page analysis initialized/},
+	);
+});
+
+// --- a run that could not sign in (011) -------------------------------------
+
+test('failing every page records each configured page as failed, in order', t => {
+	const {builder} = createBuilder();
+	const pages = [
+		{url: 'https://example.com/dashboard', features: 'usage'},
+		{url: 'https://example.com/settings', features: 'profile'},
+	];
+	const reason = 'Sign-in did not finish within 30000 ms';
+
+	builder.setPersona('An operations lead');
+	builder.failEveryPage(pages, reason);
+
+	const report = builder.generateFinalReport();
+	t.deepEqual(report.metadata.failedPages, [
+		'https://example.com/dashboard',
+		'https://example.com/settings',
+	]);
+	t.deepEqual(report.metadata.analyzedPages, []);
+	t.true(
+		builder
+			.getCurrentState()
+			.completedAnalyses.every(
+				analysis =>
+					analysis.status === 'failed' &&
+					analysis.error === reason &&
+					analysis.snapshot === '' &&
+					analysis.findings.length === 0,
+			),
+	);
+});
+
+test('a page failed with the others was not measured, and says so', t => {
+	const {builder} = createBuilder();
+
+	builder.failEveryPage(
+		[{url: 'https://example.com/dashboard', features: 'usage'}],
+		'Sign-in did not finish within 30000 ms',
+	);
+
+	t.deepEqual(
+		builder.getCurrentState().completedAnalyses[0]?.measurement,
+		noMeasurement('page-not-loaded'),
+	);
+});

@@ -8,10 +8,19 @@ import {
 	auditSnapshotReply,
 	malformedAuditReplies,
 } from '../fixtures/lighthouse-reply.js';
+import {mcpResult} from '../fixtures/mcp-result.js';
 import {
+	createRedactor,
+	redactedMarker,
+} from '../../source/models/secret-redaction.js';
+import {
+	describeMeasurement,
+	measuredFindings,
+	MeasurementService,
 	parseAuditReply,
 	parseTraceReply,
 	readAuditReport,
+	type MeasurementClient,
 } from '../../source/services/measurement.js';
 import {
 	traceWithNavigationReply,
@@ -25,10 +34,13 @@ const reportFixture = auditReportJson;
  * Put the fixture report where a parsed reply says the report lives, so the
  * read path is exercised end to end rather than handed a pre-loaded object.
  */
-function withReportOnDisk(reply: string): {reply: string; cleanup: () => void} {
+function withReportOnDisk(
+	reply: string,
+	report: string = reportFixture,
+): {reply: string; cleanup: () => void} {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uxlint-audit-test-'));
 	const file = path.join(dir, 'report.json');
-	fs.writeFileSync(file, reportFixture);
+	fs.writeFileSync(file, report);
 	const rewritten = reply.replace(/- \S*report\.json/, () => `- ${file}`);
 	return {
 		reply: rewritten,
@@ -398,4 +410,202 @@ test('the category score lines are not mistaken for paths', t => {
 	t.false(
 		parsed.value.writtenPaths.some(file => file.includes('Accessibility')),
 	);
+});
+
+// --- the mode the audit is asked for ---------------------------------------
+
+test('the audit is asked for in snapshot mode', async t => {
+	// Research R10 (specs/011-authenticated-pages/research.md). A run signs in
+	// before it reviews its pages, and the audit's `navigation` mode reloads
+	// and resets storage, which would sign every run out between the sign-in
+	// and the review. `snapshot` analyses the page as it stands. Nothing else
+	// would report the change: the audit would still succeed, on the sign-in
+	// page it had been sent back to.
+	const {reply, cleanup} = withReportOnDisk(auditSnapshotReply);
+	const calls: Array<{name: string; args?: Record<string, unknown>}> = [];
+	const client: MeasurementClient = {
+		async callTool({name, arguments: args}) {
+			calls.push({name, args});
+			return mcpResult(
+				name === 'lighthouse_audit' ? reply : traceWithNavigationReply,
+			);
+		},
+	};
+
+	try {
+		const measurement = await new MeasurementService(client).measure(
+			'analysable',
+		);
+
+		// The audit really ran, so the call below is the one that produced it.
+		t.is(measurement.audit.state, 'taken');
+
+		const audits = calls.filter(call => call.name === 'lighthouse_audit');
+		t.is(audits.length, 1);
+		t.is(audits[0]?.args?.['mode'], 'snapshot');
+	} finally {
+		cleanup();
+	}
+});
+
+// --- secrets a page printed into its audit (011) ----------------------------
+
+/**
+ * The fixture report, as the audit would have written it for a page that
+ * printed a value into its own markup.
+ *
+ * The audit quotes the page in two places: an element's snippet, label and
+ * selector, and -- for a rule whose wording names what it found -- the title,
+ * which is the one text the measurement carries onward.
+ */
+function reportQuoting(value: string): string {
+	const report = JSON.parse(reportFixture) as {
+		audits: Record<
+			string,
+			{
+				title: string;
+				details?: {items?: Array<{node?: Record<string, unknown>}>};
+			}
+		>;
+	};
+
+	for (const audit of Object.values(report.audits)) {
+		const nodes = (audit.details?.items ?? []).flatMap(item =>
+			item.node ? [item.node] : [],
+		);
+
+		for (const node of nodes) {
+			node['snippet'] = `<input name="api-key" value="${value}">`;
+			node['nodeLabel'] = `Your key: ${value}`;
+			node['selector'] = `input[value="${value}"]`;
+		}
+	}
+
+	const imageAlt = report.audits['image-alt'];
+	if (imageAlt) {
+		imageAlt.title = `Image elements do not have [alt] attributes: "${value}"`;
+	}
+
+	return JSON.stringify(report, undefined, '\t');
+}
+
+/** Measure a page whose audit wrote the given report. */
+async function measureWithReport(
+	report: string,
+	redact?: (text: string) => string,
+) {
+	const {reply, cleanup} = withReportOnDisk(auditSnapshotReply, report);
+	const client: MeasurementClient = {
+		async callTool({name}) {
+			return mcpResult(
+				name === 'lighthouse_audit' ? reply : traceWithNavigationReply,
+			);
+		},
+	};
+	const logged: string[] = [];
+
+	try {
+		const measurement = await new MeasurementService(
+			client,
+			undefined,
+			message => {
+				logged.push(message);
+			},
+			redact,
+		).measure('analysable');
+
+		return {measurement, logged};
+	} finally {
+		cleanup();
+	}
+}
+
+const pageUrl = 'https://app.example.com/settings';
+
+test('a secret the audit report quotes is redacted in what was measured', async t => {
+	const secret = 'correct-horse-battery-staple';
+	const report = reportQuoting(secret);
+	t.true(report.includes(secret), 'the report on disk must carry the value');
+
+	const {measurement, logged} = await measureWithReport(
+		report,
+		createRedactor([secret]),
+	);
+
+	t.is(measurement.audit.state, 'taken');
+
+	const findings = JSON.stringify(measuredFindings(measurement, pageUrl));
+	const digest = describeMeasurement(measurement);
+
+	t.false(JSON.stringify(measurement).includes(secret));
+	t.false(findings.includes(secret));
+	t.false(digest.includes(secret));
+	t.false(logged.join('\n').includes(secret));
+
+	t.true(
+		findings.includes(
+			JSON.stringify(
+				`Image elements do not have [alt] attributes: "${redactedMarker}"`,
+			),
+		),
+	);
+	t.true(
+		digest.includes(
+			`Image elements do not have [alt] attributes: "${redactedMarker}"`,
+		),
+	);
+});
+
+test('a secret is redacted in the spelling the report file quotes it in', async t => {
+	// A value holding a quote or a backslash is escaped inside the report's
+	// JSON, so the file never contains the value as it was typed.
+	const secret = String.raw`correct-"horse"-battery\staple`;
+	const report = reportQuoting(secret);
+	t.false(report.includes(secret), 'the file holds the escaped spelling only');
+
+	const {measurement} = await measureWithReport(
+		report,
+		createRedactor([secret]),
+	);
+
+	t.is(measurement.audit.state, 'taken');
+
+	const findings = measuredFindings(measurement, pageUrl);
+	const digest = describeMeasurement(measurement);
+
+	t.false(
+		findings.some(finding => finding.description.includes(secret)),
+		'no finding may carry the value',
+	);
+	t.false(digest.includes(secret));
+	t.true(digest.includes(redactedMarker));
+	// Every rule still arrives: redacting must not cost the page its audit.
+	t.is(findings.length, 4);
+});
+
+test('redacting a report leaves everything else about the audit as it was', async t => {
+	const secret = 'correct-horse-battery-staple';
+	const redacted = await measureWithReport(
+		reportQuoting(secret),
+		createRedactor([secret]),
+	);
+	const plain = await measureWithReport(reportQuoting(redactedMarker));
+
+	t.deepEqual(redacted.measurement, plain.measurement);
+});
+
+test('without a redactor the audit report comes through unchanged', async t => {
+	const value = 'correct-horse-battery-staple';
+
+	const {measurement} = await measureWithReport(reportQuoting(value));
+
+	t.is(measurement.audit.state, 'taken');
+	t.true(
+		measuredFindings(measurement, pageUrl).some(
+			finding =>
+				finding.description ===
+				`Image elements do not have [alt] attributes: "${value}"`,
+		),
+	);
+	t.true(describeMeasurement(measurement).includes(value));
 });

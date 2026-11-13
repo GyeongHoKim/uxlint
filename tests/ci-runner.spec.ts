@@ -13,7 +13,14 @@ import {runCIAnalysis} from '../source/ci-runner.js';
 import type {PageAnalysis} from '../source/models/analysis.js';
 import type {PreflightVerdict} from '../source/models/browser-preflight.js';
 import type {UxLintConfig} from '../source/models/config.js';
+import {
+	describeSignInFailure,
+	missingSecretText,
+	type SignInDescription,
+	type SignInFailure,
+} from '../source/models/sign-in.js';
 import {ReportBuilder} from '../source/services/report-builder.js';
+import type {SignedInSession} from '../source/services/sign-in.js';
 
 const baseConfig = (overrides: Partial<UxLintConfig> = {}): UxLintConfig => ({
 	mainPageUrl: 'https://example.com',
@@ -65,6 +72,7 @@ const createDeps = (
 	return {
 		sandbox,
 		builder,
+		aiService,
 		deps: {
 			async createRun() {
 				return {aiService: aiService as never, reportBuilder: builder};
@@ -571,3 +579,349 @@ test('a preflight that throws exits 1 with a message about the environment', asy
 	t.true(emitted.some(message => message.includes('EROFS')));
 	sandbox.restore();
 });
+
+/**
+ * Signing in (011). A run whose configuration describes a sign-in carries a
+ * session, and the runner establishes it once before any page is analysed.
+ * A run without one must be left exactly as it was.
+ */
+const signIn: SignInDescription = {
+	url: 'https://example.com/login',
+	steps: [{fill: 'Email', value: 'reviewer@example.com'}, {click: 'Sign in'}],
+	signedIn: {name: 'Account menu', role: 'button'},
+};
+
+const threePages = (overrides: Partial<UxLintConfig> = {}): UxLintConfig =>
+	baseConfig({
+		subPageUrls: ['https://example.com/billing', 'https://example.com/team'],
+		pages: [
+			{url: 'https://example.com', features: 'Overview'},
+			{url: 'https://example.com/billing', features: 'Invoices'},
+			{url: 'https://example.com/team', features: 'Members'},
+		],
+		...overrides,
+	});
+
+/**
+ * `createDeps` with a session on the run. The session signs in without a
+ * browser, and `order` records it against each page analysis so a test can
+ * assert which came first.
+ */
+const createSignedInDeps = (
+	behaviour: (
+		builder: ReportBuilder,
+	) => (page: {url: string; features: string}) => PageAnalysis = completed,
+) => {
+	const order: string[] = [];
+	const {sandbox, builder, aiService, deps} = createDeps(b => page => {
+		order.push(`analyse ${page.url}`);
+		return behaviour(b)(page);
+	});
+	const close = sandbox.spy(aiService, 'close');
+	const establish = sandbox.stub().callsFake(async () => {
+		order.push('establish');
+		return {kind: 'signed-in'};
+	});
+	const session = {
+		establish,
+		redact: (text: string) => text,
+	} as unknown as SignedInSession;
+
+	return {
+		sandbox,
+		builder,
+		establish,
+		order,
+		closeCalls: () => close.callCount,
+		deps: {
+			...deps,
+			async createRun() {
+				const run = await deps.createRun();
+				return {...run, session};
+			},
+		},
+	};
+};
+
+test('a run with a session signs in once, before the first page is analysed', async t => {
+	// One sign-in serves the whole run: the pages share a browser, so signing
+	// in again per page would only repeat work the first one already did.
+	const {sandbox, establish, order, deps} = createSignedInDeps();
+
+	const code = await runCIAnalysis(threePages({signIn}), deps);
+
+	t.is(code, 0);
+	t.is(establish.callCount, 1, 'three pages must cost exactly one sign-in');
+	t.deepEqual(order, [
+		'establish',
+		'analyse https://example.com',
+		'analyse https://example.com/billing',
+		'analyse https://example.com/team',
+	]);
+	sandbox.restore();
+});
+
+test('a run that signed in says so in its report', async t => {
+	const {sandbox, builder, deps} = createSignedInDeps();
+
+	await runCIAnalysis(baseConfig({signIn}), deps);
+
+	const {tooling} = builder.generateFinalReport().metadata;
+	t.true(
+		tooling.signedIn,
+		'a reader of the report must be able to tell the pages were reviewed signed in',
+	);
+	// Signing in adds to the provenance; it must not replace what was there.
+	t.is(tooling.browserServer, 'chrome-devtools-mcp');
+	sandbox.restore();
+});
+
+test('a run with no session records nothing about signing in', async t => {
+	// A configuration without `signIn` is every configuration that existed
+	// before this feature. `signedIn: false` would claim a sign-in was
+	// attempted and failed, so the key has to be absent, not falsy.
+	const {sandbox, builder, deps} = createDeps();
+
+	const code = await runCIAnalysis(threePages(), deps);
+
+	const {metadata} = builder.generateFinalReport();
+	t.is(code, 0);
+	t.false('signedIn' in metadata.tooling);
+	t.is(metadata.analyzedPages.length, 3);
+	sandbox.restore();
+});
+
+/**
+ * A failed sign-in (011, FR-009). No page is reviewed, but the run still
+ * leaves a report: every configured page is recorded as failed with the
+ * reason, so a reader is not left with a pipeline that failed and nothing
+ * that says which pages went unreviewed or why.
+ */
+const rejected: SignInFailure = {
+	kind: 'sign-absent',
+	shown:
+		'"Sign in" at https://example.com/login?error=1 — alert: "Invalid email or password"',
+};
+
+const rejectedReason = describeSignInFailure(rejected, signIn);
+
+/**
+ * `createDeps` with a session whose sign-in fails. Everything the run did
+ * afterwards is recorded, because what is being asserted is mostly what it
+ * must not do.
+ */
+const createFailedSignInDeps = () => {
+	const {sandbox, builder, deps} = createDeps();
+	const analysed: string[] = [];
+	const emitted: string[] = [];
+	let closeCalls = 0;
+	const saveReport = sandbox.spy(builder, 'saveReport');
+	const session = {
+		establish: sandbox.stub().resolves({kind: 'failed', failure: rejected}),
+		redact: (text: string) => text,
+	} as unknown as SignedInSession;
+
+	return {
+		sandbox,
+		builder,
+		saveReport,
+		analysed,
+		emitted,
+		closeCalls: () => closeCalls,
+		deps: {
+			...deps,
+			async createRun() {
+				const service = {
+					async analyzePage(
+						_config: UxLintConfig,
+						page: {url: string; features: string},
+					) {
+						analysed.push(page.url);
+						return completed(builder)(page);
+					},
+					async close() {
+						closeCalls++;
+					},
+				};
+
+				return {
+					aiService: service as never,
+					reportBuilder: builder,
+					session,
+				};
+			},
+			emitVerdict(verdict: string) {
+				emitted.push(verdict);
+			},
+		},
+	};
+};
+
+test('a failed sign-in analyses no page and records every page as failed for that reason', async t => {
+	const {sandbox, builder, saveReport, analysed, deps} =
+		createFailedSignInDeps();
+
+	await runCIAnalysis(threePages({signIn}), deps);
+
+	t.deepEqual(analysed, [], 'a page must not be reviewed signed out');
+	t.true(
+		saveReport.calledOnceWith('./test-report.md'),
+		'the report is the only place the unreviewed pages are listed',
+	);
+
+	const report = builder.generateFinalReport();
+	t.deepEqual(report.metadata.failedPages, [
+		'https://example.com',
+		'https://example.com/billing',
+		'https://example.com/team',
+	]);
+	t.deepEqual(report.metadata.analyzedPages, []);
+	t.deepEqual(
+		report.pages.map(page => page.error),
+		[rejectedReason, rejectedReason, rejectedReason],
+	);
+	// False rather than absent: a sign-in was described, attempted, and failed.
+	t.false(report.metadata.tooling.signedIn);
+	// The failure adds to the provenance; it must not replace what was there.
+	t.is(report.metadata.tooling.browserServer, 'chrome-devtools-mcp');
+	sandbox.restore();
+});
+
+// Written for both because the gate must not be what decides it: a failed
+// sign-in fails a pipeline that never configured a threshold, and a configured
+// one must not turn the message into a verdict about findings.
+for (const [label, thresholds] of [
+	['with no thresholds configured', undefined],
+	['with thresholds configured', {maxCritical: 10}],
+] as const) {
+	test(`a failed sign-in exits 1 and says why ${label}`, async t => {
+		const {sandbox, emitted, closeCalls, deps} = createFailedSignInDeps();
+
+		const code = await runCIAnalysis(
+			threePages({signIn, ...(thresholds && {thresholds})}),
+			deps,
+		);
+
+		t.is(code, 1);
+		t.true(
+			emitted.includes(`uxlint: sign-in failed — ${rejectedReason}`),
+			'the message names the sign-in, not a failed analysis',
+		);
+		t.false(emitted.some(message => message.includes('analysis failed')));
+		t.is(closeCalls(), 1, 'the browser is released on this path too');
+		sandbox.restore();
+	});
+}
+
+/**
+ * A missing secret (011, FR-010). Found out before anything is started, so a
+ * pipeline that forgot to set one is told at once and has spent nothing.
+ */
+const neverSetSecret = 'UXLINT_TEST_SECRET_THAT_IS_NEVER_SET';
+
+test('a sign-in naming a secret that is not set stops the run before anything is started', async t => {
+	Reflect.deleteProperty(process.env, neverSetSecret);
+	const {sandbox, builder, deps} = createSignedInDeps();
+	const saveReport = sandbox.spy(builder, 'saveReport');
+	const emitted: string[] = [];
+	let preflightCalls = 0;
+	let runsCreated = 0;
+
+	const code = await runCIAnalysis(
+		baseConfig({
+			signIn: {
+				...signIn,
+				steps: [
+					{fill: 'Email', value: 'reviewer@example.com'},
+					{fill: 'Password', secret: neverSetSecret},
+					{click: 'Sign in'},
+				],
+			},
+		}),
+		{
+			async createRun() {
+				runsCreated++;
+				return deps.createRun();
+			},
+			async runPreflight() {
+				preflightCalls++;
+				return readyVerdict;
+			},
+			emitVerdict(verdict) {
+				emitted.push(verdict);
+			},
+		},
+	);
+
+	t.is(code, 1);
+	t.deepEqual(emitted, [`uxlint: ${missingSecretText([neverSetSecret])}`]);
+	t.is(
+		emitted[0],
+		`uxlint: Sign-in needs ${neverSetSecret}, which is not set in the environment`,
+	);
+	t.is(preflightCalls, 0, 'no browser is probed for a run that cannot sign in');
+	t.is(runsCreated, 0, 'no run is assembled, so no model is reached');
+	t.false(saveReport.called, 'nothing was reviewed, so nothing is reported');
+	sandbox.restore();
+});
+
+/**
+ * Releasing the browser (011, FR-022). The signed-in session lives only in the
+ * browser's throwaway profile, which is discarded when the browser closes, so
+ * a run that signed in must close it exactly once however it ends: not at all
+ * leaves a signed-in browser behind, and twice closes a torn-down instance.
+ *
+ * A failed sign-in is the fourth ending, and "a failed sign-in exits 1 and
+ * says why" above already counts its closes.
+ */
+const billingUrl = 'https://example.com/billing';
+
+// The session admitted the first page and refused this one. `analyzePage`
+// settles that as a failed page and returns; the run carries on.
+const refusedAtBilling =
+	(builder: ReportBuilder) => (page: {url: string; features: string}) => {
+		builder.initializePageAnalysis(page.url, page.features);
+		return page.url === billingUrl
+			? builder.failCurrentPage(
+					`${billingUrl} was not reached signed in: the session was lost and signing in again failed`,
+					page,
+				)
+			: builder.completePageAnalysis();
+	};
+
+const throwingAtBilling =
+	(builder: ReportBuilder) => (page: {url: string; features: string}) => {
+		if (page.url === billingUrl) {
+			throw new Error('transport died mid-run');
+		}
+
+		return completed(builder)(page);
+	};
+
+for (const [label, behaviour, expectedCode, pagesAttempted] of [
+	['completes', completed, 0, 3],
+	['has a page refused part-way through', refusedAtBilling, 0, 3],
+	['throws after signing in', throwingAtBilling, 1, 2],
+] as const) {
+	test(`a signed-in run that ${label} closes the browser exactly once`, async t => {
+		const {sandbox, establish, order, closeCalls, deps} =
+			createSignedInDeps(behaviour);
+
+		const code = await runCIAnalysis(threePages({signIn}), {
+			...deps,
+			emitVerdict() {
+				// Swallowed: the assertion is about close(), not the message.
+			},
+		});
+
+		t.is(code, expectedCode);
+		t.is(establish.callCount, 1, 'the run did sign in');
+		t.is(
+			order.length - 1,
+			pagesAttempted,
+			'the ending under test is the one that was reached',
+		);
+		t.is(closeCalls(), 1, 'the signed-in browser is released once, not twice');
+		sandbox.restore();
+	});
+}

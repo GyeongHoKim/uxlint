@@ -30,13 +30,20 @@ import {
 } from '../models/browser-preflight.js';
 import type {Page, UxLintConfig} from '../models/config.js';
 import type {PageMeasurement} from '../models/measurement.js';
+import {
+	reachedUrlOf,
+	sameAddress,
+	type NotReachedReason,
+} from '../models/sign-in.js';
 import {readToolOutcome} from '../models/tool-output.js';
 import type {runPreflight as defaultRunPreflight} from '../services/browser-preflight.js';
+import {resetMCPClient} from '../services/mcp-client.js';
 import {
 	measuredFindings,
 	type MeasurementService,
 } from '../services/measurement.js';
 import type {ReportBuilder} from '../services/report-builder.js';
+import type {SignedInSession} from '../services/sign-in.js';
 import {runSequentially} from '../utils/run-sequentially.js';
 import type {collect} from './ingest.js';
 
@@ -49,6 +56,12 @@ export type CapturedPage = {
 	measurement: PageMeasurement;
 	stage: PageStage;
 	failureReason?: string;
+
+	/** The address the page was reviewed at, when it differs from the configured one */
+	reachedUrl?: string;
+
+	/** Set when a signed-in run refused the page; such a page is failed, not partial */
+	notReached?: NotReachedReason;
 };
 
 /**
@@ -61,12 +74,20 @@ export type CapturedPage = {
  *
  * @param client - Connected browser client
  * @param page - The page to open
+ * @param session - The run's signed-in session, when it has one
  * @returns What was captured, and why not when nothing was
  */
 export async function capturePage(
 	client: MCPClient,
 	page: Page,
-): Promise<{snapshot: string; stage: PageStage; failureReason?: string}> {
+	session?: SignedInSession,
+): Promise<{
+	snapshot: string;
+	stage: PageStage;
+	failureReason?: string;
+	reachedUrl?: string;
+	notReached?: NotReachedReason;
+}> {
 	const callTool = (
 		client as unknown as {
 			callTool(args: {
@@ -112,7 +133,38 @@ export async function capturePage(
 		};
 	}
 
-	return {snapshot: capture.text, stage};
+	if (!session) {
+		// A page that forwards is reported as one on every run, not only on
+		// those that sign in.
+		const reachedUrl = reachedUrlOf(capture.text);
+		return {
+			snapshot: capture.text,
+			stage,
+			...(reachedUrl !== undefined &&
+				!sameAddress(reachedUrl, page.url) && {reachedUrl}),
+		};
+	}
+
+	// A signed-in run reviews only what the session says a signed-in visitor
+	// reached. Anything else is not a page that was partly read: it is a page
+	// that was not reached, and nothing of it goes any further.
+	const admission = await session.admit(page.url, capture.text);
+	if (admission.kind === 'refused') {
+		return {
+			snapshot: '',
+			stage: 'loaded',
+			failureReason: admission.detail,
+			notReached: admission.reason,
+		};
+	}
+
+	return {
+		snapshot: admission.snapshot,
+		stage,
+		...(admission.reachedUrl !== undefined && {
+			reachedUrl: admission.reachedUrl,
+		}),
+	};
 }
 
 /**
@@ -151,18 +203,25 @@ export function shortfallReason(
  * @param client - Connected browser client
  * @param measurement - The measurement service bound to that client
  * @param pages - The pages to cover, in configuration order
- * @param onPageCaptured - Called as each page finishes
+ * @param options - What varies between runs
+ * @param options.onPageCaptured - Called as each page finishes
+ * @param options.session - The run's signed-in session, when it has one
  * @returns What each page yielded, in configuration order
  */
 export async function captureAllPages(
 	client: MCPClient,
 	measurement: MeasurementService,
 	pages: readonly Page[],
-	onPageCaptured?: (pageUrl: string) => void,
+	options: {
+		onPageCaptured?: (pageUrl: string) => void;
+		session?: SignedInSession;
+	} = {},
 ): Promise<CapturedPage[]> {
+	const {onPageCaptured, session} = options;
+
 	// One browser, one page at a time, and measurement follows its own page.
 	return runSequentially(pages, async (page): Promise<CapturedPage> => {
-		const opened = await capturePage(client, page);
+		const opened = await capturePage(client, page, session);
 		const measured = await measurement.measure(opened.stage);
 
 		onPageCaptured?.(page.url);
@@ -250,6 +309,18 @@ export function assembleReport(
 
 		builder.setPageMeasurement(item.measurement);
 
+		if (item.reachedUrl !== undefined) {
+			builder.setReachedUrl(item.reachedUrl);
+		}
+
+		// A page the session refused was never judged and never could have
+		// been, so it is failed rather than partial: partial would say some
+		// of it was reviewed.
+		if (item.notReached !== undefined) {
+			builder.failCurrentPage(item.failureReason ?? item.notReached, page);
+			continue;
+		}
+
 		for (const finding of measuredFindings(item.measurement, page.url)) {
 			builder.addFinding(finding);
 		}
@@ -279,5 +350,33 @@ export function assembleReport(
 			judged && item.stage === 'analysable' ? 'complete' : 'partial',
 			reason,
 		);
+	}
+}
+
+/**
+ * Close a run's browser client on the way out of a failed run.
+ *
+ * A failing teardown is logged and settled: the failure that brought the run
+ * here has already been reported, and this must not replace it.
+ *
+ * @param client - The client still open, if any
+ */
+export async function releaseBrowser(
+	client: MCPClient | undefined,
+): Promise<void> {
+	if (!client) {
+		return;
+	}
+
+	try {
+		await client.close();
+	} catch (error) {
+		logger.error('Failed to close the browser client', {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	} finally {
+		// The memo is process-wide: a closed client left in it is the one
+		// the next run would be handed.
+		resetMCPClient(client);
 	}
 }

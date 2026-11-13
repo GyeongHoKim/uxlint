@@ -37,6 +37,23 @@ const unknownProvenance: RunProvenance = {
 	externalDataAllowed: false,
 };
 
+/**
+ * The optional facts a page keeps whatever status it ends with.
+ *
+ * @param page - The page in flight, if there is one
+ * @returns Only the fields that were set
+ */
+function carriedOver(
+	page: Partial<PageAnalysis> | undefined,
+): Pick<PageAnalysis, 'measurementNote' | 'reachedUrl'> {
+	return {
+		...(page?.measurementNote !== undefined && {
+			measurementNote: page.measurementNote,
+		}),
+		...(page?.reachedUrl !== undefined && {reachedUrl: page.reachedUrl}),
+	};
+}
+
 export class ReportBuilder {
 	// Incremental building state
 	private currentPageAnalysis: Partial<PageAnalysis> | undefined;
@@ -145,6 +162,25 @@ export class ReportBuilder {
 	}
 
 	/**
+	 * Record the address the current page was actually reviewed at.
+	 *
+	 * Called only when it differs from the configured one, so that a page
+	 * reviewed where it was asked for carries no second address at all.
+	 *
+	 * @param url - The address the browser reached
+	 * @throws Error if no page analysis is initialized
+	 */
+	setReachedUrl(url: string): void {
+		if (!this.currentPageAnalysis) {
+			throw new Error(
+				'No page analysis initialized. Call initializePageAnalysis first.',
+			);
+		}
+
+		this.currentPageAnalysis.reachedUrl = url;
+	}
+
+	/**
 	 * Complete the current page analysis and add it to collection
 	 *
 	 * `'partial'` is for a run that ended without the model signalling
@@ -187,6 +223,9 @@ export class ReportBuilder {
 			// an exhausted budget or an expired time bound -- through the same
 			// channel a failure names its cause.
 			...(error !== undefined && {error}),
+			...(this.currentPageAnalysis.reachedUrl !== undefined && {
+				reachedUrl: this.currentPageAnalysis.reachedUrl,
+			}),
 			// A page that reached this point without a measurement being
 			// recorded was never measured, and says so. Defaulting to an empty
 			// success would let a page that was never audited render as one
@@ -263,9 +302,7 @@ export class ReportBuilder {
 			measurement:
 				this.currentPageAnalysis?.measurement ??
 				noMeasurement('page-not-loaded'),
-			...(this.currentPageAnalysis?.measurementNote !== undefined && {
-				measurementNote: this.currentPageAnalysis.measurementNote,
-			}),
+			...carriedOver(this.currentPageAnalysis),
 			error,
 		};
 
@@ -273,6 +310,39 @@ export class ReportBuilder {
 		this.currentPageAnalysis = undefined;
 
 		return failedAnalysis;
+	}
+
+	/**
+	 * Record every configured page as failed for one shared reason.
+	 *
+	 * For a run that could not sign in: no page was reached, and a report that
+	 * listed none of them would read as a run with nothing to review.
+	 *
+	 * Written directly rather than through `failCurrentPage`, which treats a
+	 * URL it has already settled as the same page and would record a page
+	 * configured twice only once.
+	 *
+	 * @param pages - The configured pages, in order
+	 * @param reason - Why none of them was reviewed
+	 */
+	failEveryPage(
+		pages: ReadonlyArray<{url: string; features: string}>,
+		reason: string,
+	): void {
+		this.currentPageAnalysis = undefined;
+
+		for (const page of pages) {
+			this.allAnalyses.push({
+				pageUrl: page.url,
+				features: page.features,
+				snapshot: '',
+				findings: [],
+				analysisTimestamp: Date.now(),
+				status: 'failed',
+				measurement: noMeasurement('page-not-loaded'),
+				error: reason,
+			});
+		}
 	}
 
 	/**

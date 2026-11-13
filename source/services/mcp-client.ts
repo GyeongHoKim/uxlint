@@ -16,6 +16,8 @@ import {
 } from '../models/browser.js';
 import {requiredBrowserTools} from '../models/analysis-stage.js';
 import type {PreflightVerdict} from '../models/browser-preflight.js';
+import type {Redactor} from '../models/secret-redaction.js';
+import {requiredSignInTools} from '../models/sign-in.js';
 
 /**
  * Package that provides the browser server.
@@ -388,10 +390,190 @@ export function narrowBrowserTools<T extends Record<string, unknown>>(
  * @param client - The client being released; omit to clear whatever is cached
  */
 export function resetMCPClient(client?: MCPClient): void {
-	if (client && mcpClientInstance !== client) {
+	// A redacting client stands for the client it wraps: releasing one
+	// releases the other.
+	const released = client && (wrappedClients.get(client) ?? client);
+	if (released && mcpClientInstance !== released) {
 		return;
 	}
 
 	mcpClientInstance = undefined;
 	logger.debug('MCP client instance reset');
+}
+
+/**
+ * Fail at startup when the browser server cannot carry out a sign-in.
+ *
+ * Checked only for a run that signs in, so that a server without these tools
+ * goes on serving every run that never needed them.
+ *
+ * @param tools - Everything the browser server offers
+ * @throws When `fill` or `click` is missing, naming each one that is
+ */
+export function requireSignInTools(tools: Record<string, unknown>): void {
+	const missing = requiredSignInTools.filter(
+		name => !Object.hasOwn(tools, name),
+	);
+
+	if (missing.length > 0) {
+		throw new Error(
+			`The browser server does not offer ${missing.join(
+				' or ',
+			)}, which sign-in requires. The server may be a different version than expected.`,
+		);
+	}
+}
+
+/**
+ * Wrap a browser client so that nothing it returns carries a secret.
+ *
+ * @param client - The browser client
+ * @param redact - Replaces every secret value in a text
+ * @returns A client whose tool results have been redacted
+ */
+export function redactingClient(
+	client: MCPClient,
+	redact: Redactor,
+): MCPClient {
+	const callTool = async (...args: unknown[]): Promise<unknown> => {
+		const raw = client as unknown as {
+			callTool(...args: unknown[]): Promise<unknown>;
+		};
+		return redactDeep(
+			await redactingRejection(raw.callTool(...args), redact),
+			redact,
+		);
+	};
+
+	const tools = async (...args: unknown[]): Promise<unknown> => {
+		const raw = client as unknown as {
+			tools(...args: unknown[]): Promise<Record<string, unknown>>;
+		};
+		const offered = await raw.tools(...args);
+
+		return Object.fromEntries(
+			Object.entries(offered).map(([name, tool]) => [
+				name,
+				redactingTool(tool, redact),
+			]),
+		);
+	};
+
+	const wrapped = new Proxy(client, {
+		get(target, property) {
+			if (property === 'callTool') {
+				return callTool;
+			}
+
+			if (property === 'tools') {
+				return tools;
+			}
+
+			// Everything else is the client's own, called on the client: a
+			// method handed over unbound would lose the transport it closes.
+			const member: unknown = Reflect.get(target, property, target);
+			return typeof member === 'function'
+				? (member as (...args: unknown[]) => unknown).bind(target)
+				: member;
+		},
+	});
+
+	wrappedClients.set(wrapped, client);
+	return wrapped;
+}
+
+/** Each redacting client, and the client it wraps. */
+const wrappedClients = new WeakMap<MCPClient, MCPClient>();
+
+/**
+ * A tool whose result has been redacted. Its arguments are passed on as they
+ * are: signing in has to type the secret.
+ *
+ * @param tool - A tool the browser server offers
+ * @param redact - Replaces every secret value in a text
+ * @returns The tool, or what was given when it cannot be executed
+ */
+function redactingTool(tool: unknown, redact: Redactor): unknown {
+	if (!tool || typeof tool !== 'object' || !('execute' in tool)) {
+		return tool;
+	}
+
+	const {execute} = tool as {
+		execute?: (...args: unknown[]) => Promise<unknown>;
+	};
+	if (typeof execute !== 'function') {
+		return tool;
+	}
+
+	return {
+		...tool,
+		execute: async (...args: unknown[]) =>
+			redactDeep(await redactingRejection(execute(...args), redact), redact),
+	};
+}
+
+/**
+ * Await a call, and if it is rejected, reject with a redacted message.
+ *
+ * A server's error can quote what it was asked to type. The original error is
+ * not kept as a cause: it is the thing being kept out.
+ *
+ * @param call - The call in flight
+ * @param redact - Replaces every secret value in a text
+ * @returns What the call resolved to
+ * @throws Error carrying the redacted message
+ */
+async function redactingRejection(
+	call: Promise<unknown>,
+	redact: Redactor,
+): Promise<unknown> {
+	const settled = await Promise.allSettled([call]);
+	const [outcome] = settled;
+
+	if (outcome?.status === 'fulfilled') {
+		return outcome.value;
+	}
+
+	const reason: unknown = outcome?.reason;
+	throw new Error(
+		redact(reason instanceof Error ? reason.message : String(reason)),
+	);
+}
+
+/**
+ * Redact every string inside a value, keeping its shape.
+ *
+ * A tool result is walked rather than read by its documented fields: a part
+ * of a kind this code has not met must not be the one that carries a secret
+ * through.
+ *
+ * @param value - Anything a tool returned
+ * @param redact - Replaces every secret value in a text
+ * @returns The same shape with its strings redacted
+ */
+function redactDeep(value: unknown, redact: Redactor): unknown {
+	if (typeof value === 'string') {
+		return redact(value);
+	}
+
+	if (Array.isArray(value)) {
+		return value.map(item => redactDeep(item, redact));
+	}
+
+	if (value && typeof value === 'object') {
+		// The bytes of a picture or a recording are not text a secret can be
+		// read from, and base64 spells short words by accident: replacing one
+		// would corrupt the payload.
+		const binary =
+			'type' in value && (value.type === 'image' || value.type === 'audio');
+
+		return Object.fromEntries(
+			Object.entries(value).map(([key, item]) => [
+				key,
+				binary && key === 'data' ? item : redactDeep(item, redact),
+			]),
+		);
+	}
+
+	return value;
 }

@@ -2,6 +2,7 @@ import process from 'node:process';
 import test from 'ava';
 import {
 	detectBinary,
+	launchEnvironment,
 	probeAuthenticated,
 	runLaunch,
 } from '../../../source/delegate/host/process.js';
@@ -149,4 +150,50 @@ test('the sign-in probe reports what the probe command reported', t => {
 	t.true(probeAuthenticated(process.execPath, ['-e', 'process.exit(0)']));
 	t.false(probeAuthenticated(process.execPath, ['-e', 'process.exit(1)']));
 	t.false(probeAuthenticated('uxlint-no-such-agent', ['status']));
+});
+
+// A signed-in run reads its password from the environment, and a host agent
+// started from that environment would be handed it without ever being told.
+test('a variable the launch withholds does not reach the agent, and the rest do', async t => {
+	process.env['UXLINT_TEST_WITHHELD'] = 'correct-horse-battery-staple';
+	process.env['UXLINT_TEST_KEPT'] = 'kept';
+	t.teardown(() => {
+		Reflect.deleteProperty(process.env, 'UXLINT_TEST_WITHHELD');
+		Reflect.deleteProperty(process.env, 'UXLINT_TEST_KEPT');
+	});
+
+	const outcome = await runLaunch({
+		...nodeLaunch(
+			'process.exit((process.env.UXLINT_TEST_WITHHELD === undefined ? 0 : 1) + (process.env.UXLINT_TEST_KEPT === "kept" ? 0 : 2))',
+		),
+		withheldEnvironment: ['UXLINT_TEST_WITHHELD'],
+	});
+
+	t.is(outcome.exitCode, 0);
+});
+
+// Windows reads `uxlint_password` and `UXLINT_PASSWORD` as one variable, so a
+// configuration may name a secret in a spelling the environment does not use.
+test('on Windows a withheld variable is removed whatever its spelling', t => {
+	const launch: HostLaunch = {
+		...nodeLaunch(''),
+		withheldEnvironment: ['uxlint_password'],
+	};
+	const inherited = {UXLINT_PASSWORD: 'correct-horse', Path: '/bin'};
+
+	t.deepEqual(launchEnvironment(launch, inherited, 'win32'), {
+		Path: '/bin',
+	});
+});
+
+test('elsewhere a variable spelled differently is a different variable', t => {
+	const launch: HostLaunch = {
+		...nodeLaunch(''),
+		withheldEnvironment: ['uxlint_password'],
+	};
+	const inherited = {UXLINT_PASSWORD: 'unrelated', uxlint_password: 'secret'};
+
+	t.deepEqual(launchEnvironment(launch, inherited, 'linux'), {
+		UXLINT_PASSWORD: 'unrelated',
+	});
 });

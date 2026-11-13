@@ -28,10 +28,22 @@ import {runPreflight as defaultRunPreflight} from '../services/browser-preflight
 import {
 	browserServerIdentity,
 	narrowBrowserTools,
+	resetMCPClient,
 } from '../services/mcp-client.js';
+import {secretNames} from '../models/secret-redaction.js';
 import {MeasurementService} from '../services/measurement.js';
+import {
+	checkSignInSecrets,
+	settleRunFailure,
+	signRunIn,
+} from '../services/sign-in.js';
 import type {ReportBuilder} from '../services/report-builder.js';
-import {assembleReport, captureAllPages, checkBrowser} from './capture-pass.js';
+import {
+	assembleReport,
+	captureAllPages,
+	checkBrowser,
+	releaseBrowser,
+} from './capture-pass.js';
 import {buildEvidence} from './evidence.js';
 import {collect} from './ingest.js';
 import {DelegationSession} from './session.js';
@@ -277,6 +289,14 @@ export async function runDelegatedAnalysis(
 		totalPages: config.pages.length,
 	});
 
+	// Known without starting anything, so said before anything is looked for.
+	const secretProblem = checkSignInSecrets(config);
+	if (secretProblem !== undefined) {
+		logger.error('Sign-in secrets unusable', {message: secretProblem});
+		emitVerdict(`uxlint: ${secretProblem}`);
+		return 1;
+	}
+
 	// Availability first. A host agent discovered to be missing after the
 	// capture pass has already cost a full navigation and measurement sweep,
 	// which is the exact waste FR-016 exists to prevent.
@@ -297,7 +317,16 @@ export async function runDelegatedAnalysis(
 
 	let session: DelegationSession | undefined;
 	let run: Awaited<ReturnType<typeof createDelegatedRun>> | undefined;
-	let failure: string | undefined;
+	let failure = 'analysis failed — Unknown error';
+
+	const server = browserServerIdentity();
+	const provenance = {
+		browserServer: server.name,
+		browserServerVersion: server.version,
+		browserVersion: preflight.browser.version,
+		externalDataAllowed: config.browser?.allowExternalData ?? false,
+		hostAgent: adapter.id,
+	};
 
 	try {
 		run = await createDelegatedRun(config, preflight, {client, builder});
@@ -308,23 +337,24 @@ export async function runDelegatedAnalysis(
 		// a surprise partway through a page.
 		narrowBrowserTools(await mcpClient.tools());
 
-		const server = browserServerIdentity();
-		reportBuilder.setProvenance({
-			browserServer: server.name,
-			browserServerVersion: server.version,
-			browserVersion: preflight.browser.version,
-			externalDataAllowed: config.browser?.allowExternalData ?? false,
-			hostAgent: adapter.id,
-		});
+		// Once, before any page is captured.
+		const signedIn = await signRunIn(run.session, config.signIn);
+
+		reportBuilder.setProvenance({...provenance, ...(signedIn && {signedIn})});
 		reportBuilder.setPersona(config.persona);
 
-		const measurement = new MeasurementService(mcpClient);
+		const measurement = new MeasurementService(
+			mcpClient,
+			undefined,
+			undefined,
+			run.session?.redact,
+		);
 
 		const captured = await captureAllPages(
 			mcpClient,
 			measurement,
 			config.pages,
-			onPageCaptured,
+			{onPageCaptured, session: run.session},
 		);
 
 		const evidence: PageEvidence[] = captured.map(item =>
@@ -346,11 +376,16 @@ export async function runDelegatedAnalysis(
 				: {parentDirectory: sessionParentDirectory},
 		);
 
-		const launch = adapter.buildLaunch({
-			sessionDirectory: session.directory,
-			prompt: buildPrompt(config, evidence.length),
-			server: judgementServerCommand(),
-		});
+		const launch: HostLaunch = {
+			...adapter.buildLaunch({
+				sessionDirectory: session.directory,
+				prompt: buildPrompt(config, evidence.length),
+				server: judgementServerCommand(),
+			}),
+			// The agent, and the judgement server it starts, are handed the
+			// evidence and nothing the run signed in with.
+			...(config.signIn && {withheldEnvironment: secretNames(config.signIn)}),
+		};
 
 		// Checked here rather than trusted from the adapter. An adapter edited
 		// to drop its read-only flag would otherwise hand a developer's whole
@@ -376,8 +411,14 @@ export async function runDelegatedAnalysis(
 		const report = reportBuilder.generateFinalReport();
 		await reportBuilder.saveReport(config.report.output);
 
-		await mcpClient.close();
-		run = undefined;
+		// Cleared even when close() throws, so the finally below does not
+		// close a torn-down client a second time.
+		try {
+			await mcpClient.close();
+		} finally {
+			resetMCPClient(mcpClient);
+			run = undefined;
+		}
 
 		const gate = evaluateGate(report, config.thresholds);
 		const verdict = renderGateVerdict(gate);
@@ -388,31 +429,24 @@ export async function runDelegatedAnalysis(
 
 		return gate.passed ? 0 : 1;
 	} catch (error) {
-		failure = error instanceof Error ? error.message : 'Unknown error';
 		logger.error('Delegated analysis failed', {
-			error: failure,
+			error: error instanceof Error ? error.message : 'Unknown error',
 			stack: error instanceof Error ? error.stack : undefined,
 		});
+
+		// After a failed sign-in nothing was captured, so there is nothing
+		// for a host agent to judge: the report says which pages went
+		// unreviewed and why.
+		failure = await settleRunFailure(error, config, provenance, run);
 	} finally {
 		// Unconditional on every path, including the failing one: a session
 		// directory left behind is a delegated run that did not clean up after
 		// itself on the developer's own machine.
 		await session?.dispose();
 
-		if (run) {
-			try {
-				await run.mcpClient.close();
-			} catch (closeError) {
-				logger.error('Failed to close the browser client', {
-					error:
-						closeError instanceof Error
-							? closeError.message
-							: String(closeError),
-				});
-			}
-		}
+		await releaseBrowser(run?.mcpClient);
 	}
 
-	emitVerdict(`uxlint: analysis failed — ${failure ?? 'Unknown error'}`);
+	emitVerdict(`uxlint: ${failure}`);
 	return 1;
 }

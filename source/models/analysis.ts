@@ -69,6 +69,15 @@ export type PageAnalysis = {
 	error?: string;
 
 	/**
+	 * The address the page was actually reviewed at.
+	 *
+	 * Present only when it differs from `pageUrl`, which is what a redirect
+	 * looks like from here: a reader comparing the report with the
+	 * configuration needs to know the findings describe another address.
+	 */
+	reachedUrl?: string;
+
+	/**
 	 * What was measured for this page, and what was not.
 	 *
 	 * Required, so that a page cannot exist without an answer to "was this
@@ -257,6 +266,15 @@ export type RunProvenance = {
 	 * was allowed to do.
 	 */
 	externalDataAllowed: boolean;
+
+	/**
+	 * Whether the run signed in before reviewing its pages.
+	 *
+	 * Absent when the configuration describes no sign-in. `true` when the
+	 * sign-in succeeded and `false` when it was attempted and failed, so a
+	 * report can say which of the three it was.
+	 */
+	signedIn?: boolean;
 };
 
 /**
@@ -291,6 +309,9 @@ export type UxReport = {
  */
 const analysisStages = [
 	'idle',
+	// Before the first page, when the configuration describes a sign-in. It
+	// has a name for the same reason measuring has one: seconds pass in it.
+	'signing-in',
 	'navigating',
 	'capturing',
 	// Between capture and judgement, because that is when it happens -- and it
