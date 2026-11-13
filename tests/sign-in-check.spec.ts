@@ -283,3 +283,27 @@ test('a page that prints the password is checked without the password being prin
 		),
 	);
 });
+
+test('a sign that spells a secret is not printed', async t => {
+	t.timeout(60_000);
+
+	// The account name is supplied as a secret, and the sign is that name.
+	const base = configFor(
+		['/dashboard', '/editor'],
+		[
+			{fill: 'Email', secret: 'QA_SIGN'},
+			{fill: 'Password', secret: secretName},
+			{click: 'Sign in'},
+		],
+	);
+
+	const {messages} = await check(base, {
+		environment: {[secretName]: password, QA_SIGN: 'Sign out'},
+	});
+
+	t.deepEqual(messages, [
+		'uxlint: signed in — found button "[redacted]" after 3 steps (1.2 s)',
+		`  ✓ ${origin}/dashboard`,
+		`  ✗ ${origin}/editor — signed in, but this page did not show the signed-in sign "[redacted]"`,
+	]);
+});
