@@ -93,6 +93,40 @@ export function probeAuthenticated(binary: string, args: string[]): boolean {
  * @param options.killGraceMs - How long SIGTERM is given before SIGKILL
  * @returns How the session ended
  */
+/**
+ * The environment a host agent is started with.
+ *
+ * Inherited, less whatever the run says the agent must not be handed: a
+ * signed-in run's secrets live in this environment.
+ *
+ * Windows reads a variable whatever the case of its name, so a configuration
+ * may name a secret in a spelling the environment does not use and still be
+ * given its value. Copied into a plain object the name keeps the
+ * environment's spelling, and has to be looked for the way Windows does.
+ *
+ * @param launch - What the adapter built
+ * @param inherited - The environment of this process
+ * @param platform - The platform, which decides how names are compared
+ * @returns The environment for the child
+ */
+export function launchEnvironment(
+	launch: HostLaunch,
+	inherited: Readonly<Record<string, string | undefined>> = process.env,
+	platform: string = process.platform,
+): Record<string, string | undefined> {
+	const spelling = (name: string): string =>
+		platform === 'win32' ? name.toUpperCase() : name;
+	const withheld = new Set(
+		(launch.withheldEnvironment ?? []).map(name => spelling(name)),
+	);
+
+	return Object.fromEntries(
+		Object.entries({...inherited, ...launch.env}).filter(
+			([name]) => !withheld.has(spelling(name)),
+		),
+	);
+}
+
 export async function runLaunch(
 	launch: HostLaunch,
 	options: {
@@ -109,12 +143,7 @@ export async function runLaunch(
 		// judges the developer's own project. It is settable because at least one
 		// host refuses to start depending on what the directory is, and that
 		// refusal has to be exercisable.
-		// Inherited, less whatever the run says the agent must not be handed:
-		// a signed-in run's secrets live in this environment.
-		const environment = {...process.env, ...launch.env};
-		for (const name of launch.withheldEnvironment ?? []) {
-			Reflect.deleteProperty(environment, name);
-		}
+		const environment = launchEnvironment(launch);
 
 		const child = spawn(launch.command, launch.args, {
 			env: environment,

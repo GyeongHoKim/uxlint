@@ -2,6 +2,7 @@ import process from 'node:process';
 import test from 'ava';
 import {
 	detectBinary,
+	launchEnvironment,
 	probeAuthenticated,
 	runLaunch,
 } from '../../../source/delegate/host/process.js';
@@ -169,4 +170,30 @@ test('a variable the launch withholds does not reach the agent, and the rest do'
 	});
 
 	t.is(outcome.exitCode, 0);
+});
+
+// Windows reads `uxlint_password` and `UXLINT_PASSWORD` as one variable, so a
+// configuration may name a secret in a spelling the environment does not use.
+test('on Windows a withheld variable is removed whatever its spelling', t => {
+	const launch: HostLaunch = {
+		...nodeLaunch(''),
+		withheldEnvironment: ['uxlint_password'],
+	};
+	const inherited = {UXLINT_PASSWORD: 'correct-horse', Path: '/bin'};
+
+	t.deepEqual(launchEnvironment(launch, inherited, 'win32'), {
+		Path: '/bin',
+	});
+});
+
+test('elsewhere a variable spelled differently is a different variable', t => {
+	const launch: HostLaunch = {
+		...nodeLaunch(''),
+		withheldEnvironment: ['uxlint_password'],
+	};
+	const inherited = {UXLINT_PASSWORD: 'unrelated', uxlint_password: 'secret'};
+
+	t.deepEqual(launchEnvironment(launch, inherited, 'linux'), {
+		UXLINT_PASSWORD: 'unrelated',
+	});
 });

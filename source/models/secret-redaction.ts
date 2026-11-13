@@ -97,12 +97,18 @@ function spellingsOf(value: string): string[] {
 	const urlEncoded = encodeURIComponent(value);
 	const formEncoded = urlEncoded.replaceAll('%20', '+');
 
+	// A submitted form escapes more than an address does: `~`, `!`, `'`, `(`
+	// and `)` survive `encodeURIComponent` and do not survive this.
+	const submitted = new URLSearchParams({v: value}).toString().slice(2);
+
 	return [
 		value,
 		urlEncoded,
 		formEncoded,
+		submitted,
 		lowerCaseEscapes(urlEncoded),
 		lowerCaseEscapes(formEncoded),
+		lowerCaseEscapes(submitted),
 		// As it appears inside a JSON string, which is how the audit report
 		// and a page's embedded data quote it.
 		JSON.stringify(value).slice(1, -1),

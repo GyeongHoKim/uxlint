@@ -195,3 +195,14 @@ test('a secret is replaced as markup spells it', t => {
 	);
 	t.is(redact('p&amp;ss"w&lt;o&gt;rd\'s'), redactedMarker);
 });
+
+test('a secret is replaced as a submitted form spells it', t => {
+	// A form encodes more than an address does: `~`, `!`, `'`, `(` and `)`
+	// are all escaped there.
+	const secret = "pass~word!(it's)";
+	const redact = createRedactor([secret]);
+	const submitted = new URLSearchParams({password: secret}).toString();
+
+	t.is(redact(`POST /login ${submitted}`), 'POST /login password=[redacted]');
+	t.is(redact(submitted.toLowerCase()), 'password=[redacted]');
+});
