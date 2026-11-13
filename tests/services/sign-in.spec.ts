@@ -7,6 +7,7 @@
  * seconds.
  */
 
+import {once} from 'node:events';
 import test, {type ExecutionContext} from 'ava';
 import type {experimental_MCPClient as MCPClient} from '@ai-sdk/mcp';
 import sinon from 'sinon';
@@ -747,4 +748,164 @@ test('a sign that spells a secret is still recognised in a capture already redac
 		[],
 		'no second sign-in for a page that was reached',
 	);
+});
+
+// --- what a session does once nobody is waiting for it ----------------------
+
+test('a page that cannot be opened again after signing in again is refused, not reviewed as the landing page', async t => {
+	// Signing in again lands on the dashboard, which shows the sign. A page
+	// that then fails to open leaves the dashboard on screen, and its capture
+	// would pass for the page that was asked for.
+	const {session, site, calls} = await signedInTo({origin, password});
+	site.expire();
+	const signedOut = site.script.snapshot();
+	const navigate = site.script.onNavigate?.bind(site.script);
+	site.script.onNavigate = url =>
+		url === `${origin}/billing`
+			? mcpError('net::ERR_CONNECTION_RESET at /billing')
+			: navigate?.(url);
+
+	const admission = await session.admit(`${origin}/billing`, signedOut);
+
+	t.deepEqual(admission, {
+		kind: 'refused',
+		reason: 'not-reopened',
+		detail:
+			'Signed in again, but the page could not be opened: net::ERR_CONNECTION_RESET at /billing',
+	});
+	t.is(calls.at(-1)?.name, 'navigate_page', 'nothing was captured after it');
+});
+
+test('an admission its page has given up on stops before it touches the browser again', async t => {
+	// The page's time ran out while the sign was being waited for. Signing in
+	// again from here would drive the browser under the page reviewed next.
+	const {session, site, newCalls} = await signedInTo({origin, password});
+	site.expire();
+	const page = new AbortController();
+	page.abort();
+
+	const admission = await session.admit(
+		`${origin}/billing`,
+		site.script.snapshot(),
+		page.signal,
+	);
+
+	t.is(admission.kind, 'refused');
+	t.deepEqual(newCalls(), []);
+	t.is(site.signInCount(), 1);
+});
+
+test('an admission given up on while it signs in again types nothing further', async t => {
+	const {session, site, newCalls} = await signedInTo({origin, password});
+	site.expire();
+	const page = new AbortController();
+	const navigate = site.script.onNavigate?.bind(site.script);
+	site.script.onNavigate = url => {
+		// The page's time runs out just as recovery opens the sign-in address.
+		if (url === `${origin}/login`) {
+			page.abort();
+		}
+
+		return navigate?.(url);
+	};
+
+	const admission = await session.admit(
+		`${origin}/billing`,
+		site.script.snapshot(),
+		page.signal,
+	);
+
+	t.is(admission.kind, 'refused');
+	t.deepEqual(
+		names(newCalls()).filter(name => name !== 'take_snapshot'),
+		['navigate_page'],
+		'opening the sign-in address was already under way; nothing followed it',
+	);
+});
+
+test('a step still waiting on the browser when sign-in ran out of time is not carried out afterwards', async t => {
+	// The deadline answers for the attempt, but the attempt itself is still
+	// awaiting a capture. When that capture arrives the secret must not be
+	// typed into whatever page is open by then.
+	const site = simulatedLoginSite({origin, password});
+	const browser = scriptedBrowser(site.script);
+	let captures = 0;
+	const late = new EventTarget();
+	const answered = once(late, 'answered');
+	const slow = {
+		async callTool(request: {name: string}) {
+			// The capture before the password step answers after the bound.
+			if (request.name === 'take_snapshot' && ++captures === 2) {
+				await new Promise(resolve => {
+					setTimeout(resolve, 120);
+				});
+				setImmediate(() => late.dispatchEvent(new Event('answered')));
+			}
+
+			return (
+				browser.client as unknown as {
+					callTool(request: unknown): Promise<unknown>;
+				}
+			).callTool(request);
+		},
+	} as unknown as MCPClient;
+	const {session} = sessionOver(site.script, {
+		client: slow,
+		description: {...description, timeoutMs: 40},
+	});
+
+	t.deepEqual(await session.establish(), {
+		kind: 'failed',
+		failure: {kind: 'timed-out', afterMs: 40},
+	});
+	await answered;
+	await new Promise(resolve => {
+		setImmediate(resolve);
+	});
+
+	t.false(
+		browser.calls.some(call => JSON.stringify(call).includes(password)),
+		'the password was never typed',
+	);
+	t.deepEqual(
+		names(browser.calls).filter(name => name !== 'take_snapshot'),
+		['navigate_page', 'fill'],
+	);
+});
+
+test('a sign that spells a secret is not printed in why a page was refused', async t => {
+	const account = 'qa-account-7731';
+	const redact = createRedactor([account]);
+	// Already signed in at the sign-in address, so signing in again succeeds;
+	// the page itself never shows the sign.
+	let open = `${origin}/editor`;
+	const browser = scriptedBrowser({
+		snapshot: () =>
+			open === `${origin}/login`
+				? structure('Home', `${origin}/home`, [`button "${account}"`])
+				: structure('Editor', open, ['main']),
+		onNavigate(url) {
+			open = url;
+		},
+	});
+	const session = new SignedInSession({
+		client: browser.client,
+		description: {
+			...description,
+			signedIn: {name: account, role: 'button'},
+		},
+		secrets: new Map([['QA_ACCOUNT', account]]),
+		redact,
+		async wait() {
+			// No waiting in tests.
+		},
+	});
+
+	const admission = await session.admit(
+		`${origin}/editor`,
+		structure('Editor', `${origin}/editor`, ['main']),
+	);
+
+	t.is(admission.kind === 'refused' ? admission.reason : '', 'sign-missing');
+	t.false(JSON.stringify(admission).includes(account));
 });
