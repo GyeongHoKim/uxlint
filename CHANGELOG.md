@@ -1,3 +1,22 @@
+# [4.7.0](https://github.com/GyeongHoKim/uxlint/compare/v4.6.0...v4.7.0) (2026-11-15)
+
+
+### Bug Fixes
+
+* cover form-encoded secrets and Windows variable spellings (011) ([dfad7b3](https://github.com/GyeongHoKim/uxlint/commit/dfad7b34b3a0a92907d7946c9b48bf4a932f1c92))
+* release the memoised browser client on the delegate routes ([35d41e5](https://github.com/GyeongHoKim/uxlint/commit/35d41e5f94a34722bb52ed8dcd9413bb6c5f7f6e))
+* stop a browser probe that ignores the termination signal ([1323b6b](https://github.com/GyeongHoKim/uxlint/commit/1323b6b401108e0add68b51f941ffd346e8acf11))
+* stop abandoned sign-in work and refuse a page that did not reopen (011) ([cf9abb1](https://github.com/GyeongHoKim/uxlint/commit/cf9abb193f143f2a352c2a4cf49cc7e077652a65))
+
+
+### Features
+
+* add a sign-in command that checks sign-in without a review (011) ([e5c3a57](https://github.com/GyeongHoKim/uxlint/commit/e5c3a579252d9d93008bbb569337253209e4c81a))
+* keep sign-in secrets out of everything a run produces (011) ([0d83d1d](https://github.com/GyeongHoKim/uxlint/commit/0d83d1d69d1da0fd152cabafa8a39201872a265b))
+* report a failed sign-in and the address a page was reviewed at (011) ([f802ba8](https://github.com/GyeongHoKim/uxlint/commit/f802ba87b5e5c7f8486d27ea7104759b9363c0c7))
+* sign in once before a run and review only pages reached signed in (011) ([df3f065](https://github.com/GyeongHoKim/uxlint/commit/df3f0659f52f991f0e2ddc5e110ebc28c4b7f529))
+* validate a sign-in description and sign a browser session in (011) ([a6b97f4](https://github.com/GyeongHoKim/uxlint/commit/a6b97f48fdf7ffda78b7cce4b337c6d713f692d3))
+
 # [4.6.0](https://github.com/GyeongHoKim/uxlint/compare/v4.5.0...v4.6.0) (2026-09-12)
 
 
